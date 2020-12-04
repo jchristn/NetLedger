@@ -1,4 +1,4 @@
-![alt tag](https://github.com/jchristn/netledger/blob/master/assets/icon.jpg)
+![alt tag](https://github.com/jchristn/netledger/blob/main/assets/icon.jpg)
 
 # NetLedger
 
