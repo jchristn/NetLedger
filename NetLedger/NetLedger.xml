@@ -1,0 +1,445 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>NetLedger</name>
+    </assembly>
+    <members>
+        <member name="T:NetLedger.Account">
+            <summary>
+            Account information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.Id">
+            <summary>
+            Database row ID.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.GUID">
+            <summary>
+            Globally-unique identifier for the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.Name">
+            <summary>
+            Name of the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.Notes">
+            <summary>
+            Notes for the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.CreatedUtc">
+            <summary>
+            UTC timestamp when the account was created.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Account.#ctor">
+            <summary>
+            Instantiate an account.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Account.#ctor(System.String)">
+            <summary>
+            Instantiate an account with the specified name.
+            </summary>
+            <param name="name">Name of the account.</param>
+        </member>
+        <member name="T:NetLedger.AccountEventArgs">
+            <summary>
+            Account event arguments.
+            </summary> 
+        </member>
+        <member name="P:NetLedger.AccountEventArgs.GUID">
+            <summary>
+            Globally-unique identifier for the account.
+            </summary> 
+        </member>
+        <member name="P:NetLedger.AccountEventArgs.Name">
+            <summary>
+            Name of the account.
+            </summary> 
+        </member>
+        <member name="P:NetLedger.AccountEventArgs.Notes">
+            <summary>
+            Notes for the account.
+            </summary> 
+        </member>
+        <member name="P:NetLedger.AccountEventArgs.CreatedUtc">
+            <summary>
+            UTC timestamp when the account was created.
+            </summary> 
+        </member>
+        <member name="T:NetLedger.Balance">
+            <summary>
+            Account balance information.
+            </summary> 
+        </member>
+        <member name="P:NetLedger.Balance.GUID">
+            <summary>
+            GUID of the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.Name">
+            <summary>
+            Name of the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.CreatedUtc">
+            <summary>
+            UTC timestamp when the account was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.BalanceTimestampUtc">
+            <summary>
+            UTC timestamp when the most recent balance was calculated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.CommittedBalance">
+            <summary>
+            Committed balance available in the account.
+            This balance does not include pending debits and credits.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.PendingBalance">
+            <summary>
+            Pending balance in the account.
+            This balance includes pending credits and debits.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.PendingCredits">
+            <summary>
+            Pending credits.
+            These transactions are not reflected in the committed balance.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.PendingDebits">
+            <summary>
+            Pending debits.
+            These transactions are not reflected in the committed balance.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Balance.#ctor">
+            <summary>
+            Instantiate a balance object.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Balance.PendingTransactionSummary">
+            <summary>
+            Summary of pending transactions.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.PendingTransactionSummary.Count">
+            <summary>
+            Number of pending transactions of this type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.PendingTransactionSummary.Total">
+            <summary>
+            The total of amounts for all pending transactions of this type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.PendingTransactionSummary.Entries">
+            <summary>
+            The entries associated with the pending transactions of this type.
+            </summary>
+        </member>
+        <member name="T:NetLedger.CommitEventArgs">
+            <summary>
+            Commit event arguments.
+            </summary> 
+        </member>
+        <member name="P:NetLedger.CommitEventArgs.Account">
+            <summary>
+            Account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CommitEventArgs.BalanceBefore">
+            <summary>
+            Balance from before the commit.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CommitEventArgs.BalanceAfter">
+            <summary>
+            Balance from after the commit.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CommitEventArgs.CommittedEntries">
+            <summary>
+            Committed entry GUIDs.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Entry">
+            <summary>
+            An entry in the ledger for a given account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Id">
+            <summary>
+            Database row ID.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.GUID">
+            <summary>
+            Globally-unique identifier for the entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.AccountGUID">
+            <summary>
+            Globally-unique identifier for the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Type">
+            <summary>
+            The type of entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Amount">
+            <summary>
+            The amount/value of the entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Description">
+            <summary>
+            Description of the entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.SummarizedGUIDs">
+            <summary>
+            List of entry GUIDs summarized by this entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Replaces">
+            <summary>
+            Specifies the GUID of the entry that this entry is replacing.  Used only by balance entries.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.IsCommitted">
+            <summary>
+            Indicates if the entry has been committed to the ledger and is reflected in the current balance.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.CommittedUtc">
+            <summary>
+            UTC timestamp when the entry was committed.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.CreatedUtc">
+            <summary>
+            UTC timestamp when the entry was created.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Entry.#ctor">
+            <summary>
+            Instantiate an entry.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Entry.#ctor(System.String,NetLedger.EntryType,System.Decimal,System.String,System.Collections.Generic.List{System.String},System.Boolean)">
+            <summary>
+            Instantiate an entry.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="entryType">Type of entry.</param>
+            <param name="amount">Amount/value.</param>
+            <param name="notes">Notes for the entry.</param>
+            <param name="summarizedGuids">List of GUIDs summarized by this entry.</param>
+            <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
+        </member>
+        <member name="T:NetLedger.EntryEventArgs">
+            <summary>
+            Entry event arguments.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EntryEventArgs.Account">
+            <summary>
+            Account details.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EntryEventArgs.Entry">
+            <summary>
+            Entry details.
+            </summary>
+        </member>
+        <member name="T:NetLedger.EntryType">
+            <summary>
+            The type of entry in the ledger.
+            </summary>
+        </member>
+        <member name="F:NetLedger.EntryType.Debit">
+            <summary>
+            Debit
+            </summary>
+        </member>
+        <member name="F:NetLedger.EntryType.Credit">
+            <summary>
+            Credit
+            </summary>
+        </member>
+        <member name="F:NetLedger.EntryType.Balance">
+            <summary>
+            Balance
+            </summary>
+        </member>
+        <member name="T:NetLedger.Ledger">
+            <summary>
+            NetLedger.
+            </summary>
+        </member>
+        <member name="E:NetLedger.Ledger.AccountCreated">
+            <summary>
+            Event fired when an account is created.
+            </summary>
+        </member>
+        <member name="E:NetLedger.Ledger.AccountDeleted">
+            <summary>
+            Event fired when an account is deleted.
+            </summary>
+        </member>
+        <member name="E:NetLedger.Ledger.CreditAdded">
+            <summary>
+            Event fired when a credit is added.
+            </summary>
+        </member>
+        <member name="E:NetLedger.Ledger.DebitAdded">
+            <summary>
+            Event fired when a debit is added.
+            </summary>
+        </member>
+        <member name="E:NetLedger.Ledger.EntryCanceled">
+            <summary>
+            Event fired when an entry is canceled.
+            </summary>
+        </member>
+        <member name="E:NetLedger.Ledger.EntriesCommitted">
+            <summary>
+            Event fired when entries are committed successfully.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Ledger.#ctor(System.String)">
+            <summary>
+            Instantiate the ledger.
+            </summary>
+            <param name="filename">Sqlite database filename.</param>
+        </member>
+        <member name="M:NetLedger.Ledger.CreateAccount(System.String,System.Nullable{System.Decimal})">
+            <summary>
+            Creates an account with the specified name.
+            </summary>
+            <param name="name">Name of the account.</param>
+            <param name="initialBalance">Initial balance of the account.</param>
+            <returns>String containing the GUID of the newly-created account.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.DeleteAccountByName(System.String)">
+            <summary>
+            Delete an account and associated entries by name.
+            </summary>
+            <param name="name">Name of the account.</param>
+        </member>
+        <member name="M:NetLedger.Ledger.DeleteAccountByGuid(System.String)">
+            <summary>
+            Delete an account and associated entries by account GUID.
+            </summary>
+            <param name="guid">GUID of the account.</param>
+        </member>
+        <member name="M:NetLedger.Ledger.GetAccountByName(System.String)">
+            <summary>
+            Retrieve an account by name.
+            </summary>
+            <param name="name">Name of the account.</param>
+            <returns>Account or null if it does not exist.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetAccountByGuid(System.String)">
+            <summary>
+            Retrieve an account by GUID.
+            </summary>
+            <param name="guid">GUID of the account.</param>
+            <returns>Account or null if it does not exist.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetAllAccounts(System.String)">
+            <summary>
+            Retrieve all accounts.
+            </summary>
+            <param name="searchTerm">Term to search within account names.</param>
+            <returns>List of Account objects.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.AddCredit(System.String,System.Decimal,System.String,System.Boolean)">
+            <summary>
+            Add a credit.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="amount">Amount of the credit (zero or greater).</param>
+            <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
+            <param name="notes">Notes for the transaction.</param>
+            <returns>String containing the GUID of the newly-created entry.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.AddDebit(System.String,System.Decimal,System.String,System.Boolean)">
+            <summary>
+            Add a debit.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="amount">Amount of the debit (zero or greater).</param>
+            <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
+            <param name="notes">Notes for the transaction.</param>
+            <returns>String containing the GUID of the newly-created entry.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.CancelPending(System.String,System.String)">
+            <summary>
+            Cancel a pending entry.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="entryGuid">GUID of the entry.</param>
+            <returns></returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetBalance(System.String,System.Boolean)">
+            <summary>
+            Retrieve balance details for a given account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
+            <returns>Balance details.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetPendingEntries(System.String)">
+            <summary>
+            Retrieve a list of pending entries for a given account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <returns>List of pending entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetPendingCredits(System.String)">
+            <summary>
+            Retrieve a list of pending credit entries for a given account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <returns>List of pending credit entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetPendingDebits(System.String)">
+            <summary>
+            Retrieve a list of pending debit entries for a given account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <returns>List of pending debit entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetEntries(System.String,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Decimal},System.Nullable{System.Decimal})">
+            <summary>
+            Retrieve a list of entries matching the specified conditions.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="startTimeUtc">Start time UTC.</param>
+            <param name="endTimeUtc">End time UTC.</param>
+            <param name="searchTerm">Search term that must appear in the entry description.</param>
+            <param name="entryType">The type of entry.</param>
+            <param name="amountMin">Minimum amount.</param>
+            <param name="amountMax">Maximum amount.</param>
+            <returns>List of matching entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.CommitEntries(System.String,System.Collections.Generic.List{System.String})">
+            <summary>
+            Commit pending entries to the balance.  
+            Specify entries to commit using the guids property, or leave it null to commit all pending entries.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="guids">List of entry GUIDs to commit.  Leave null to commit all pending entries.</param>
+            <returns>Balance details.</returns>
+        </member>
+    </members>
+</doc>
