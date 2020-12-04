@@ -1,4 +1,4 @@
-![alt tag](https://github.com/jchristn/NetLedger/raw/main/Assets/icon.jpg){height=128px width=128px}
+<img src="https://github.com/jchristn/NetLedger/raw/main/Assets/icon.jpg" height="128" width="128">
 
 # NetLedger
 
