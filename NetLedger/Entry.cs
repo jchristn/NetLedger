@@ -56,25 +56,25 @@ namespace NetLedger
         public string Description { get; set; } = null;
 
         /// <summary>
-        /// List of entry GUIDs summarized by this entry.
-        /// </summary>
-        [JsonProperty(Order = 995)]
-        [Column("summarizes", false, DataTypes.Blob, true)]
-        public string SummarizedGUIDs { get; set; } = null;
-
-        /// <summary>
         /// Specifies the GUID of the entry that this entry is replacing.  Used only by balance entries.
         /// </summary>
-        [JsonProperty(Order = 996)]
+        [JsonProperty(Order = 995)]
         [Column("replaces", false, DataTypes.Nvarchar, 64, true)]
         public string Replaces { get; set; } = null;
 
         /// <summary>
         /// Indicates if the entry has been committed to the ledger and is reflected in the current balance.
         /// </summary>
-        [JsonProperty(Order = 997)]
+        [JsonProperty(Order = 996)]
         [Column("committed", false, DataTypes.Boolean, false)]
         public bool IsCommitted { get; set; } = false;
+
+        /// <summary>
+        /// GUID of the entry that committed this entry.
+        /// </summary>
+        [JsonProperty(Order = 997)]
+        [Column("committedbyguid", false, DataTypes.Nvarchar, 64, true)]
+        public string CommittedByGUID { get; set; } = null;
 
         /// <summary>
         /// UTC timestamp when the entry was committed.
@@ -113,9 +113,9 @@ namespace NetLedger
         /// <param name="entryType">Type of entry.</param>
         /// <param name="amount">Amount/value.</param>
         /// <param name="notes">Notes for the entry.</param>
-        /// <param name="summarizedGuids">List of GUIDs summarized by this entry.</param>
+        /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
         /// <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
-        public Entry(string accountGuid, EntryType entryType, decimal amount, string notes = null, List<string> summarizedGuids = default, bool isCommitted = false)
+        public Entry(string accountGuid, EntryType entryType, decimal amount, string notes = null, string summarizedBy = null, bool isCommitted = false)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
@@ -124,11 +124,7 @@ namespace NetLedger
             Type = entryType;
             Amount = amount;
             Description = notes;
-
-            if (summarizedGuids != null && summarizedGuids.Count > 0)
-            {
-                SummarizedGUIDs = Common.StringListToCsv(summarizedGuids);
-            }
+            CommittedByGUID = summarizedBy;
 
             if (isCommitted)
             {

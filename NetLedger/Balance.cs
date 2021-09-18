@@ -16,8 +16,14 @@ namespace NetLedger
         /// <summary>
         /// GUID of the account.
         /// </summary>
+        [JsonProperty(Order = -9)]
+        public string AccountGUID { get; set; } = null;
+
+        /// <summary>
+        /// Entry GUID containing the latest balance entry.
+        /// </summary>
         [JsonProperty(Order = -8)]
-        public string GUID { get; set; } = null;
+        public string EntryGUID { get; set; } = null;
 
         /// <summary>
         /// Name of the account.
@@ -64,6 +70,11 @@ namespace NetLedger
         /// </summary>
         [JsonProperty(Order = -1)]
         public PendingTransactionSummary PendingDebits { get; set; } = new PendingTransactionSummary();
+
+        /// <summary>
+        /// GUIDs of committed entries.
+        /// </summary>
+        public List<string> Committed { get; set; } = new List<string>();
 
         #endregion
 

@@ -263,8 +263,9 @@ namespace Test
             {
                 decimal amount = InputDecimal("Amount:", 1m, true, true);
                 string notes = InputString("Notes:", null, true);
+                string summarizedBy = InputString("Summarized By:", null, true);
                 bool isCommitted = InputBoolean("Already Committed", false);
-                string entryGuid = _Ledger.AddCredit(guid, amount, notes, isCommitted);
+                string entryGuid = _Ledger.AddCredit(guid, amount, notes, summarizedBy, isCommitted);
                 Console.WriteLine(entryGuid);
             }
         }
@@ -291,8 +292,9 @@ namespace Test
             {
                 decimal amount = InputDecimal("Amount:", 1m, true, true);
                 string notes = InputString("Notes:", null, true);
+                string summarizedBy = InputString("Summarized By:", null, true);
                 bool isCommitted = InputBoolean("Already Committed", false);
-                string entryGuid = _Ledger.AddDebit(guid, amount, notes, isCommitted);
+                string entryGuid = _Ledger.AddDebit(guid, amount, notes, summarizedBy, isCommitted);
                 Console.WriteLine(entryGuid);
             }
         }

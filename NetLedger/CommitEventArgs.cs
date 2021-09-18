@@ -31,11 +31,6 @@ namespace NetLedger
         [JsonProperty(Order = -1)]
         public Balance BalanceAfter { get; private set; } = null;
         
-        /// <summary>
-        /// Committed entry GUIDs.
-        /// </summary>
-        public List<string> CommittedEntries { get; private set; } = null;
-         
         #endregion
 
         #region Private-Members
@@ -44,7 +39,7 @@ namespace NetLedger
 
         #region Constructors-and-Factories
          
-        internal CommitEventArgs(Account account, Balance before, Balance after, List<string> committedEntries)
+        internal CommitEventArgs(Account account, Balance before, Balance after)
         {
             if (account == null) throw new ArgumentNullException(nameof(account));
             if (before == null) throw new ArgumentNullException(nameof(before));
@@ -53,7 +48,6 @@ namespace NetLedger
             Account = account;
             BalanceBefore = before;
             BalanceAfter = after;
-            CommittedEntries = committedEntries;
         }
          
         #endregion

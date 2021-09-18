@@ -6,14 +6,15 @@
     <Authors>Joel Christner</Authors>
     <Company>Joel Christner</Company>
     <Description>NetLedger is a simple, self-contained ledgering library for adding debits and credits, checking balances, and performing commits on pending entries.  NetLedger is self-contained and uses Sqlite; should you need a version using an external database, please contact us.</Description>
-    <Copyright>(c)2020 Joel Christner</Copyright>
+    <Copyright>(c)2021 Joel Christner</Copyright>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     <PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
     <PackageIcon>icon.jpg</PackageIcon>
     <RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
     <RepositoryType>github</RepositoryType>
     <PackageTags>ledger finance credit debit balance commit pending bank banking finance account accounting expense expenses cash flow profit loss income</PackageTags>
-    <PackageReleaseNotes>Initial release</PackageReleaseNotes>
+    <PackageReleaseNotes>Enhancements to improve determining how entries were summarized</PackageReleaseNotes>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.0|AnyCPU'">

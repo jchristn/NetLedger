@@ -75,9 +75,14 @@
             Account balance information.
             </summary> 
         </member>
-        <member name="P:NetLedger.Balance.GUID">
+        <member name="P:NetLedger.Balance.AccountGUID">
             <summary>
             GUID of the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.EntryGUID">
+            <summary>
+            Entry GUID containing the latest balance entry.
             </summary>
         </member>
         <member name="P:NetLedger.Balance.Name">
@@ -117,6 +122,11 @@
             <summary>
             Pending debits.
             These transactions are not reflected in the committed balance.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.Committed">
+            <summary>
+            GUIDs of committed entries.
             </summary>
         </member>
         <member name="M:NetLedger.Balance.#ctor">
@@ -164,11 +174,6 @@
             Balance from after the commit.
             </summary>
         </member>
-        <member name="P:NetLedger.CommitEventArgs.CommittedEntries">
-            <summary>
-            Committed entry GUIDs.
-            </summary>
-        </member>
         <member name="T:NetLedger.Entry">
             <summary>
             An entry in the ledger for a given account.
@@ -204,11 +209,6 @@
             Description of the entry.
             </summary>
         </member>
-        <member name="P:NetLedger.Entry.SummarizedGUIDs">
-            <summary>
-            List of entry GUIDs summarized by this entry.
-            </summary>
-        </member>
         <member name="P:NetLedger.Entry.Replaces">
             <summary>
             Specifies the GUID of the entry that this entry is replacing.  Used only by balance entries.
@@ -217,6 +217,11 @@
         <member name="P:NetLedger.Entry.IsCommitted">
             <summary>
             Indicates if the entry has been committed to the ledger and is reflected in the current balance.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.CommittedByGUID">
+            <summary>
+            GUID of the entry that committed this entry.
             </summary>
         </member>
         <member name="P:NetLedger.Entry.CommittedUtc">
@@ -234,7 +239,7 @@
             Instantiate an entry.
             </summary>
         </member>
-        <member name="M:NetLedger.Entry.#ctor(System.String,NetLedger.EntryType,System.Decimal,System.String,System.Collections.Generic.List{System.String},System.Boolean)">
+        <member name="M:NetLedger.Entry.#ctor(System.String,NetLedger.EntryType,System.Decimal,System.String,System.String,System.Boolean)">
             <summary>
             Instantiate an entry.
             </summary>
@@ -242,7 +247,7 @@
             <param name="entryType">Type of entry.</param>
             <param name="amount">Amount/value.</param>
             <param name="notes">Notes for the entry.</param>
-            <param name="summarizedGuids">List of GUIDs summarized by this entry.</param>
+            <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
             <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
         </member>
         <member name="T:NetLedger.EntryEventArgs">
@@ -362,22 +367,24 @@
             <param name="searchTerm">Term to search within account names.</param>
             <returns>List of Account objects.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.AddCredit(System.String,System.Decimal,System.String,System.Boolean)">
+        <member name="M:NetLedger.Ledger.AddCredit(System.String,System.Decimal,System.String,System.String,System.Boolean)">
             <summary>
             Add a credit.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
             <param name="amount">Amount of the credit (zero or greater).</param>
             <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
+            <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
             <param name="notes">Notes for the transaction.</param>
             <returns>String containing the GUID of the newly-created entry.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.AddDebit(System.String,System.Decimal,System.String,System.Boolean)">
+        <member name="M:NetLedger.Ledger.AddDebit(System.String,System.Decimal,System.String,System.String,System.Boolean)">
             <summary>
             Add a debit.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
             <param name="amount">Amount of the debit (zero or greater).</param>
+            <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
             <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
             <param name="notes">Notes for the transaction.</param>
             <returns>String containing the GUID of the newly-created entry.</returns>
@@ -389,14 +396,6 @@
             <param name="accountGuid">GUID of the account.</param>
             <param name="entryGuid">GUID of the entry.</param>
             <returns></returns>
-        </member>
-        <member name="M:NetLedger.Ledger.GetBalance(System.String,System.Boolean)">
-            <summary>
-            Retrieve balance details for a given account.
-            </summary>
-            <param name="accountGuid">GUID of the account.</param>
-            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
-            <returns>Balance details.</returns>
         </member>
         <member name="M:NetLedger.Ledger.GetPendingEntries(System.String)">
             <summary>
@@ -431,6 +430,14 @@
             <param name="amountMin">Minimum amount.</param>
             <param name="amountMax">Maximum amount.</param>
             <returns>List of matching entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetBalance(System.String,System.Boolean)">
+            <summary>
+            Retrieve balance details for a given account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
+            <returns>Balance details.</returns>
         </member>
         <member name="M:NetLedger.Ledger.CommitEntries(System.String,System.Collections.Generic.List{System.String})">
             <summary>

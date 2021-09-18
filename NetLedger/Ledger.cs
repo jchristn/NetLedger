@@ -104,7 +104,7 @@ namespace NetLedger
                 if (initialBalance != null) balance.Amount = initialBalance.Value;
 
                 balance.Description = "Initial balance";
-                balance.SummarizedGUIDs = null;
+                balance.CommittedByGUID = null;
                 balance.IsCommitted = true;
 
                 DateTime ts = DateTime.Now.ToUniversalTime();
@@ -128,15 +128,14 @@ namespace NetLedger
         public void DeleteAccountByName(string name)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Equals, name);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByNameInternal(name);
             if (a != null)
             {
                 try
                 {
                     LockAccount(a.GUID);
-                    DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, a.GUID);
-                    _ORM.DeleteMany<Entry>(e2);
+                    DbExpression e = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, a.GUID);
+                    _ORM.DeleteMany<Entry>(e);
                     _ORM.Delete<Account>(a);
                 }
                 finally
@@ -154,8 +153,7 @@ namespace NetLedger
         public void DeleteAccountByGuid(string guid)
         {
             if (String.IsNullOrEmpty(guid)) throw new ArgumentNullException(nameof(guid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, guid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuidInternal(guid);
             if (a != null)
             {
                 try
@@ -181,8 +179,7 @@ namespace NetLedger
         public Account GetAccountByName(string name)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Equals, name);
-            return _ORM.SelectFirst<Account>(e1);
+            return GetAccountByNameInternal(name);
         }
 
         /// <summary>
@@ -193,8 +190,7 @@ namespace NetLedger
         public Account GetAccountByGuid(string guid)
         {
             if (String.IsNullOrEmpty(guid)) throw new ArgumentNullException(nameof(guid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, guid);
-            return _ORM.SelectFirst<Account>(e1);
+            return GetAccountByGuidInternal(guid);
         }
 
         /// <summary>
@@ -204,11 +200,7 @@ namespace NetLedger
         /// <returns>List of Account objects.</returns>
         public List<Account> GetAllAccounts(string searchTerm = null)
         {
-            DbResultOrder[] ro = new DbResultOrder[1];
-            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Account.CreatedUtc)), DbOrderDirection.Descending);
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Id)), DbOperators.GreaterThan, 0);
-            if (!String.IsNullOrEmpty(searchTerm)) e1.PrependAnd(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Contains, searchTerm);
-            return _ORM.SelectMany<Account>(null, null, e1, ro);
+            return GetAllAccountsInternal(searchTerm);
         }
 
         #endregion
@@ -221,14 +213,14 @@ namespace NetLedger
         /// <param name="accountGuid">GUID of the account.</param>
         /// <param name="amount">Amount of the credit (zero or greater).</param>
         /// <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
+        /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
         /// <param name="notes">Notes for the transaction.</param>
         /// <returns>String containing the GUID of the newly-created entry.</returns>
-        public string AddCredit(string accountGuid, decimal amount, string notes = null, bool isCommitted = false)
+        public string AddCredit(string accountGuid, decimal amount, string notes = null, string summarizedBy = null, bool isCommitted = false)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuid(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
@@ -236,7 +228,7 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, null, isCommitted);
+                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, isCommitted);
                 entry = _ORM.Insert<Entry>(entry);
                 return entry.GUID;
             }
@@ -252,15 +244,15 @@ namespace NetLedger
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
         /// <param name="amount">Amount of the debit (zero or greater).</param>
+        /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
         /// <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
         /// <param name="notes">Notes for the transaction.</param>
         /// <returns>String containing the GUID of the newly-created entry.</returns>
-        public string AddDebit(string accountGuid, decimal amount, string notes = null, bool isCommitted = false)
+        public string AddDebit(string accountGuid, decimal amount, string notes = null, string summarizedBy = null, bool isCommitted = false)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
@@ -268,7 +260,7 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, null, isCommitted);
+                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, isCommitted);
                 entry = _ORM.Insert<Entry>(entry);
                 return entry.GUID;
             }
@@ -289,8 +281,7 @@ namespace NetLedger
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (String.IsNullOrEmpty(entryGuid)) throw new ArgumentNullException(nameof(entryGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
@@ -298,11 +289,7 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), DbOperators.Equals, entryGuid);
-                entry = _ORM.SelectFirst<Entry>(e2);
+                entry = GetPendingEntryInternal(accountGuid, entryGuid);
                 if (entry == null) throw new KeyNotFoundException("Unable to find pending entry with GUID " + entryGuid + ".");
 
                 _ORM.Delete<Entry>(entry);
@@ -315,73 +302,6 @@ namespace NetLedger
         }
 
         /// <summary>
-        /// Retrieve balance details for a given account.
-        /// </summary>
-        /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
-        /// <returns>Balance details.</returns>
-        public Balance GetBalance(string accountGuid, bool applyLock = true)
-        {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
-
-            try
-            {
-                if (applyLock) LockAccount(accountGuid);
-                Balance balance = new Balance();
-
-                // Get current balance
-                DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Balance);
-
-                DbResultOrder[] ro = new DbResultOrder[1];
-                ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
-                List<Entry> balanceEntries = _ORM.SelectMany<Entry>(null, 1, e2, ro);
-
-                Entry balanceEntry = null;
-                if (balanceEntries != null && balanceEntries.Count > 0) balanceEntry = balanceEntries[0];
-                if (balanceEntry == null) throw new InvalidOperationException("No balance entry found for account with GUID " + accountGuid + ".");
-
-                balance.BalanceTimestampUtc = balanceEntry.CreatedUtc;
-                balance.CommittedBalance = balanceEntry.Amount;
-            
-                // Get pending transactions
-                DbExpression e3 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e3.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-                List<Entry> pendingEntries = _ORM.SelectMany<Entry>(null, null, e3, ro);
-
-                if (pendingEntries != null && pendingEntries.Count > 0)
-                {
-                    foreach (Entry entry in pendingEntries)
-                    {
-                        if (entry.Type == EntryType.Balance) continue;
-                        else if (entry.Type == EntryType.Credit)
-                        {
-                            balance.PendingCredits.Count++;
-                            balance.PendingCredits.Total += entry.Amount;
-                            balance.PendingCredits.Entries.Add(entry);
-                        }
-                        else if (entry.Type == EntryType.Debit)
-                        {
-                            balance.PendingDebits.Count++;
-                            balance.PendingDebits.Total += entry.Amount;
-                            balance.PendingDebits.Entries.Add(entry);
-                        }
-                    }
-                }
-
-                balance.PendingBalance = balance.CommittedBalance - balance.PendingDebits.Total + balance.PendingCredits.Total;
-                return balance;
-            }
-            finally
-            {
-                if (applyLock) UnlockAccount(accountGuid);
-            }
-        }
-
-        /// <summary>
         /// Retrieve a list of pending entries for a given account.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
@@ -389,20 +309,13 @@ namespace NetLedger
         public List<Entry> GetPendingEntries(string accountGuid)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             try
             {
                 LockAccount(accountGuid);
-                DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-
-                DbResultOrder[] ro = new DbResultOrder[1];
-                ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
-                return _ORM.SelectMany<Entry>(null, null, e2, ro);
+                return GetPendingEntriesInternal(accountGuid);
             }
             finally
             {
@@ -418,21 +331,13 @@ namespace NetLedger
         public List<Entry> GetPendingCredits(string accountGuid)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             try
             {
                 LockAccount(accountGuid);
-                DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Credit);
-
-                DbResultOrder[] ro = new DbResultOrder[1];
-                ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
-                return _ORM.SelectMany<Entry>(null, null, e2, ro);
+                return GetPendingCreditsInternal(accountGuid);
             }
             finally
             {
@@ -455,14 +360,7 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-                e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Debit);
-
-                DbResultOrder[] ro = new DbResultOrder[1];
-                ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
-                return _ORM.SelectMany<Entry>(null, null, e2, ro);
+                return GetPendingDebitsInternal(accountGuid);
             }
             finally
             {
@@ -514,6 +412,8 @@ namespace NetLedger
                 if (!String.IsNullOrEmpty(searchTerm)) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Description)), DbOperators.Contains, searchTerm);
                 if (amountMin != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), DbOperators.GreaterThanOrEqualTo, amountMin.Value);
                 if (amountMax != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), DbOperators.LessThanOrEqualTo, amountMax.Value);
+                if (entryType != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, entryType);
+                else e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.NotEquals, EntryType.Balance);
 
                 DbResultOrder[] ro = new DbResultOrder[1];
                 ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
@@ -528,6 +428,63 @@ namespace NetLedger
         #endregion
 
         #region Public-Ledgering-Methods
+
+        /// <summary>
+        /// Retrieve balance details for a given account.
+        /// </summary>
+        /// <param name="accountGuid">GUID of the account.</param>
+        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
+        /// <returns>Balance details.</returns>
+        public Balance GetBalance(string accountGuid, bool applyLock = true)
+        {
+            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
+            Account a = _ORM.SelectFirst<Account>(e1);
+            if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
+
+            try
+            {
+                if (applyLock) LockAccount(accountGuid);
+                Balance balance = new Balance();
+
+                Entry balanceEntry = GetLatestBalanceEntryInternal(accountGuid);
+                if (balanceEntry == null) throw new InvalidOperationException("No balance entry found for account with GUID " + accountGuid + ".");
+
+                balance.AccountGUID = accountGuid;
+                balance.EntryGUID = balanceEntry.GUID;
+                balance.BalanceTimestampUtc = balanceEntry.CreatedUtc;
+                balance.CommittedBalance = balanceEntry.Amount;
+
+                List<Entry> pendingEntries = GetPendingEntriesInternal(accountGuid);
+
+                if (pendingEntries != null && pendingEntries.Count > 0)
+                {
+                    foreach (Entry entry in pendingEntries)
+                    {
+                        if (entry.Type == EntryType.Balance) continue;
+                        else if (entry.Type == EntryType.Credit)
+                        {
+                            balance.PendingCredits.Count++;
+                            balance.PendingCredits.Total += entry.Amount;
+                            balance.PendingCredits.Entries.Add(entry);
+                        }
+                        else if (entry.Type == EntryType.Debit)
+                        {
+                            balance.PendingDebits.Count++;
+                            balance.PendingDebits.Total += entry.Amount;
+                            balance.PendingDebits.Entries.Add(entry);
+                        }
+                    }
+                }
+
+                balance.PendingBalance = balance.CommittedBalance - balance.PendingDebits.Total + balance.PendingCredits.Total;
+                return balance;
+            }
+            finally
+            {
+                if (applyLock) UnlockAccount(accountGuid);
+            }
+        }
 
         /// <summary>
         /// Commit pending entries to the balance.  
@@ -549,30 +506,18 @@ namespace NetLedger
             {
                 LockAccount(accountGuid);
 
-                // get account
-                account = GetAccountByGuid(accountGuid);
-
-                // get current balance
+                account = GetAccountByGuidInternal(accountGuid);
                 balanceBefore = GetBalance(accountGuid, false);
-                 
-                // get old balance entry
-                DbExpression e1 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                e1.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Balance);
-
-                DbResultOrder[] ro = new DbResultOrder[1];
-                ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
-
-                List<Entry> previousBalanceEntries = _ORM.SelectMany<Entry>(null, 1, e1, ro);
-                if (previousBalanceEntries == null || previousBalanceEntries.Count != 1) throw new InvalidOperationException("No balance entry found for account with GUID " + accountGuid + ".");
-                Entry balanceOld = previousBalanceEntries[0]; 
+                Entry balanceOld = GetLatestBalanceEntryInternal(accountGuid);
 
                 // validate requested GUIDs
                 if (guids != null && guids.Count > 0)
                 {
-                    DbExpression e3 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                    e3.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), DbOperators.In, guids);
-                    List<Entry> requestedEntries = _ORM.SelectMany<Entry>(e3);
-                    if (requestedEntries == null || requestedEntries.Count < 1) throw new KeyNotFoundException("One or more requested entries to commit were not found.");
+                    List<Entry> requestedEntries = GetEntriesByGuids(accountGuid, guids);
+                    if (requestedEntries == null || requestedEntries.Count != guids.Count)
+                    {
+                        throw new KeyNotFoundException("One or more requested entries to commit were not found.");
+                    }
 
                     foreach (Entry entry in requestedEntries)
                     {
@@ -638,7 +583,7 @@ namespace NetLedger
                 balanceNew.Type = EntryType.Balance;
                 balanceNew.Amount = balanceBefore.CommittedBalance + committedCreditsTotal - committedDebitsTotal;
                 balanceNew.Description = "Summarized balance after committing pending entries";
-                balanceNew.SummarizedGUIDs = Common.StringListToCsv(summarized);
+                balanceNew.CommittedByGUID = null;
                 balanceNew.IsCommitted = true;
                 balanceNew.Replaces = balanceOld.GUID;
                 DateTime ts = DateTime.Now.ToUniversalTime();
@@ -646,7 +591,34 @@ namespace NetLedger
                 balanceNew.CommittedUtc = ts;
                 balanceNew = _ORM.Insert<Entry>(balanceNew);
 
+                // update committed credits and debits
+                if (balanceBefore.PendingCredits.Entries != null && balanceBefore.PendingCredits.Entries.Count > 0)
+                {
+                    foreach (Entry entry in balanceBefore.PendingCredits.Entries)
+                    {
+                        if (guids != null && guids.Count > 0 && !guids.Contains(entry.GUID)) continue;
+                        entry.CommittedByGUID = balanceNew.GUID;
+                        _ORM.Update<Entry>(entry);
+                    }
+                }
+
+                // commit debits
+                if (balanceBefore.PendingDebits.Entries != null && balanceBefore.PendingDebits.Entries.Count > 0)
+                {
+                    foreach (Entry entry in balanceBefore.PendingDebits.Entries)
+                    {
+                        if (guids != null && guids.Count > 0 && !guids.Contains(entry.GUID)) continue;
+                        entry.CommittedByGUID = balanceNew.GUID;
+                        _ORM.Update<Entry>(entry);
+                    }
+                }
+
+                // updated balance before
+                balanceOld.CommittedByGUID = balanceNew.GUID;
+                balanceOld = _ORM.Update<Entry>(balanceOld);
+
                 balanceAfter = GetBalance(accountGuid, false);
+                balanceAfter.Committed = summarized;
 
                 // return new balance
                 return balanceAfter;
@@ -655,7 +627,7 @@ namespace NetLedger
             {
                 UnlockAccount(accountGuid);
                 if (balanceBefore != null && balanceAfter != null)
-                    Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter, summarized)));
+                    Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter)));
             }
         }
 
@@ -674,6 +646,90 @@ namespace NetLedger
         private void UnlockAccount(string accountGuid)
         {
             _LockedAccounts.TryRemove(accountGuid, out _);
+        }
+
+        private List<Account> GetAllAccountsInternal(string searchTerm = null)
+        {
+            DbResultOrder[] ro = new DbResultOrder[1];
+            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Account.CreatedUtc)), DbOrderDirection.Descending);
+            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Id)), DbOperators.GreaterThan, 0);
+            if (!String.IsNullOrEmpty(searchTerm)) e1.PrependAnd(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Contains, searchTerm);
+            return _ORM.SelectMany<Account>(null, null, e1, ro);
+        }
+
+        private Account GetAccountByNameInternal(string name)
+        {
+            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Equals, name);
+            return _ORM.SelectFirst<Account>(e1);
+        }
+
+        private Account GetAccountByGuidInternal(string accountGuid)
+        {
+            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
+            return _ORM.SelectFirst<Account>(e1);
+        }
+
+        private Entry GetPendingEntryInternal(string accountGuid, string entryGuid)
+        {
+            DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), DbOperators.Equals, entryGuid);
+            return _ORM.SelectFirst<Entry>(e2);
+        }
+
+        private List<Entry> GetPendingEntriesInternal(string accountGuid)
+        {
+            DbExpression e = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
+            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
+            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
+
+            DbResultOrder[] ro = new DbResultOrder[1];
+            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            return _ORM.SelectMany<Entry>(null, null, e, ro);
+        }
+
+        private List<Entry> GetPendingCreditsInternal(string accountGuid)
+        {
+            DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Credit);
+
+            DbResultOrder[] ro = new DbResultOrder[1];
+            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            return _ORM.SelectMany<Entry>(null, null, e2, ro);
+        }
+
+        private List<Entry> GetPendingDebitsInternal(string accountGuid)
+        {
+            DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Debit);
+
+            DbResultOrder[] ro = new DbResultOrder[1];
+            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            return _ORM.SelectMany<Entry>(null, null, e2, ro);
+        }
+
+        private Entry GetLatestBalanceEntryInternal(string accountGuid)
+        {
+            DbExpression e = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
+            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Balance);
+
+            DbResultOrder[] ro = new DbResultOrder[1];
+            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            List<Entry> balanceEntries = _ORM.SelectMany<Entry>(null, 1, e, ro);
+            if (balanceEntries != null && balanceEntries.Count == 1) return balanceEntries[0];
+            return null;
+        }
+
+        private List<Entry> GetEntriesByGuids(string accountGuid, List<string> guids)
+        {
+            DbExpression e3 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
+            e3.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), DbOperators.In, guids);
+            return _ORM.SelectMany<Entry>(e3);
         }
 
         #endregion
