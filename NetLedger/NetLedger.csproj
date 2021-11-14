@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;netstandard2.1;netcoreapp3.1;net461;net5.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;netcoreapp3.1;net461;net5.0;net6.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Joel Christner</Authors>
     <Company>Joel Christner</Company>
@@ -13,8 +13,8 @@
     <RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
     <RepositoryType>github</RepositoryType>
     <PackageTags>ledger finance credit debit balance commit pending bank banking finance account accounting expense expenses cash flow profit loss income</PackageTags>
-    <PackageReleaseNotes>Enhancements to improve determining how entries were summarized</PackageReleaseNotes>
-    <Version>1.1.0</Version>
+    <PackageReleaseNotes>.NET 6 support</PackageReleaseNotes>
+    <Version>1.1.0.1</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.0|AnyCPU'">
@@ -40,8 +40,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="WatsonORM.Sqlite" Version="1.3.0.21" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="WatsonORM.Sqlite" Version="1.3.5.3" />
   </ItemGroup>
 
 </Project>
