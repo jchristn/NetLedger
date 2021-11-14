@@ -88,6 +88,7 @@ namespace NetLedger
         public string CreateAccount(string name, decimal? initialBalance = null)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name)); 
+            
             Account a = new Account(name);
             a = _ORM.Insert<Account>(a);
 
@@ -128,6 +129,7 @@ namespace NetLedger
         public void DeleteAccountByName(string name)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            
             Account a = GetAccountByNameInternal(name);
             if (a != null)
             {
@@ -153,6 +155,7 @@ namespace NetLedger
         public void DeleteAccountByGuid(string guid)
         {
             if (String.IsNullOrEmpty(guid)) throw new ArgumentNullException(nameof(guid));
+            
             Account a = GetAccountByGuidInternal(guid);
             if (a != null)
             {
@@ -220,6 +223,7 @@ namespace NetLedger
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
+            
             Account a = GetAccountByGuid(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
@@ -252,6 +256,7 @@ namespace NetLedger
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
+            
             Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
@@ -281,6 +286,7 @@ namespace NetLedger
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (String.IsNullOrEmpty(entryGuid)) throw new ArgumentNullException(nameof(entryGuid));
+            
             Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
@@ -309,6 +315,7 @@ namespace NetLedger
         public List<Entry> GetPendingEntries(string accountGuid)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+
             Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
@@ -331,6 +338,7 @@ namespace NetLedger
         public List<Entry> GetPendingCredits(string accountGuid)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+
             Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
@@ -353,8 +361,8 @@ namespace NetLedger
         public List<Entry> GetPendingDebits(string accountGuid)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             try
@@ -379,7 +387,8 @@ namespace NetLedger
         /// <param name="amountMin">Minimum amount.</param>
         /// <param name="amountMax">Maximum amount.</param>
         /// <returns>List of matching entries.</returns>
-        public List<Entry> GetEntries(string accountGuid, 
+        public List<Entry> GetEntries(
+            string accountGuid, 
             DateTime? startTimeUtc = null, 
             DateTime? endTimeUtc = null, 
             string searchTerm = null, 
@@ -399,8 +408,8 @@ namespace NetLedger
             if (amountMax != null && amountMax.Value < 0) throw new ArgumentException("Maximum amount must be zero or greater.");
 
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             try
@@ -438,8 +447,7 @@ namespace NetLedger
         public Balance GetBalance(string accountGuid, bool applyLock = true)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
-            Account a = _ORM.SelectFirst<Account>(e1);
+            Account a = GetAccountByGuidInternal(accountGuid);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             try

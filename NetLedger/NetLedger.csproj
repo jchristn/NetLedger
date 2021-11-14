@@ -14,7 +14,7 @@
     <RepositoryType>github</RepositoryType>
     <PackageTags>ledger finance credit debit balance commit pending bank banking finance account accounting expense expenses cash flow profit loss income</PackageTags>
     <PackageReleaseNotes>.NET 6 support</PackageReleaseNotes>
-    <Version>1.1.0.1</Version>
+    <Version>1.1.0.2</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.0|AnyCPU'">
