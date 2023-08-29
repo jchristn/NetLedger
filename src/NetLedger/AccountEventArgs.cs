@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using Watson.ORM.Core;
-using Newtonsoft.Json;
 
 namespace NetLedger
 {
@@ -15,20 +14,17 @@ namespace NetLedger
 
         /// <summary>
         /// Globally-unique identifier for the account.
-        /// </summary> 
-        [JsonProperty(Order = -3)]
+        /// </summary>
         public string GUID { get; private set; } = null;
 
         /// <summary>
         /// Name of the account.
-        /// </summary> 
-        [JsonProperty(Order = -2)]
+        /// </summary>
         public string Name { get; private set; } = null;
 
         /// <summary>
         /// Notes for the account.
-        /// </summary> 
-        [JsonProperty(Order = -1)]
+        /// </summary>
         public string Notes { get; private set; } = null;
 
         /// <summary>

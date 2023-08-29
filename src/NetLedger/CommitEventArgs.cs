@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using Watson.ORM.Core;
-using Newtonsoft.Json;
 
 namespace NetLedger
 {
@@ -16,19 +15,16 @@ namespace NetLedger
         /// <summary>
         /// Account.
         /// </summary>
-        [JsonProperty(Order = -3)]
         public Account Account { get; private set; } = null;
 
         /// <summary>
         /// Balance from before the commit.
         /// </summary>
-        [JsonProperty(Order = -2)]
         public Balance BalanceBefore { get; private set; } = null;
 
         /// <summary>
         /// Balance from after the commit.
         /// </summary>
-        [JsonProperty(Order = -1)]
         public Balance BalanceAfter { get; private set; } = null;
         
         #endregion

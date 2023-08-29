@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using Watson.ORM.Core;
-using Newtonsoft.Json;
 
 namespace NetLedger
 {
@@ -16,7 +15,6 @@ namespace NetLedger
         /// <summary>
         /// Account details.
         /// </summary>
-        [JsonProperty(Order = -1)]
         public Account Account { get; private set; } = null;
 
         /// <summary>

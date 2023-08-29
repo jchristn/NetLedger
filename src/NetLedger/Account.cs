@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using Watson.ORM.Core;
-using Newtonsoft.Json;
 
 namespace NetLedger
 {
@@ -17,21 +16,18 @@ namespace NetLedger
         /// <summary>
         /// Database row ID.
         /// </summary>
-        [JsonIgnore]
         [Column("id", true, DataTypes.Int, false)]
         public int Id { get; set; } = 0;
 
         /// <summary>
         /// Globally-unique identifier for the account.
         /// </summary>
-        [JsonProperty(Order = -2)]
         [Column("guid", false, DataTypes.Nvarchar, 64, false)]
         public string GUID { get; set; } = Guid.NewGuid().ToString();
 
         /// <summary>
         /// Name of the account.
         /// </summary>
-        [JsonProperty(Order = -1)]
         [Column("name", false, DataTypes.Nvarchar, 256, false)]
         public string Name { get; set; } = null;
 
@@ -44,7 +40,6 @@ namespace NetLedger
         /// <summary>
         /// UTC timestamp when the account was created.
         /// </summary>
-        [JsonProperty(Order = 999)]
         [Column("createdutc", false, DataTypes.DateTime, false)]
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
 

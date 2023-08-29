@@ -6,13 +6,14 @@
 
 NetLedger is a simple, self-contained ledgering library for adding debits and credits, checking balances, and performing commits on pending entries.  NetLedger uses Sqlite and is self-contained.  If you wish to have a version that uses an external database, please contact us.
 
-## New in v1.1.0
+## New in v1.1.x
 
 - Breaking changes
 - ```SummarizedGUIDs``` is now ```CommittedByGUID``` in committed entries rather than the balance entry
 - Entry now have a ```CommittedUtc```
 - Balance object now has an ```EntryGUID``` property
 - Balance object now has list of committed GUIDs in the ```Committed``` property
+- Bugfix when adding committed entries
 
 ## Simple Example
 

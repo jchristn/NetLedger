@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using GetSomeInput;
 using NetLedger;
-using Newtonsoft.Json;
 
 namespace Test
 {
@@ -17,7 +17,7 @@ namespace Test
             Console.WriteLine("");
             Console.WriteLine("NetLedger");
             Console.WriteLine("");
-            _Filename = InputString("Database file:", "netledger.db", false);
+            _Filename = Inputty.GetString("Database file:", "netledger.db", false);
             _Ledger = new Ledger(_Filename);
             
             _Ledger.CreditAdded += CreditAddedEvent;
@@ -31,7 +31,7 @@ namespace Test
 
             while (_RunForever)
             {
-                string cmd = InputString("Command [? for help]:", null, false);
+                string cmd = Inputty.GetString("Command [? for help]:", null, false);
                 string subCmd = null;
 
                 if (cmd.Equals("q"))
@@ -167,12 +167,12 @@ namespace Test
             string searchTerm = Console.ReadLine();
             List<Account> accounts = _Ledger.GetAllAccounts(searchTerm);
             if (accounts == null || accounts.Count < 1) Console.WriteLine("(none)");
-            else Console.WriteLine(SerializeJson(accounts, true));
+            else Console.WriteLine(SerializationHelper.SerializeJson(accounts, true));
         }
 
         static void AccountAdd()
         {
-            string name = InputString("Name:", null, true);
+            string name = Inputty.GetString("Name:", null, true);
             if (!String.IsNullOrEmpty(name))
             {
                 string guid = _Ledger.CreateAccount(name);
@@ -183,14 +183,14 @@ namespace Test
 
         static void AccountByName()
         {
-            string name = InputString("Name:", null, true);
+            string name = Inputty.GetString("Name:", null, true);
             if (!String.IsNullOrEmpty(name))
             {
                 Account a = _Ledger.GetAccountByName(name);
                 if (a != null)
                 {
                     _LastAccountGuid = a.GUID;
-                    Console.WriteLine(SerializeJson(a, true));
+                    Console.WriteLine(SerializationHelper.SerializeJson(a, true));
                 }
                 else Console.WriteLine("(none)");
             }
@@ -198,14 +198,14 @@ namespace Test
 
         static void AccountByGuid()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
                 Account a = _Ledger.GetAccountByGuid(guid);
                 if (a != null)
                 {
                     _LastAccountGuid = a.GUID;
-                    Console.WriteLine(SerializeJson(a, true));
+                    Console.WriteLine(SerializationHelper.SerializeJson(a, true));
                 }
                 else Console.WriteLine("(none)");
             }
@@ -213,7 +213,7 @@ namespace Test
 
         static void AccountDeleteByName()
         {
-            string name = InputString("Name:", null, true);
+            string name = Inputty.GetString("Name:", null, true);
             if (!String.IsNullOrEmpty(name))
             {
                 _Ledger.DeleteAccountByName(name);
@@ -222,7 +222,7 @@ namespace Test
 
         static void AccountDeleteByGuid()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
                 _Ledger.DeleteAccountByGuid(guid);
@@ -231,23 +231,23 @@ namespace Test
 
         static void AccountBalance()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
                 Balance b = _Ledger.GetBalance(guid);
-                if (b != null) Console.WriteLine(SerializeJson(b, true));
+                if (b != null) Console.WriteLine(SerializationHelper.SerializeJson(b, true));
                 else Console.WriteLine("(none)");
             }
         }
 
         static void AccountCommit()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
-                List<string> entries = InputStringList("Entry GUID:", true);
+                List<string> entries = Inputty.GetStringList("Entry GUID:", true);
                 Balance b = _Ledger.CommitEntries(guid, entries); 
-                if (b != null) Console.WriteLine(SerializeJson(b, true));
+                if (b != null) Console.WriteLine(SerializationHelper.SerializeJson(b, true));
                 else Console.WriteLine("(none)");
             }
         }
@@ -258,13 +258,13 @@ namespace Test
 
         static void CreditAdd()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
-                decimal amount = InputDecimal("Amount:", 1m, true, true);
-                string notes = InputString("Notes:", null, true);
-                string summarizedBy = InputString("Summarized By:", null, true);
-                bool isCommitted = InputBoolean("Already Committed", false);
+                decimal amount = Inputty.GetDecimal("Amount:", 1m, true, true);
+                string notes = Inputty.GetString("Notes:", null, true);
+                string summarizedBy = Inputty.GetString("Summarized By:", null, true);
+                bool isCommitted = Inputty.GetBoolean("Already Committed", false);
                 string entryGuid = _Ledger.AddCredit(guid, amount, notes, summarizedBy, isCommitted);
                 Console.WriteLine(entryGuid);
             }
@@ -272,11 +272,11 @@ namespace Test
 
         static void CreditsPending()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
                 List<Entry> entries = _Ledger.GetPendingCredits(guid);
-                if (entries != null && entries.Count > 0) Console.WriteLine(SerializeJson(entries, true));
+                if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
         }
@@ -287,13 +287,13 @@ namespace Test
 
         static void DebitAdd()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
-                decimal amount = InputDecimal("Amount:", 1m, true, true);
-                string notes = InputString("Notes:", null, true);
-                string summarizedBy = InputString("Summarized By:", null, true);
-                bool isCommitted = InputBoolean("Already Committed", false);
+                decimal amount = Inputty.GetDecimal("Amount:", 1m, true, true);
+                string notes = Inputty.GetString("Notes:", null, true);
+                string summarizedBy = Inputty.GetString("Summarized By:", null, true);
+                bool isCommitted = Inputty.GetBoolean("Already Committed", false);
                 string entryGuid = _Ledger.AddDebit(guid, amount, notes, summarizedBy, isCommitted);
                 Console.WriteLine(entryGuid);
             }
@@ -301,11 +301,11 @@ namespace Test
 
         static void DebitsPending()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
                 List<Entry> entries = _Ledger.GetPendingDebits(guid);
-                if (entries != null && entries.Count > 0) Console.WriteLine(SerializeJson(entries, true));
+                if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
         }
@@ -316,48 +316,48 @@ namespace Test
 
         static void EntriesPending()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
                 List<Entry> entries = _Ledger.GetPendingEntries(guid);
-                if (entries != null && entries.Count > 0) Console.WriteLine(SerializeJson(entries, true));
+                if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
         }
 
         static void EntrySearch()
         {
-            string guid = InputString("GUID:", _LastAccountGuid, true);
+            string guid = Inputty.GetString("GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(guid))
             {
-                string startDateStr = InputString("Start date:", null, true);
-                string endDateStr = InputString("End date:", null, true);
+                string startDateStr = Inputty.GetString("Start date:", null, true);
+                string endDateStr = Inputty.GetString("End date:", null, true);
                 DateTime? startDate = null;
                 DateTime? endDate = null;
                 if (!String.IsNullOrEmpty(startDateStr)) startDate = Convert.ToDateTime(startDateStr);
                 if (!String.IsNullOrEmpty(endDateStr)) endDate = Convert.ToDateTime(endDateStr);
 
-                string searchTerm = InputString("Search term:", null, true);
+                string searchTerm = Inputty.GetString("Search term:", null, true);
 
-                string minAmountStr = InputString("Minimum amount:", null, true);
-                string maxAmountStr = InputString("Maximum amount:", null, true);
+                string minAmountStr = Inputty.GetString("Minimum amount:", null, true);
+                string maxAmountStr = Inputty.GetString("Maximum amount:", null, true);
                 decimal? minAmount = null;
                 decimal? maxAmount = null;
                 if (!String.IsNullOrEmpty(minAmountStr)) minAmount = Convert.ToDecimal(minAmountStr);
                 if (!String.IsNullOrEmpty(maxAmountStr)) maxAmount = Convert.ToDecimal(maxAmountStr);
 
                 List<Entry> entries = _Ledger.GetEntries(guid, startDate, endDate, searchTerm, null, minAmount, maxAmount);
-                if (entries != null && entries.Count > 0) Console.WriteLine(SerializeJson(entries, true));
+                if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
         }
 
         static void EntryCancel()
         {
-            string acctGuid = InputString("Account GUID:", _LastAccountGuid, true);
+            string acctGuid = Inputty.GetString("Account GUID:", _LastAccountGuid, true);
             if (!String.IsNullOrEmpty(acctGuid))
             {
-                string entryGuid = InputString("Entry GUID:", null, true);
+                string entryGuid = Inputty.GetString("Entry GUID:", null, true);
                 if (!String.IsNullOrEmpty(entryGuid))
                 {
                     _Ledger.CancelPending(acctGuid, entryGuid);
@@ -372,251 +372,43 @@ namespace Test
         static void CreditAddedEvent(object sender, EntryEventArgs args)
         {
             Console.WriteLine("");
-            Console.WriteLine("Credit added event:" + Environment.NewLine + SerializeJson(args, true));
+            Console.WriteLine("Credit added event:" + Environment.NewLine + SerializationHelper.SerializeJson(args, true));
             Console.WriteLine("");
         }
 
         static void DebitAddedEvent(object sender, EntryEventArgs args)
         {
             Console.WriteLine("");
-            Console.WriteLine("Debit added event:" + Environment.NewLine + SerializeJson(args, true));
+            Console.WriteLine("Debit added event:" + Environment.NewLine + SerializationHelper.SerializeJson(args, true));
             Console.WriteLine("");
         }
 
         static void EntryCanceledEvent(object sender, EntryEventArgs args)
         {
             Console.WriteLine("");
-            Console.WriteLine("Entry canceled event:" + Environment.NewLine + SerializeJson(args, true));
+            Console.WriteLine("Entry canceled event:" + Environment.NewLine + SerializationHelper.SerializeJson(args, true));
             Console.WriteLine("");
         }
 
         static void AccountCreatedEvent(object sender, AccountEventArgs args)
         {
             Console.WriteLine("");
-            Console.WriteLine("Account created event:" + Environment.NewLine + SerializeJson(args, true));
+            Console.WriteLine("Account created event:" + Environment.NewLine + SerializationHelper.SerializeJson(args, true));
             Console.WriteLine("");
         }
 
         static void AccountDeletedEvent(object sender, AccountEventArgs args)
         {
             Console.WriteLine("");
-            Console.WriteLine("Account deleted event:" + Environment.NewLine + SerializeJson(args, true));
+            Console.WriteLine("Account deleted event:" + Environment.NewLine + SerializationHelper.SerializeJson(args, true));
             Console.WriteLine("");
         }
 
         static void EntriesCommittedEvent(object sender, CommitEventArgs args)
         {
             Console.WriteLine("");
-            Console.WriteLine("Entries committed event:" + Environment.NewLine + SerializeJson(args, true));
+            Console.WriteLine("Entries committed event:" + Environment.NewLine + SerializationHelper.SerializeJson(args, true));
             Console.WriteLine("");
-        }
-
-        #endregion
-
-        #region Misc
-
-        static string SerializeJson(object obj, bool pretty)
-        {
-            if (obj == null) return null;
-            string json;
-
-            if (pretty)
-            {
-                json = JsonConvert.SerializeObject(
-                  obj,
-                  Newtonsoft.Json.Formatting.Indented,
-                  new JsonSerializerSettings
-                  {
-                      NullValueHandling = NullValueHandling.Ignore,
-                      DateTimeZoneHandling = DateTimeZoneHandling.Utc,
-                  });
-            }
-            else
-            {
-                json = JsonConvert.SerializeObject(obj,
-                  new JsonSerializerSettings
-                  {
-                      NullValueHandling = NullValueHandling.Ignore,
-                      DateTimeZoneHandling = DateTimeZoneHandling.Utc
-                  });
-            }
-
-            return json;
-        }
-
-        static bool InputBoolean(string question, bool yesDefault)
-        {
-            Console.Write(question);
-
-            if (yesDefault) Console.Write(" [Y/n]? ");
-            else Console.Write(" [y/N]? ");
-
-            string userInput = Console.ReadLine();
-
-            if (String.IsNullOrEmpty(userInput))
-            {
-                if (yesDefault) return true;
-                return false;
-            }
-
-            userInput = userInput.ToLower();
-
-            if (yesDefault)
-            {
-                if (
-                    (String.Compare(userInput, "n") == 0)
-                    || (String.Compare(userInput, "no") == 0)
-                   )
-                {
-                    return false;
-                }
-
-                return true;
-            }
-            else
-            {
-                if (
-                    (String.Compare(userInput, "y") == 0)
-                    || (String.Compare(userInput, "yes") == 0)
-                   )
-                {
-                    return true;
-                }
-
-                return false;
-            }
-        }
-
-        static string InputString(string question, string defaultAnswer, bool allowNull)
-        {
-            while (true)
-            {
-                Console.Write(question);
-
-                if (!String.IsNullOrEmpty(defaultAnswer))
-                {
-                    Console.Write(" [" + defaultAnswer + "]");
-                }
-
-                Console.Write(" ");
-
-                string userInput = Console.ReadLine();
-
-                if (String.IsNullOrEmpty(userInput))
-                {
-                    if (!String.IsNullOrEmpty(defaultAnswer)) return defaultAnswer;
-                    if (allowNull) return null;
-                    else continue;
-                }
-
-                return userInput;
-            }
-        }
-
-        static int InputInteger(string question, int defaultAnswer, bool positiveOnly, bool allowZero)
-        {
-            while (true)
-            {
-                Console.Write(question);
-                Console.Write(" [" + defaultAnswer + "] ");
-
-                string userInput = Console.ReadLine();
-
-                if (String.IsNullOrEmpty(userInput))
-                {
-                    return defaultAnswer;
-                }
-
-                int ret = 0;
-                if (!Int32.TryParse(userInput, out ret))
-                {
-                    Console.WriteLine("Please enter a valid integer.");
-                    continue;
-                }
-
-                if (ret == 0)
-                {
-                    if (allowZero)
-                    {
-                        return 0;
-                    }
-                }
-
-                if (ret < 0)
-                {
-                    if (positiveOnly)
-                    {
-                        Console.WriteLine("Please enter a value greater than zero.");
-                        continue;
-                    }
-                }
-
-                return ret;
-            }
-        }
-
-        static decimal InputDecimal(string question, decimal defaultAnswer, bool positiveOnly, bool allowZero)
-        {
-            while (true)
-            {
-                Console.Write(question);
-                Console.Write(" [" + defaultAnswer + "] ");
-
-                string userInput = Console.ReadLine();
-
-                if (String.IsNullOrEmpty(userInput))
-                {
-                    return defaultAnswer;
-                }
-
-                decimal ret = 0;
-                if (!Decimal.TryParse(userInput, out ret))
-                {
-                    Console.WriteLine("Please enter a valid decimal.");
-                    continue;
-                }
-
-                if (ret == 0)
-                {
-                    if (allowZero)
-                    {
-                        return 0;
-                    }
-                }
-
-                if (ret < 0)
-                {
-                    if (positiveOnly)
-                    {
-                        Console.WriteLine("Please enter a value greater than zero.");
-                        continue;
-                    }
-                }
-
-                return ret;
-            }
-        }
-
-        static List<string> InputStringList(string question, bool allowEmpty)
-        {
-            List<string> ret = new List<string>();
-
-            while (true)
-            {
-                Console.Write(question);
-
-                Console.Write(" ");
-
-                string userInput = Console.ReadLine();
-
-                if (String.IsNullOrEmpty(userInput))
-                {
-                    if (ret.Count < 1 && !allowEmpty) continue;
-                    return ret;
-                }
-
-                ret.Add(userInput);
-            }
         }
 
         #endregion

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DatabaseWrapper.Core;
+using ExpressionTree;
 using Watson.ORM.Core;
 using Watson.ORM.Sqlite;
 
@@ -136,7 +138,7 @@ namespace NetLedger
                 try
                 {
                     LockAccount(a.GUID);
-                    DbExpression e = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, a.GUID);
+                    Expr e = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, a.GUID);
                     _ORM.DeleteMany<Entry>(e);
                     _ORM.Delete<Account>(a);
                 }
@@ -162,7 +164,7 @@ namespace NetLedger
                 try
                 {
                     LockAccount(a.GUID);
-                    DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, a.GUID);
+                    Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, a.GUID);
                     _ORM.DeleteMany<Entry>(e2);
                     _ORM.Delete<Account>(a);
                 }
@@ -232,8 +234,14 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, isCommitted);
+                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
                 entry = _ORM.Insert<Entry>(entry);
+
+                if (isCommitted)
+                {
+                    Balance updated = CommitEntries(accountGuid, new List<string> { entry.GUID }, false);
+                }
+
                 return entry.GUID;
             }
             finally
@@ -265,8 +273,14 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, isCommitted);
+                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
                 entry = _ORM.Insert<Entry>(entry);
+
+                if (isCommitted)
+                {
+                    Balance updated = CommitEntries(accountGuid, new List<string> { entry.GUID }, false);
+                }
+
                 return entry.GUID;
             }
             finally
@@ -415,17 +429,17 @@ namespace NetLedger
             try
             {
                 LockAccount(accountGuid);
-                DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-                if (startTimeUtc != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOperators.GreaterThanOrEqualTo, startTimeUtc.Value);
-                if (endTimeUtc != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOperators.LessThanOrEqualTo, endTimeUtc.Value);
-                if (!String.IsNullOrEmpty(searchTerm)) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Description)), DbOperators.Contains, searchTerm);
-                if (amountMin != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), DbOperators.GreaterThanOrEqualTo, amountMin.Value);
-                if (amountMax != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), DbOperators.LessThanOrEqualTo, amountMax.Value);
-                if (entryType != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, entryType);
-                else e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.NotEquals, EntryType.Balance);
+                Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+                if (startTimeUtc != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OperatorEnum.GreaterThanOrEqualTo, startTimeUtc.Value);
+                if (endTimeUtc != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OperatorEnum.LessThanOrEqualTo, endTimeUtc.Value);
+                if (!String.IsNullOrEmpty(searchTerm)) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Description)), OperatorEnum.Contains, searchTerm);
+                if (amountMin != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), OperatorEnum.GreaterThanOrEqualTo, amountMin.Value);
+                if (amountMax != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), OperatorEnum.LessThanOrEqualTo, amountMax.Value);
+                if (entryType != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, entryType);
+                else e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.NotEquals, EntryType.Balance);
 
-                DbResultOrder[] ro = new DbResultOrder[1];
-                ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+                ResultOrder[] ro = new ResultOrder[1];
+                ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
                 return _ORM.SelectMany<Entry>(null, null, e2, ro);
             }
             finally
@@ -500,8 +514,9 @@ namespace NetLedger
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
         /// <param name="guids">List of entry GUIDs to commit.  Leave null to commit all pending entries.</param>
+        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
         /// <returns>Balance details.</returns>
-        public Balance CommitEntries(string accountGuid, List<string> guids = null)
+        public Balance CommitEntries(string accountGuid, List<string> guids = null, bool applyLock = true)
         {
             if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
 
@@ -512,7 +527,7 @@ namespace NetLedger
 
             try
             {
-                LockAccount(accountGuid);
+                if (applyLock) LockAccount(accountGuid);
 
                 account = GetAccountByGuidInternal(accountGuid);
                 balanceBefore = GetBalance(accountGuid, false);
@@ -633,7 +648,7 @@ namespace NetLedger
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                if (applyLock) UnlockAccount(accountGuid);
                 if (balanceBefore != null && balanceAfter != null)
                     Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter)));
             }
@@ -658,76 +673,76 @@ namespace NetLedger
 
         private List<Account> GetAllAccountsInternal(string searchTerm = null)
         {
-            DbResultOrder[] ro = new DbResultOrder[1];
-            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Account.CreatedUtc)), DbOrderDirection.Descending);
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Id)), DbOperators.GreaterThan, 0);
-            if (!String.IsNullOrEmpty(searchTerm)) e1.PrependAnd(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Contains, searchTerm);
+            ResultOrder[] ro = new ResultOrder[1];
+            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Account.CreatedUtc)), OrderDirectionEnum.Descending);
+            Expr e1 = new Expr(_ORM.GetColumnName<Account>(nameof(Account.Id)), OperatorEnum.GreaterThan, 0);
+            if (!String.IsNullOrEmpty(searchTerm)) e1.PrependAnd(_ORM.GetColumnName<Account>(nameof(Account.Name)), OperatorEnum.Contains, searchTerm);
             return _ORM.SelectMany<Account>(null, null, e1, ro);
         }
 
         private Account GetAccountByNameInternal(string name)
         {
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.Name)), DbOperators.Equals, name);
+            Expr e1 = new Expr(_ORM.GetColumnName<Account>(nameof(Account.Name)), OperatorEnum.Equals, name);
             return _ORM.SelectFirst<Account>(e1);
         }
 
         private Account GetAccountByGuidInternal(string accountGuid)
         {
-            DbExpression e1 = new DbExpression(_ORM.GetColumnName<Account>(nameof(Account.GUID)), DbOperators.Equals, accountGuid);
+            Expr e1 = new Expr(_ORM.GetColumnName<Account>(nameof(Account.GUID)), OperatorEnum.Equals, accountGuid);
             return _ORM.SelectFirst<Account>(e1);
         }
 
         private Entry GetPendingEntryInternal(string accountGuid, string entryGuid)
         {
-            DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), DbOperators.Equals, entryGuid);
+            Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), OperatorEnum.Equals, entryGuid);
             return _ORM.SelectFirst<Entry>(e2);
         }
 
         private List<Entry> GetPendingEntriesInternal(string accountGuid)
         {
-            DbExpression e = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
+            Expr e = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
+            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
 
-            DbResultOrder[] ro = new DbResultOrder[1];
-            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            ResultOrder[] ro = new ResultOrder[1];
+            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
             return _ORM.SelectMany<Entry>(null, null, e, ro);
         }
 
         private List<Entry> GetPendingCreditsInternal(string accountGuid)
         {
-            DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Credit);
+            Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, EntryType.Credit);
 
-            DbResultOrder[] ro = new DbResultOrder[1];
-            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            ResultOrder[] ro = new ResultOrder[1];
+            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
             return _ORM.SelectMany<Entry>(null, null, e2, ro);
         }
 
         private List<Entry> GetPendingDebitsInternal(string accountGuid)
         {
-            DbExpression e2 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), DbOperators.Equals, false);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), DbOperators.IsNull, null);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Debit);
+            Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
+            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, EntryType.Debit);
 
-            DbResultOrder[] ro = new DbResultOrder[1];
-            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            ResultOrder[] ro = new ResultOrder[1];
+            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
             return _ORM.SelectMany<Entry>(null, null, e2, ro);
         }
 
         private Entry GetLatestBalanceEntryInternal(string accountGuid)
         {
-            DbExpression e = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), DbOperators.Equals, EntryType.Balance);
+            Expr e = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, EntryType.Balance);
 
-            DbResultOrder[] ro = new DbResultOrder[1];
-            ro[0] = new DbResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), DbOrderDirection.Descending);
+            ResultOrder[] ro = new ResultOrder[1];
+            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
             List<Entry> balanceEntries = _ORM.SelectMany<Entry>(null, 1, e, ro);
             if (balanceEntries != null && balanceEntries.Count == 1) return balanceEntries[0];
             return null;
@@ -735,8 +750,8 @@ namespace NetLedger
 
         private List<Entry> GetEntriesByGuids(string accountGuid, List<string> guids)
         {
-            DbExpression e3 = new DbExpression(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), DbOperators.Equals, accountGuid);
-            e3.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), DbOperators.In, guids);
+            Expr e3 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
+            e3.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), OperatorEnum.In, guids);
             return _ORM.SelectMany<Entry>(e3);
         }
 
