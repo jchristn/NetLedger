@@ -52,7 +52,6 @@ namespace NetLedger
 
         #region Private-Members
 
-        private string _DatabaseFile = null;
         private DatabaseSettings _DatabaseSettings = null;
         private WatsonORM _ORM = null; 
         private ConcurrentDictionary<string, DateTime> _LockedAccounts = new ConcurrentDictionary<string, DateTime>();
@@ -62,15 +61,30 @@ namespace NetLedger
         #region Constructors-and-Factories
 
         /// <summary>
-        /// Instantiate the ledger.
+        /// Instantiate the ledger using Sqlite.
         /// </summary>
         /// <param name="filename">Sqlite database filename.</param>
         public Ledger(string filename)
         {
             if (String.IsNullOrEmpty(filename)) throw new ArgumentNullException(nameof(filename));
 
-            _DatabaseFile = filename;
-            _DatabaseSettings = new DatabaseSettings(_DatabaseFile);
+            _DatabaseSettings = new DatabaseSettings(filename);
+            _ORM = new WatsonORM(_DatabaseSettings);
+            _ORM.InitializeDatabase();
+            _ORM.InitializeTable(typeof(Account));
+            _ORM.InitializeTable(typeof(Entry));
+        }
+
+        /// <summary>
+        /// Instantiate the ledger using database settings.
+        /// </summary>
+        /// <param name="settings"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public Ledger(DatabaseSettings settings)
+        {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+
+            _DatabaseSettings = settings;
             _ORM = new WatsonORM(_DatabaseSettings);
             _ORM.InitializeDatabase();
             _ORM.InitializeTable(typeof(Account));
