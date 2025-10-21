@@ -420,6 +420,14 @@ namespace Test
                 DateTime? createdBefore = null;
                 if (!String.IsNullOrEmpty(createdBeforeStr)) createdBefore = Convert.ToDateTime(createdBeforeStr);
 
+                string amountMinimumStr = Inputty.GetString("Amount Minimum (leave blank for none):", null, true);
+                decimal? amountMinimum = null;
+                if (!String.IsNullOrEmpty(amountMinimumStr)) amountMinimum = Convert.ToDecimal(amountMinimumStr);
+
+                string amountMaximumStr = Inputty.GetString("Amount Maximum (leave blank for none):", null, true);
+                decimal? amountMaximum = null;
+                if (!String.IsNullOrEmpty(amountMaximumStr)) amountMaximum = Convert.ToDecimal(amountMaximumStr);
+
                 EnumerationQuery query = new EnumerationQuery
                 {
                     AccountGUID = acctGuid,
@@ -427,7 +435,9 @@ namespace Test
                     Skip = skip,
                     Ordering = ordering,
                     CreatedAfterUtc = createdAfter,
-                    CreatedBeforeUtc = createdBefore
+                    CreatedBeforeUtc = createdBefore,
+                    AmountMinimum = amountMinimum,
+                    AmountMaximum = amountMaximum
                 };
 
                 EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query);

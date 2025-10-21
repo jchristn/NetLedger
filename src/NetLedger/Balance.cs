@@ -10,8 +10,6 @@ namespace NetLedger
     {
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
 
-        #region Public-Members
-
         /// <summary>
         /// GUID of the account.
         /// </summary>
@@ -66,14 +64,6 @@ namespace NetLedger
         /// </summary>
         public List<Guid> Committed { get; set; } = new List<Guid>();
 
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-
         /// <summary>
         /// Instantiate a balance object.
         /// </summary>
@@ -81,16 +71,6 @@ namespace NetLedger
         {
 
         }
-
-        #endregion
-
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
 
 #pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }

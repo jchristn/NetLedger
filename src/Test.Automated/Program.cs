@@ -922,7 +922,59 @@ namespace Test.Automated
                        result.Objects.All(e => e.CreatedUtc <= middleTimestamp);
             }).ConfigureAwait(false);
 
-            // Test 11: Validate Skip and ContinuationToken cannot be used together
+            // Test 11: Amount filters - AmountMinimum
+            await TestAsync("Enum: AmountMinimum filter", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = enumAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.AmountDescending,
+                    AmountMinimum = 50.00m
+                };
+
+                EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                return result.Objects != null && result.Objects.Count > 0 &&
+                       result.Objects.All(e => e.Amount >= 50.00m);
+            }).ConfigureAwait(false);
+
+            // Test 12: Amount filters - AmountMaximum
+            await TestAsync("Enum: AmountMaximum filter", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = enumAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.AmountDescending,
+                    AmountMaximum = 50.00m
+                };
+
+                EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                return result.Objects != null && result.Objects.Count > 0 &&
+                       result.Objects.All(e => e.Amount <= 50.00m);
+            }).ConfigureAwait(false);
+
+            // Test 13: Amount filters - AmountMinimum and AmountMaximum combined
+            await TestAsync("Enum: AmountMinimum and AmountMaximum combined", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = enumAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.AmountAscending,
+                    AmountMinimum = 25.00m,
+                    AmountMaximum = 75.00m
+                };
+
+                EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                return result.Objects != null && result.Objects.Count > 0 &&
+                       result.Objects.All(e => e.Amount >= 25.00m && e.Amount <= 75.00m);
+            }).ConfigureAwait(false);
+
+            // Test 14: Validate Skip and ContinuationToken cannot be used together
             await TestAsync("Enum: Skip and ContinuationToken mutual exclusion", async () =>
             {
                 try

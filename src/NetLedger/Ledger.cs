@@ -15,6 +15,16 @@ namespace NetLedger
     /// </summary>
     public class Ledger : IAsyncDisposable
     {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
+#pragma warning disable CS8603 // Possible null reference return.
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+#pragma warning disable CS0219 // Variable is assigned but its value is never used
+#pragma warning disable CS8629 // Nullable value type may be null.
+#pragma warning disable CS8604 // Possible null reference argument.
+
         #region Public-Members
 
         /// <summary>
@@ -202,7 +212,7 @@ namespace NetLedger
                 {
                     transaction?.Dispose();
                     UnlockAccount(a.GUID, accountLock);
-                    Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)));
+                    Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)), token);
                 }
             }
         }
@@ -731,6 +741,13 @@ namespace NetLedger
                 if (query.CreatedBeforeUtc != null)
                     countQuery = countQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
 
+                // Apply amount filters
+                if (query.AmountMinimum != null)
+                    countQuery = countQuery.Where(e => e.Amount >= query.AmountMinimum.Value);
+
+                if (query.AmountMaximum != null)
+                    countQuery = countQuery.Where(e => e.Amount <= query.AmountMaximum.Value);
+
                 List<Entry> totalEntries = (await countQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
                 result.TotalRecords = totalEntries.Count;
 
@@ -745,6 +762,13 @@ namespace NetLedger
 
                 if (query.CreatedBeforeUtc != null)
                     pageQuery = pageQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+                // Apply amount filters
+                if (query.AmountMinimum != null)
+                    pageQuery = pageQuery.Where(e => e.Amount >= query.AmountMinimum.Value);
+
+                if (query.AmountMaximum != null)
+                    pageQuery = pageQuery.Where(e => e.Amount <= query.AmountMaximum.Value);
 
                 // Handle continuation token
                 DateTime? lastCreatedOrAmount = await GetCreatedUtcFromEntryGuidAsync(query.ContinuationToken, token).ConfigureAwait(false);
@@ -804,6 +828,13 @@ namespace NetLedger
 
                     if (query.CreatedBeforeUtc != null)
                         skipQuery = skipQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+                    // Apply amount filters to skip query
+                    if (query.AmountMinimum != null)
+                        skipQuery = skipQuery.Where(e => e.Amount >= query.AmountMinimum.Value);
+
+                    if (query.AmountMaximum != null)
+                        skipQuery = skipQuery.Where(e => e.Amount <= query.AmountMaximum.Value);
 
                     // Apply same ordering to skip query
                     switch (query.Ordering)
@@ -1443,5 +1474,15 @@ namespace NetLedger
         }
 
         #endregion
+
+#pragma warning restore CS8604 // Possible null reference argument.
+#pragma warning restore CS8629 // Nullable value type may be null.
+#pragma warning restore CS0219 // Variable is assigned but its value is never used
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+#pragma warning restore CS8603 // Possible null reference return.
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
     }
 }

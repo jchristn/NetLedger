@@ -7,8 +7,6 @@ namespace NetLedger
     /// </summary>
     public class PendingTransactionSummary
     {
-        #region Public-Members
-
         /// <summary>
         /// Number of pending transactions of this type.
         /// </summary>
@@ -24,14 +22,6 @@ namespace NetLedger
         /// </summary>
         public List<Entry> Entries { get; set; } = new List<Entry>();
 
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-
         /// <summary>
         /// Instantiate a pending transaction summary.
         /// </summary>
@@ -39,15 +29,5 @@ namespace NetLedger
         {
 
         }
-
-        #endregion
-
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
     }
 }

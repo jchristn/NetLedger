@@ -9,8 +9,6 @@ namespace NetLedger
     [Entity("entries")]
     public class Entry
     {
-        #region Public-Members
-
         /// <summary>
         /// Database row ID.
         /// </summary>
@@ -77,14 +75,6 @@ namespace NetLedger
         [Property("createdutc")]
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
 
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-
         /// <summary>
         /// Instantiate an entry.
         /// </summary>
@@ -119,15 +109,5 @@ namespace NetLedger
                 CommittedUtc = CreatedUtc;
             }
         }
-
-        #endregion
-
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
     }
 }

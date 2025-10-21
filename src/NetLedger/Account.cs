@@ -9,8 +9,6 @@ namespace NetLedger
     [Entity("accounts")]
     public class Account
     {
-        #region Public-Members
-
         /// <summary>
         /// Database row ID.
         /// </summary>
@@ -41,14 +39,6 @@ namespace NetLedger
         [Property("createdutc")]
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
 
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-
         /// <summary>
         /// Instantiate an account.
         /// </summary>
@@ -67,15 +57,5 @@ namespace NetLedger
 
             Name = name;
         }
-
-        #endregion
-
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
     }
 }

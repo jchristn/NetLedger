@@ -10,8 +10,6 @@
     /// </summary>
     public class EnumerationResult<T>
     {
-        #region Public-Members
-
         /// <summary>
         /// Indicates if the statistics operation was successful.
         /// </summary>
@@ -129,10 +127,6 @@
             }
         }
 
-        #endregion
-
-        #region Private-Members
-
         private int _MaxResults = 1000;
         private int _Skip = 0;
         private int _IterationsRequired = 1;
@@ -140,26 +134,12 @@
         private long _RecordsRemaining = 0;
         private List<T> _Objects = new List<T>();
 
-        #endregion
-
-        #region Constructors-and-Factories
-
         /// <summary>
         /// Instantiates the object.
         /// </summary>
         public EnumerationResult()
         {
         }
-
-        #endregion
-
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion 
     }
 }
 

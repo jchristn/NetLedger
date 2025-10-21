@@ -70,6 +70,16 @@
         /// </summary>
         public DateTime? CreatedBeforeUtc { get; set; } = null;
 
+        /// <summary>
+        /// Only include entries with an amount greater than or equal to this value.
+        /// </summary>
+        public decimal? AmountMinimum { get; set; } = null;
+
+        /// <summary>
+        /// Only include entries with an amount less than or equal to this value.
+        /// </summary>
+        public decimal? AmountMaximum { get; set; } = null;
+
         #endregion
 
         #region Private-Members

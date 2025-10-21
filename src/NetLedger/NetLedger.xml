@@ -330,6 +330,16 @@
             Only include entries created on or before this timestamp UTC.
             </summary>
         </member>
+        <member name="P:NetLedger.EnumerationQuery.AmountMinimum">
+            <summary>
+            Only include entries with an amount greater than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.AmountMaximum">
+            <summary>
+            Only include entries with an amount less than or equal to this value.
+            </summary>
+        </member>
         <member name="M:NetLedger.EnumerationQuery.#ctor">
             <summary>
             Instantiate.
