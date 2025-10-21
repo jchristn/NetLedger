@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-using System.Runtime.Serialization;
-
 namespace NetLedger
 {
+    using System;
+    using System.Runtime.Serialization;
+
     /// <summary>
     /// The type of entry in the ledger.
     /// </summary>

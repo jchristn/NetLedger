@@ -48,32 +48,32 @@
         <member name="T:NetLedger.AccountEventArgs">
             <summary>
             Account event arguments.
-            </summary> 
+            </summary>
         </member>
         <member name="P:NetLedger.AccountEventArgs.GUID">
             <summary>
             Globally-unique identifier for the account.
-            </summary> 
+            </summary>
         </member>
         <member name="P:NetLedger.AccountEventArgs.Name">
             <summary>
             Name of the account.
-            </summary> 
+            </summary>
         </member>
         <member name="P:NetLedger.AccountEventArgs.Notes">
             <summary>
             Notes for the account.
-            </summary> 
+            </summary>
         </member>
         <member name="P:NetLedger.AccountEventArgs.CreatedUtc">
             <summary>
             UTC timestamp when the account was created.
-            </summary> 
+            </summary>
         </member>
         <member name="T:NetLedger.Balance">
             <summary>
             Account balance information.
-            </summary> 
+            </summary>
         </member>
         <member name="P:NetLedger.Balance.AccountGUID">
             <summary>
@@ -134,30 +134,10 @@
             Instantiate a balance object.
             </summary>
         </member>
-        <member name="T:NetLedger.Balance.PendingTransactionSummary">
-            <summary>
-            Summary of pending transactions.
-            </summary>
-        </member>
-        <member name="P:NetLedger.Balance.PendingTransactionSummary.Count">
-            <summary>
-            Number of pending transactions of this type.
-            </summary>
-        </member>
-        <member name="P:NetLedger.Balance.PendingTransactionSummary.Total">
-            <summary>
-            The total of amounts for all pending transactions of this type.
-            </summary>
-        </member>
-        <member name="P:NetLedger.Balance.PendingTransactionSummary.Entries">
-            <summary>
-            The entries associated with the pending transactions of this type.
-            </summary>
-        </member>
         <member name="T:NetLedger.CommitEventArgs">
             <summary>
             Commit event arguments.
-            </summary> 
+            </summary>
         </member>
         <member name="P:NetLedger.CommitEventArgs.Account">
             <summary>
@@ -239,7 +219,7 @@
             Instantiate an entry.
             </summary>
         </member>
-        <member name="M:NetLedger.Entry.#ctor(System.String,NetLedger.EntryType,System.Decimal,System.String,System.String,System.Boolean)">
+        <member name="M:NetLedger.Entry.#ctor(System.Guid,NetLedger.EntryType,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean)">
             <summary>
             Instantiate an entry.
             </summary>
@@ -285,6 +265,136 @@
             Balance
             </summary>
         </member>
+        <member name="T:NetLedger.EnumerationOrderEnum">
+            <summary>
+            Enumeration order.
+            </summary>
+        </member>
+        <member name="F:NetLedger.EnumerationOrderEnum.CreatedAscending">
+            <summary>
+            CreatedAscending.
+            </summary>
+        </member>
+        <member name="F:NetLedger.EnumerationOrderEnum.CreatedDescending">
+            <summary>
+            CreatedDescending.
+            </summary>
+        </member>
+        <member name="F:NetLedger.EnumerationOrderEnum.AmountAscending">
+            <summary>
+            AmountAscending.
+            </summary>
+        </member>
+        <member name="F:NetLedger.EnumerationOrderEnum.AmountDescending">
+            <summary>
+            AmountDescending.
+            </summary>
+        </member>
+        <member name="T:NetLedger.EnumerationQuery">
+            <summary>
+            Object used to request enumeration.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.AccountGUID">
+            <summary>
+            Bucket GUID.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.MaxResults">
+            <summary>
+            Maximum number of results to retrieve.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.Skip">
+            <summary>
+            The number of records to skip.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.ContinuationToken">
+            <summary>
+            Continuation token.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.Ordering">
+            <summary>
+            Order by.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.CreatedAfter">
+            <summary>
+            Only include entries created on or after this timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.CreatedBefore">
+            <summary>
+            Only include entries created on or before this timestamp UTC.
+            </summary>
+        </member>
+        <member name="M:NetLedger.EnumerationQuery.#ctor">
+            <summary>
+            Instantiate.
+            </summary>
+        </member>
+        <member name="T:NetLedger.EnumerationResult`1">
+            <summary>
+            Object returned as the result of an enumeration.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.Success">
+            <summary>
+            Indicates if the statistics operation was successful.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.Timestamp">
+            <summary>
+            Start and end timestamps.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.MaxResults">
+            <summary>
+            Maximum number of results to retrieve.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.Skip">
+            <summary>
+            Skip.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.IterationsRequired">
+            <summary>
+            Iterations required.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.ContinuationToken">
+            <summary>
+            Continuation token.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.EndOfResults">
+            <summary>
+            Boolean indicating end of results.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.TotalRecords">
+            <summary>
+            Total number of records.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.RecordsRemaining">
+            <summary>
+            Number of candidate records remaining in the enumeration.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationResult`1.Objects">
+            <summary>
+            Objects.
+            </summary>
+        </member>
+        <member name="M:NetLedger.EnumerationResult`1.#ctor">
+            <summary>
+            Instantiates the object.
+            </summary>
+        </member>
         <member name="T:NetLedger.Ledger">
             <summary>
             NetLedger.
@@ -322,103 +432,136 @@
         </member>
         <member name="M:NetLedger.Ledger.#ctor(System.String)">
             <summary>
-            Instantiate the ledger.
+            Instantiate the ledger using Sqlite.
             </summary>
             <param name="filename">Sqlite database filename.</param>
         </member>
-        <member name="M:NetLedger.Ledger.CreateAccount(System.String,System.Nullable{System.Decimal})">
+        <member name="M:NetLedger.Ledger.CreateAccountAsync(System.String,System.Nullable{System.Decimal},System.Threading.CancellationToken)">
             <summary>
             Creates an account with the specified name.
             </summary>
             <param name="name">Name of the account.</param>
             <param name="initialBalance">Initial balance of the account.</param>
-            <returns>String containing the GUID of the newly-created account.</returns>
+            <param name="token">Cancellation token.</param>
+            <returns>GUID of the newly-created account.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.DeleteAccountByName(System.String)">
+        <member name="M:NetLedger.Ledger.DeleteAccountByNameAsync(System.String,System.Threading.CancellationToken)">
             <summary>
-            Delete an account and associated entries by name.
+            Delete an account and associated entries by account name.
             </summary>
             <param name="name">Name of the account.</param>
+            <param name="token">Cancellation token.</param>
         </member>
-        <member name="M:NetLedger.Ledger.DeleteAccountByGuid(System.String)">
+        <member name="M:NetLedger.Ledger.DeleteAccountByGuidAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
             Delete an account and associated entries by account GUID.
             </summary>
             <param name="guid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
         </member>
-        <member name="M:NetLedger.Ledger.GetAccountByName(System.String)">
+        <member name="M:NetLedger.Ledger.GetAccountByNameAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Retrieve an account by name.
             </summary>
             <param name="name">Name of the account.</param>
+            <param name="token">Cancellation token.</param>
             <returns>Account or null if it does not exist.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.GetAccountByGuid(System.String)">
+        <member name="M:NetLedger.Ledger.GetAccountByGuidAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
             Retrieve an account by GUID.
             </summary>
             <param name="guid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
             <returns>Account or null if it does not exist.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.GetAllAccounts(System.String)">
+        <member name="M:NetLedger.Ledger.GetAllAccountsAsync(System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>
             Retrieve all accounts.
             </summary>
             <param name="searchTerm">Term to search within account names.</param>
+            <param name="skip">Number of records to skip.</param>
+            <param name="take">Number of records to take.</param>
+            <param name="token">Cancellation token.</param>
             <returns>List of Account objects.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.AddCredit(System.String,System.Decimal,System.String,System.String,System.Boolean)">
+        <member name="M:NetLedger.Ledger.AddCreditAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add a credit.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="amount">Amount of the credit (zero or greater).</param>
-            <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
+            <param name="amount">Amount of the credit.</param>
+            <param name="notes">Notes for the entry.</param>
             <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
-            <param name="notes">Notes for the transaction.</param>
-            <returns>String containing the GUID of the newly-created entry.</returns>
+            <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>GUID of the newly-created entry.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.AddDebit(System.String,System.Decimal,System.String,System.String,System.Boolean)">
+        <member name="M:NetLedger.Ledger.AddDebitAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add a debit.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="amount">Amount of the debit (zero or greater).</param>
+            <param name="amount">Amount of the debit.</param>
+            <param name="notes">Notes for the entry.</param>
             <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
-            <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
-            <param name="notes">Notes for the transaction.</param>
-            <returns>String containing the GUID of the newly-created entry.</returns>
+            <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>GUID of the newly-created entry.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.CancelPending(System.String,System.String)">
+        <member name="M:NetLedger.Ledger.AddCreditsAsync(System.Guid,System.Collections.Generic.List{System.ValueTuple{System.Decimal,System.String}},System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Add multiple credits in batch.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="credits">List of tuples containing (amount, notes) for each credit.</param>
+            <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of GUIDs for the newly-created entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.AddDebitsAsync(System.Guid,System.Collections.Generic.List{System.ValueTuple{System.Decimal,System.String}},System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Add multiple debits in batch.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="debits">List of tuples containing (amount, notes) for each debit.</param>
+            <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of GUIDs for the newly-created entries.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.CancelPendingAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
             <summary>
             Cancel a pending entry.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
             <param name="entryGuid">GUID of the entry.</param>
-            <returns></returns>
+            <param name="token">Cancellation token.</param>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingEntries(System.String)">
+        <member name="M:NetLedger.Ledger.GetPendingEntriesAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
             Retrieve a list of pending entries for a given account.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
             <returns>List of pending entries.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingCredits(System.String)">
+        <member name="M:NetLedger.Ledger.GetPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
-            Retrieve a list of pending credit entries for a given account.
+            Retrieve a list of pending credits for a given account.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <returns>List of pending credit entries.</returns>
+            <param name="token">Cancellation token.</param>
+            <returns>List of pending credits.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingDebits(System.String)">
+        <member name="M:NetLedger.Ledger.GetPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
-            Retrieve a list of pending debit entries for a given account.
+            Retrieve a list of pending debits for a given account.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <returns>List of pending debit entries.</returns>
+            <param name="token">Cancellation token.</param>
+            <returns>List of pending debits.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.GetEntries(System.String,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Decimal},System.Nullable{System.Decimal})">
+        <member name="M:NetLedger.Ledger.GetEntriesAsync(System.Guid,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>
             Retrieve a list of entries matching the specified conditions.
             </summary>
@@ -429,24 +572,96 @@
             <param name="entryType">The type of entry.</param>
             <param name="amountMin">Minimum amount.</param>
             <param name="amountMax">Maximum amount.</param>
+            <param name="skip">Number of records to skip.</param>
+            <param name="take">Number of records to take.</param>
+            <param name="token">Cancellation token.</param>
             <returns>List of matching entries.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.GetBalance(System.String,System.Boolean)">
+        <member name="M:NetLedger.Ledger.EnumerateTransactionsAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate transactions in a paginated way.
+            </summary>
+            <param name="query">Enumeration query containing account GUID, pagination parameters, and ordering.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Enumeration result containing the page of entries and metadata for continuing the enumeration.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when the specified account does not exist.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.GetBalanceAsync(System.Guid,System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Retrieve balance details for a given account.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
+            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details. Leave this value as 'true'.</param>
+            <param name="token">Cancellation token.</param>
             <returns>Balance details.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.CommitEntries(System.String,System.Collections.Generic.List{System.String})">
+        <member name="M:NetLedger.Ledger.CommitEntriesAsync(System.Guid,System.Collections.Generic.List{System.Guid},System.Boolean,System.Threading.CancellationToken)">
             <summary>
-            Commit pending entries to the balance.  
+            Commit pending entries to the balance.
             Specify entries to commit using the guids property, or leave it null to commit all pending entries.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="guids">List of entry GUIDs to commit.  Leave null to commit all pending entries.</param>
+            <param name="guids">List of entry GUIDs to commit. Leave null to commit all pending entries.</param>
+            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details. Leave this value as 'true'.</param>
+            <param name="token">Cancellation token.</param>
             <returns>Balance details.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+            <summary>
+            Get the balance of an account as of a specific timestamp.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="asOfUtc">Timestamp UTC.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Balance as of the specified timestamp.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetAllBalancesAsync(System.Threading.CancellationToken)">
+            <summary>
+            Get balances for all accounts.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Dictionary mapping account GUID to Balance object.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.VerifyBalanceChainAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Verify the balance chain for an account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>True if the chain is valid.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.DisposeAsync">
+            <summary>
+            Dispose of the ledger.
+            </summary>
+            <returns>Task.</returns>
+        </member>
+        <member name="T:NetLedger.PendingTransactionSummary">
+            <summary>
+            Summary of pending transactions.
+            </summary>
+        </member>
+        <member name="P:NetLedger.PendingTransactionSummary.Count">
+            <summary>
+            Number of pending transactions of this type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.PendingTransactionSummary.Total">
+            <summary>
+            The total of amounts for all pending transactions of this type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.PendingTransactionSummary.Entries">
+            <summary>
+            The entries associated with the pending transactions of this type.
+            </summary>
+        </member>
+        <member name="M:NetLedger.PendingTransactionSummary.#ctor">
+            <summary>
+            Instantiate a pending transaction summary.
+            </summary>
         </member>
     </members>
 </doc>

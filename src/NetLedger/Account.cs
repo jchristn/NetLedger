@@ -1,14 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-
 namespace NetLedger
 {
+    using System;
+    using Durable;
+
     /// <summary>
     /// Account information.
     /// </summary>
-    [Table("accounts")]
+    [Entity("accounts")]
     public class Account
     {
         #region Public-Members
@@ -16,31 +14,31 @@ namespace NetLedger
         /// <summary>
         /// Database row ID.
         /// </summary>
-        [Column("id", true, DataTypes.Int, false)]
+        [Property("id", Flags.PrimaryKey | Flags.AutoIncrement)]
         public int Id { get; set; } = 0;
 
         /// <summary>
         /// Globally-unique identifier for the account.
         /// </summary>
-        [Column("guid", false, DataTypes.Nvarchar, 64, false)]
-        public string GUID { get; set; } = Guid.NewGuid().ToString();
+        [Property("guid", Flags.String, 64)]
+        public Guid GUID { get; set; } = Guid.NewGuid();
 
         /// <summary>
         /// Name of the account.
         /// </summary>
-        [Column("name", false, DataTypes.Nvarchar, 256, false)]
-        public string Name { get; set; } = null;
+        [Property("name", Flags.String, 256)]
+        public string Name { get; set; } = null!;
 
         /// <summary>
         /// Notes for the account.
         /// </summary>
-        [Column("notes", false, DataTypes.Nvarchar, 256, true)]
-        public string Notes { get; set; } = null;
+        [Property("notes", Flags.String, 256)]
+        public string? Notes { get; set; } = null;
 
         /// <summary>
         /// UTC timestamp when the account was created.
         /// </summary>
-        [Column("createdutc", false, DataTypes.DateTime, false)]
+        [Property("createdutc")]
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
 
         #endregion

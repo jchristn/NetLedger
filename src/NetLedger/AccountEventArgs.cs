@@ -1,21 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-
 namespace NetLedger
 {
+    using System;
+
     /// <summary>
     /// Account event arguments.
-    /// </summary> 
+    /// </summary>
     public class AccountEventArgs : EventArgs
     {
-        #region Public-Members
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
+#pragma warning disable CS8601 // Possible null reference assignment.
 
         /// <summary>
         /// Globally-unique identifier for the account.
         /// </summary>
-        public string GUID { get; private set; } = null;
+        public Guid GUID { get; private set; }
 
         /// <summary>
         /// Name of the account.
@@ -29,17 +27,9 @@ namespace NetLedger
 
         /// <summary>
         /// UTC timestamp when the account was created.
-        /// </summary> 
+        /// </summary>
         public DateTime CreatedUtc { get; private set; } = DateTime.Now.ToUniversalTime();
 
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-         
         internal AccountEventArgs(Account a)
         {
             if (a == null) throw new ArgumentNullException(nameof(a));
@@ -49,15 +39,8 @@ namespace NetLedger
             Notes = a.Notes;
             CreatedUtc = a.CreatedUtc;
         }
-         
-        #endregion
 
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
+#pragma warning restore CS8601 // Possible null reference assignment.
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }

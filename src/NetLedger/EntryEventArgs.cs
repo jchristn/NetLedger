@@ -1,16 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-
 namespace NetLedger
 {
+    using System;
+
     /// <summary>
     /// Entry event arguments.
     /// </summary>
     public class EntryEventArgs
     {
-        #region Public-Members
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
 
         /// <summary>
         /// Account details.
@@ -22,14 +19,6 @@ namespace NetLedger
         /// </summary>
         public Entry Entry { get; private set; } = null;
 
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-
         internal EntryEventArgs(Account a, Entry e)
         {
             if (a == null) throw new ArgumentNullException(nameof(a));
@@ -38,15 +27,7 @@ namespace NetLedger
             Account = a;
             Entry = e;
         }
-         
-        #endregion
 
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }

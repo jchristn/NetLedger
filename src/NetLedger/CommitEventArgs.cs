@@ -1,16 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-
 namespace NetLedger
 {
+    using System;
+
     /// <summary>
     /// Commit event arguments.
-    /// </summary> 
+    /// </summary>
     public class CommitEventArgs : EventArgs
     {
-        #region Public-Members
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
 
         /// <summary>
         /// Account.
@@ -26,15 +23,7 @@ namespace NetLedger
         /// Balance from after the commit.
         /// </summary>
         public Balance BalanceAfter { get; private set; } = null;
-        
-        #endregion
 
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
-         
         internal CommitEventArgs(Account account, Balance before, Balance after)
         {
             if (account == null) throw new ArgumentNullException(nameof(account));
@@ -45,15 +34,7 @@ namespace NetLedger
             BalanceBefore = before;
             BalanceAfter = after;
         }
-         
-        #endregion
 
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }

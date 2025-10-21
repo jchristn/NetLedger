@@ -1,26 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-
 namespace NetLedger
 {
+    using System;
+    using System.Collections.Generic;
+
     /// <summary>
     /// Account balance information.
-    /// </summary> 
+    /// </summary>
     public class Balance
     {
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
+
         #region Public-Members
 
         /// <summary>
         /// GUID of the account.
         /// </summary>
-        public string AccountGUID { get; set; } = null;
+        public Guid AccountGUID { get; set; }
 
         /// <summary>
         /// Entry GUID containing the latest balance entry.
         /// </summary>
-        public string EntryGUID { get; set; } = null;
+        public Guid EntryGUID { get; set; }
 
         /// <summary>
         /// Name of the account.
@@ -41,7 +41,7 @@ namespace NetLedger
         /// Committed balance available in the account.
         /// This balance does not include pending debits and credits.
         /// </summary>
-        public decimal CommittedBalance { get; set; } = 0m; 
+        public decimal CommittedBalance { get; set; } = 0m;
 
         /// <summary>
         /// Pending balance in the account.
@@ -64,7 +64,7 @@ namespace NetLedger
         /// <summary>
         /// GUIDs of committed entries.
         /// </summary>
-        public List<string> Committed { get; set; } = new List<string>();
+        public List<Guid> Committed { get; set; } = new List<Guid>();
 
         #endregion
 
@@ -81,7 +81,7 @@ namespace NetLedger
         {
 
         }
-         
+
         #endregion
 
         #region Public-Methods
@@ -92,29 +92,6 @@ namespace NetLedger
 
         #endregion
 
-        #region Public-Embedded-Classes
-
-        /// <summary>
-        /// Summary of pending transactions.
-        /// </summary>
-        public class PendingTransactionSummary
-        {
-            /// <summary>
-            /// Number of pending transactions of this type.
-            /// </summary>
-            public int Count { get; set; } = 0;
-
-            /// <summary>
-            /// The total of amounts for all pending transactions of this type.
-            /// </summary>
-            public decimal Total { get; set; } = 0m;
-
-            /// <summary>
-            /// The entries associated with the pending transactions of this type.
-            /// </summary>
-            public List<Entry> Entries { get; set; } = new List<Entry>();
-        }
-
-        #endregion
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }
