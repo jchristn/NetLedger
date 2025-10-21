@@ -320,12 +320,12 @@
             Order by.
             </summary>
         </member>
-        <member name="P:NetLedger.EnumerationQuery.CreatedAfter">
+        <member name="P:NetLedger.EnumerationQuery.CreatedAfterUtc">
             <summary>
             Only include entries created on or after this timestamp UTC.
             </summary>
         </member>
-        <member name="P:NetLedger.EnumerationQuery.CreatedBefore">
+        <member name="P:NetLedger.EnumerationQuery.CreatedBeforeUtc">
             <summary>
             Only include entries created on or before this timestamp UTC.
             </summary>

@@ -63,12 +63,12 @@
         /// <summary>
         /// Only include entries created on or after this timestamp UTC.
         /// </summary>
-        public DateTime? CreatedAfter { get; set; } = null;
+        public DateTime? CreatedAfterUtc { get; set; } = null;
 
         /// <summary>
         /// Only include entries created on or before this timestamp UTC.
         /// </summary>
-        public DateTime? CreatedBefore { get; set; } = null;
+        public DateTime? CreatedBeforeUtc { get; set; } = null;
 
         #endregion
 

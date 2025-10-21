@@ -321,12 +321,24 @@ namespace NetLedger
             {
                 transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
 
-                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, isCommitted);
+                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
                 entry = await _EntryRepository.CreateAsync(entry, transaction, token).ConfigureAwait(false);
 
                 await transaction.CommitAsync(token).ConfigureAwait(false);
 
-                return entry.GUID;
+                Guid entryGuid = entry.GUID;
+
+                transaction?.Dispose();
+                transaction = null;
+
+                // If isCommitted is true, immediately commit the entry
+                if (isCommitted)
+                {
+                    List<Guid> guidsToCommit = new List<Guid> { entryGuid };
+                    await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
+                }
+
+                return entryGuid;
             }
             catch
             {
@@ -368,12 +380,24 @@ namespace NetLedger
             {
                 transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
 
-                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, isCommitted);
+                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
                 entry = await _EntryRepository.CreateAsync(entry, transaction, token).ConfigureAwait(false);
 
                 await transaction.CommitAsync(token).ConfigureAwait(false);
 
-                return entry.GUID;
+                Guid entryGuid = entry.GUID;
+
+                transaction?.Dispose();
+                transaction = null;
+
+                // If isCommitted is true, immediately commit the entry
+                if (isCommitted)
+                {
+                    List<Guid> guidsToCommit = new List<Guid> { entryGuid };
+                    await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
+                }
+
+                return entryGuid;
             }
             catch
             {
@@ -701,11 +725,11 @@ namespace NetLedger
                 countQuery = countQuery.Where(e => (int)e.Type != balanceTypeInt);
 
                 // Apply date filters
-                if (query.CreatedAfter != null)
-                    countQuery = countQuery.Where(e => e.CreatedUtc >= query.CreatedAfter.Value);
+                if (query.CreatedAfterUtc != null)
+                    countQuery = countQuery.Where(e => e.CreatedUtc >= query.CreatedAfterUtc.Value);
 
-                if (query.CreatedBefore != null)
-                    countQuery = countQuery.Where(e => e.CreatedUtc <= query.CreatedBefore.Value);
+                if (query.CreatedBeforeUtc != null)
+                    countQuery = countQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
 
                 List<Entry> totalEntries = (await countQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
                 result.TotalRecords = totalEntries.Count;
@@ -716,11 +740,11 @@ namespace NetLedger
                     .Where(e => (int)e.Type != balanceTypeInt);
 
                 // Apply date filters
-                if (query.CreatedAfter != null)
-                    pageQuery = pageQuery.Where(e => e.CreatedUtc >= query.CreatedAfter.Value);
+                if (query.CreatedAfterUtc != null)
+                    pageQuery = pageQuery.Where(e => e.CreatedUtc >= query.CreatedAfterUtc.Value);
 
-                if (query.CreatedBefore != null)
-                    pageQuery = pageQuery.Where(e => e.CreatedUtc <= query.CreatedBefore.Value);
+                if (query.CreatedBeforeUtc != null)
+                    pageQuery = pageQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
 
                 // Handle continuation token
                 DateTime? lastCreatedOrAmount = await GetCreatedUtcFromEntryGuidAsync(query.ContinuationToken, token).ConfigureAwait(false);
@@ -775,11 +799,11 @@ namespace NetLedger
                         .Where(e => (int)e.Type != balanceTypeInt);
 
                     // Apply date filters to skip query
-                    if (query.CreatedAfter != null)
-                        skipQuery = skipQuery.Where(e => e.CreatedUtc >= query.CreatedAfter.Value);
+                    if (query.CreatedAfterUtc != null)
+                        skipQuery = skipQuery.Where(e => e.CreatedUtc >= query.CreatedAfterUtc.Value);
 
-                    if (query.CreatedBefore != null)
-                        skipQuery = skipQuery.Where(e => e.CreatedUtc <= query.CreatedBefore.Value);
+                    if (query.CreatedBeforeUtc != null)
+                        skipQuery = skipQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
 
                     // Apply same ordering to skip query
                     switch (query.Ordering)
@@ -1373,6 +1397,7 @@ namespace NetLedger
                 await transaction.CommitAsync(token).ConfigureAwait(false);
 
                 Balance balanceAfter = await GetBalanceAsync(accountGuid, false, token).ConfigureAwait(false);
+                balanceAfter.Committed = summarized;
                 Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter)));
 
                 return balanceAfter;

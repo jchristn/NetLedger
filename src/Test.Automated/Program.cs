@@ -880,8 +880,8 @@ namespace Test.Automated
                 return allEntries.Count == 100;
             }).ConfigureAwait(false);
 
-            // Test 9: Date filters - CreatedAfter
-            await TestAsync("Enum: CreatedAfter filter", async () =>
+            // Test 9: Date filters - CreatedAfterUtc
+            await TestAsync("Enum: CreatedAfterUtc filter", async () =>
             {
                 // Get a timestamp from middle of dataset
                 List<Entry> allEntries = await _Ledger.GetPendingEntriesAsync(enumAccount).ConfigureAwait(false);
@@ -892,7 +892,7 @@ namespace Test.Automated
                     AccountGUID = enumAccount,
                     MaxResults = 100,
                     Ordering = EnumerationOrderEnum.CreatedDescending,
-                    CreatedAfter = middleTimestamp
+                    CreatedAfterUtc = middleTimestamp
                 };
 
                 EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query).ConfigureAwait(false);
@@ -902,8 +902,8 @@ namespace Test.Automated
                        result.Objects.All(e => e.CreatedUtc >= middleTimestamp);
             }).ConfigureAwait(false);
 
-            // Test 10: Date filters - CreatedBefore
-            await TestAsync("Enum: CreatedBefore filter", async () =>
+            // Test 10: Date filters - CreatedBeforeUtc
+            await TestAsync("Enum: CreatedBeforeUtc filter", async () =>
             {
                 List<Entry> allEntries = await _Ledger.GetPendingEntriesAsync(enumAccount).ConfigureAwait(false);
                 DateTime middleTimestamp = allEntries[50].CreatedUtc;
@@ -913,7 +913,7 @@ namespace Test.Automated
                     AccountGUID = enumAccount,
                     MaxResults = 100,
                     Ordering = EnumerationOrderEnum.CreatedDescending,
-                    CreatedBefore = middleTimestamp
+                    CreatedBeforeUtc = middleTimestamp
                 };
 
                 EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query).ConfigureAwait(false);

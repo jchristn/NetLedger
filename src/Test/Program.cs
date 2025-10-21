@@ -426,8 +426,8 @@ namespace Test
                     MaxResults = maxResults,
                     Skip = skip,
                     Ordering = ordering,
-                    CreatedAfter = createdAfter,
-                    CreatedBefore = createdBefore
+                    CreatedAfterUtc = createdAfter,
+                    CreatedBeforeUtc = createdBefore
                 };
 
                 EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(query);
