@@ -1,34 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
-		<Version>1.2.0</Version>
+		<TargetFrameworks>net8.0</TargetFrameworks>
+		<Version>2.0.0</Version>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<Authors>Joel Christner</Authors>
 		<Company>Joel Christner</Company>
 		<Description>NetLedger is a simple, self-contained ledgering library for adding debits and credits, checking balances, and performing commits on pending entries.  NetLedger is self-contained and uses Sqlite; should you need a version using an external database, please contact us.</Description>
-		<Copyright>(c)2024 Joel Christner</Copyright>
+		<Copyright>(c)2025 Joel Christner</Copyright>
 		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
 		<PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
 		<PackageIcon>icon.jpg</PackageIcon>
 		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
 		<RepositoryType>github</RepositoryType>
 		<PackageTags>ledger finance credit debit balance commit pending bank banking finance account accounting expense expenses cash flow profit loss income</PackageTags>
-		<PackageReleaseNotes>Retarget and refactor, remove Newtonsoft.Json dependency</PackageReleaseNotes>
+		<PackageReleaseNotes>Major version 2.0.0: full async/await support, transaction support, batch operations, enhanced error handling, and performance improvements</PackageReleaseNotes>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|AnyCPU'">
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<DocumentationFile>NetLedger.xml</DocumentationFile>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|AnyCPU'">
-		<DocumentationFile>NetLedger.xml</DocumentationFile>
+		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<None Update="LICENSE.md">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Update="NetLedger.xml">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
 		<None Include="..\..\README.md">
 		  <Pack>True</Pack>
@@ -45,7 +43,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="WatsonORM" Version="3.0.8" />
+		<PackageReference Include="Durable.Sqlite" Version="0.1.10" />
+		<PackageReference Include="Timestamps" Version="1.0.11" />
 	</ItemGroup>
 
 </Project>

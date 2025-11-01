@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ilspy:*)",
+      "Bash(dotnet tool list:*)",
+      "Bash(dotnet run:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

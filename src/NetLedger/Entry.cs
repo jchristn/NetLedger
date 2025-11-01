@@ -1,91 +1,79 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using Watson.ORM.Core;
-
 namespace NetLedger
 {
+    using System;
+    using Durable;
+
     /// <summary>
     /// An entry in the ledger for a given account.
     /// </summary>
-    [Table("entries")]
+    [Entity("entries")]
     public class Entry
     {
-        #region Public-Members
-
         /// <summary>
         /// Database row ID.
         /// </summary>
-        [Column("id", true, DataTypes.Int, false)]
+        [Property("id", Flags.PrimaryKey | Flags.AutoIncrement)]
         public int Id { get; set; } = 0;
 
         /// <summary>
         /// Globally-unique identifier for the entry.
         /// </summary>
-        [Column("guid", false, DataTypes.Nvarchar, 64, false)]
-        public string GUID { get; set; } = Guid.NewGuid().ToString();
+        [Property("guid", Flags.String, 64)]
+        public Guid GUID { get; set; } = Guid.NewGuid();
 
         /// <summary>
         /// Globally-unique identifier for the account.
         /// </summary>
-        [Column("accountguid", false, DataTypes.Nvarchar, 64, false)]
-        public string AccountGUID { get; set; } = Guid.NewGuid().ToString();
+        [Property("accountguid", Flags.String, 64)]
+        public Guid AccountGUID { get; set; } = Guid.NewGuid();
 
         /// <summary>
         /// The type of entry.
         /// </summary>
-        [Column("type", false, DataTypes.Nvarchar, 16, false)]
+        [Property("type")]
         public EntryType Type { get; set; } = EntryType.Balance;
 
         /// <summary>
         /// The amount/value of the entry.
         /// </summary>
-        [Column("amount", false, DataTypes.Decimal, 18, 8, false)]
+        [Property("amount")]
         public decimal Amount { get; set; } = 0m;
 
         /// <summary>
         /// Description of the entry.
         /// </summary>
-        [Column("description", false, DataTypes.Nvarchar, 256, true)]
-        public string Description { get; set; } = null;
+        [Property("description", Flags.String, 256)]
+        public string? Description { get; set; } = null;
 
         /// <summary>
         /// Specifies the GUID of the entry that this entry is replacing.  Used only by balance entries.
         /// </summary>
-        [Column("replaces", false, DataTypes.Nvarchar, 64, true)]
-        public string Replaces { get; set; } = null;
+        [Property("replaces", Flags.String, 64)]
+        public Guid? Replaces { get; set; } = null;
 
         /// <summary>
         /// Indicates if the entry has been committed to the ledger and is reflected in the current balance.
         /// </summary>
-        [Column("committed", false, DataTypes.Boolean, false)]
+        [Property("committed")]
         public bool IsCommitted { get; set; } = false;
 
         /// <summary>
         /// GUID of the entry that committed this entry.
         /// </summary>
-        [Column("committedbyguid", false, DataTypes.Nvarchar, 64, true)]
-        public string CommittedByGUID { get; set; } = null;
+        [Property("committedbyguid", Flags.String, 64)]
+        public Guid? CommittedByGUID { get; set; } = null;
 
         /// <summary>
         /// UTC timestamp when the entry was committed.
         /// </summary>
-        [Column("committedutc", false, DataTypes.DateTime, true)]
+        [Property("committedutc")]
         public DateTime? CommittedUtc { get; set; } = null;
 
         /// <summary>
         /// UTC timestamp when the entry was created.
         /// </summary>
-        [Column("createdutc", false, DataTypes.DateTime, false)]
+        [Property("createdutc")]
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
-
-        #endregion
-
-        #region Private-Members
-
-        #endregion
-
-        #region Constructors-and-Factories
 
         /// <summary>
         /// Instantiate an entry.
@@ -104,9 +92,9 @@ namespace NetLedger
         /// <param name="notes">Notes for the entry.</param>
         /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
         /// <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
-        public Entry(string accountGuid, EntryType entryType, decimal amount, string notes = null, string summarizedBy = null, bool isCommitted = false)
+        public Entry(Guid accountGuid, EntryType entryType, decimal amount, string? notes = null, Guid? summarizedBy = null, bool isCommitted = false)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
 
             AccountGUID = accountGuid;
@@ -121,15 +109,5 @@ namespace NetLedger
                 CommittedUtc = CreatedUtc;
             }
         }
-
-        #endregion
-
-        #region Public-Methods
-
-        #endregion
-
-        #region Private-Methods
-
-        #endregion
     }
 }

@@ -1,21 +1,30 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using DatabaseWrapper.Core;
-using ExpressionTree;
-using Watson.ORM.Core;
-using Watson.ORM.Sqlite;
-
 namespace NetLedger
 {
+    using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Durable;
+    using Durable.Sqlite;
+    using Microsoft.Data.Sqlite;
+
     /// <summary>
     /// NetLedger.
     /// </summary>
-    public class Ledger
+    public class Ledger : IAsyncDisposable
     {
+#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
+#pragma warning disable CS8603 // Possible null reference return.
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+#pragma warning disable CS0219 // Variable is assigned but its value is never used
+#pragma warning disable CS8629 // Nullable value type may be null.
+#pragma warning disable CS8604 // Possible null reference argument.
+
         #region Public-Members
 
         /// <summary>
@@ -52,9 +61,12 @@ namespace NetLedger
 
         #region Private-Members
 
-        private DatabaseSettings _DatabaseSettings = null;
-        private WatsonORM _ORM = null; 
-        private ConcurrentDictionary<string, DateTime> _LockedAccounts = new ConcurrentDictionary<string, DateTime>();
+        private string _Filename = null;
+        private SqliteConnectionFactory _ConnectionFactory = null;
+        private SqliteRepository<Account> _AccountRepository = null;
+        private SqliteRepository<Entry> _EntryRepository = null;
+        private ConcurrentDictionary<Guid, SemaphoreSlim> _AccountLocks = new ConcurrentDictionary<Guid, SemaphoreSlim>();
+        private bool _Disposed = false;
 
         #endregion
 
@@ -68,27 +80,23 @@ namespace NetLedger
         {
             if (String.IsNullOrEmpty(filename)) throw new ArgumentNullException(nameof(filename));
 
-            _DatabaseSettings = new DatabaseSettings(filename);
-            _ORM = new WatsonORM(_DatabaseSettings);
-            _ORM.InitializeDatabase();
-            _ORM.InitializeTable(typeof(Account));
-            _ORM.InitializeTable(typeof(Entry));
-        }
+            _Filename = filename;
 
-        /// <summary>
-        /// Instantiate the ledger using database settings.
-        /// </summary>
-        /// <param name="settings"></param>
-        /// <exception cref="ArgumentNullException"></exception>
-        public Ledger(DatabaseSettings settings)
-        {
-            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            ConnectionPoolOptions poolOptions = new ConnectionPoolOptions
+            {
+                MaxPoolSize = 500,
+                ConnectionTimeout = TimeSpan.FromSeconds(120)
+            };
 
-            _DatabaseSettings = settings;
-            _ORM = new WatsonORM(_DatabaseSettings);
-            _ORM.InitializeDatabase();
-            _ORM.InitializeTable(typeof(Account));
-            _ORM.InitializeTable(typeof(Entry));
+            _ConnectionFactory = new SqliteConnectionFactory(
+                $"Data Source={_Filename}",
+                poolOptions
+            );
+
+            _AccountRepository = new SqliteRepository<Account>(_ConnectionFactory);
+            _EntryRepository = new SqliteRepository<Entry>(_ConnectionFactory);
+
+            InitializeDatabaseAsync(CancellationToken.None).Wait();
         }
 
         #endregion
@@ -100,66 +108,111 @@ namespace NetLedger
         /// </summary>
         /// <param name="name">Name of the account.</param>
         /// <param name="initialBalance">Initial balance of the account.</param>
-        /// <returns>String containing the GUID of the newly-created account.</returns>
-        public string CreateAccount(string name, decimal? initialBalance = null)
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>GUID of the newly-created account.</returns>
+        public async Task<Guid> CreateAccountAsync(string name, decimal? initialBalance = null, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name)); 
-            
-            Account a = new Account(name);
-            a = _ORM.Insert<Account>(a);
+            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+
+            ITransaction transaction = null;
+            Account a = null;
+            Guid accountGuid = Guid.Empty;
 
             try
             {
-                LockAccount(a.GUID);
+                transaction = await _AccountRepository.BeginTransactionAsync(token).ConfigureAwait(false);
 
-                Entry balance = new Entry();
-                balance.GUID = Guid.NewGuid().ToString();
-                balance.AccountGUID = a.GUID;
-                balance.Type = EntryType.Balance;
+                a = new Account(name);
+                a = await _AccountRepository.CreateAsync(a, transaction, token).ConfigureAwait(false);
+                accountGuid = a.GUID;
 
-                balance.Amount = 0m;
-                if (initialBalance != null) balance.Amount = initialBalance.Value;
+                SemaphoreSlim accountLock = await LockAccountAsync(a.GUID, token).ConfigureAwait(false);
 
-                balance.Description = "Initial balance";
-                balance.CommittedByGUID = null;
-                balance.IsCommitted = true;
-
-                DateTime ts = DateTime.Now.ToUniversalTime();
-                balance.CreatedUtc = ts;
-                balance.CommittedUtc = ts;
-                balance = _ORM.Insert<Entry>(balance);
-            }
-            finally
-            {
-                UnlockAccount(a.GUID);
-                Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(a)));
-            }
-
-            return a.GUID;
-        }
-
-        /// <summary>
-        /// Delete an account and associated entries by name.
-        /// </summary>
-        /// <param name="name">Name of the account.</param>
-        public void DeleteAccountByName(string name)
-        {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            
-            Account a = GetAccountByNameInternal(name);
-            if (a != null)
-            {
                 try
                 {
-                    LockAccount(a.GUID);
-                    Expr e = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, a.GUID);
-                    _ORM.DeleteMany<Entry>(e);
-                    _ORM.Delete<Account>(a);
+                    Entry balance = new Entry();
+                    balance.GUID = Guid.NewGuid();
+                    balance.AccountGUID = a.GUID;
+                    balance.Type = EntryType.Balance;
+                    balance.Amount = initialBalance ?? 0m;
+                    balance.Description = "Initial balance";
+                    balance.IsCommitted = true;
+                    balance.CommittedUtc = DateTime.Now.ToUniversalTime();
+
+                    await _EntryRepository.CreateAsync(balance, transaction, token).ConfigureAwait(false);
+
+                    await transaction.CommitAsync(token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    if (transaction != null)
+                        await transaction.RollbackAsync(token).ConfigureAwait(false);
+                    throw;
                 }
                 finally
                 {
-                    UnlockAccount(a.GUID);
-                    Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)));
+                    transaction?.Dispose();
+                    UnlockAccount(a.GUID, accountLock);
+                    Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(a)));
+                }
+
+                return accountGuid;
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw;
+            }
+            finally
+            {
+                transaction?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Delete an account and associated entries by account name.
+        /// </summary>
+        /// <param name="name">Name of the account.</param>
+        /// <param name="token">Cancellation token.</param>
+        public async Task DeleteAccountByNameAsync(string name, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+
+            Account a = await GetAccountByNameInternalAsync(name, token).ConfigureAwait(false);
+            if (a != null)
+            {
+                ITransaction transaction = null;
+                SemaphoreSlim accountLock = await LockAccountAsync(a.GUID, token).ConfigureAwait(false);
+
+                try
+                {
+                    transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
+
+                    List<Entry> entries = (await _EntryRepository.Query(transaction)
+                        .Where(e => e.AccountGUID == a.GUID)
+                        .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                    foreach (Entry entry in entries)
+                    {
+                        await _EntryRepository.DeleteAsync(entry, transaction, token).ConfigureAwait(false);
+                    }
+
+                    await _AccountRepository.DeleteAsync(a, transaction, token).ConfigureAwait(false);
+
+                    await transaction.CommitAsync(token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    if (transaction != null)
+                        await transaction.RollbackAsync(token).ConfigureAwait(false);
+                    throw;
+                }
+                finally
+                {
+                    transaction?.Dispose();
+                    UnlockAccount(a.GUID, accountLock);
+                    Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)), token);
                 }
             }
         }
@@ -168,23 +221,44 @@ namespace NetLedger
         /// Delete an account and associated entries by account GUID.
         /// </summary>
         /// <param name="guid">GUID of the account.</param>
-        public void DeleteAccountByGuid(string guid)
+        /// <param name="token">Cancellation token.</param>
+        public async Task DeleteAccountByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(guid)) throw new ArgumentNullException(nameof(guid));
-            
-            Account a = GetAccountByGuidInternal(guid);
+            if (guid == Guid.Empty) throw new ArgumentNullException(nameof(guid));
+
+            Account a = await GetAccountByGuidInternalAsync(guid, token).ConfigureAwait(false);
             if (a != null)
             {
+                ITransaction transaction = null;
+                SemaphoreSlim accountLock = await LockAccountAsync(a.GUID, token).ConfigureAwait(false);
+
                 try
                 {
-                    LockAccount(a.GUID);
-                    Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, a.GUID);
-                    _ORM.DeleteMany<Entry>(e2);
-                    _ORM.Delete<Account>(a);
+                    transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
+
+                    List<Entry> entries = (await _EntryRepository.Query(transaction)
+                        .Where(e => e.AccountGUID == a.GUID)
+                        .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                    foreach (Entry entry in entries)
+                    {
+                        await _EntryRepository.DeleteAsync(entry, transaction, token).ConfigureAwait(false);
+                    }
+
+                    await _AccountRepository.DeleteAsync(a, transaction, token).ConfigureAwait(false);
+
+                    await transaction.CommitAsync(token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    if (transaction != null)
+                        await transaction.RollbackAsync(token).ConfigureAwait(false);
+                    throw;
                 }
                 finally
                 {
-                    UnlockAccount(a.GUID);
+                    transaction?.Dispose();
+                    UnlockAccount(a.GUID, accountLock);
                     Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)));
                 }
             }
@@ -194,32 +268,37 @@ namespace NetLedger
         /// Retrieve an account by name.
         /// </summary>
         /// <param name="name">Name of the account.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>Account or null if it does not exist.</returns>
-        public Account GetAccountByName(string name)
+        public async Task<Account> GetAccountByNameAsync(string name, CancellationToken token = default)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            return GetAccountByNameInternal(name);
+            return await GetAccountByNameInternalAsync(name, token).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Retrieve an account by GUID.
         /// </summary>
         /// <param name="guid">GUID of the account.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>Account or null if it does not exist.</returns>
-        public Account GetAccountByGuid(string guid)
+        public async Task<Account> GetAccountByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(guid)) throw new ArgumentNullException(nameof(guid));
-            return GetAccountByGuidInternal(guid);
+            if (guid == Guid.Empty) throw new ArgumentNullException(nameof(guid));
+            return await GetAccountByGuidInternalAsync(guid, token).ConfigureAwait(false);
         }
 
         /// <summary>
         /// Retrieve all accounts.
         /// </summary>
         /// <param name="searchTerm">Term to search within account names.</param>
+        /// <param name="skip">Number of records to skip.</param>
+        /// <param name="take">Number of records to take.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>List of Account objects.</returns>
-        public List<Account> GetAllAccounts(string searchTerm = null)
+        public async Task<List<Account>> GetAllAccountsAsync(string searchTerm = null, int? skip = null, int? take = null, CancellationToken token = default)
         {
-            return GetAllAccountsInternal(searchTerm);
+            return await GetAllAccountsInternalAsync(searchTerm, skip, take, token).ConfigureAwait(false);
         }
 
         #endregion
@@ -230,37 +309,57 @@ namespace NetLedger
         /// Add a credit.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="amount">Amount of the credit (zero or greater).</param>
-        /// <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
+        /// <param name="amount">Amount of the credit.</param>
+        /// <param name="notes">Notes for the entry.</param>
         /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
-        /// <param name="notes">Notes for the transaction.</param>
-        /// <returns>String containing the GUID of the newly-created entry.</returns>
-        public string AddCredit(string accountGuid, decimal amount, string notes = null, string summarizedBy = null, bool isCommitted = false)
+        /// <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>GUID of the newly-created entry.</returns>
+        public async Task<Guid> AddCreditAsync(Guid accountGuid, decimal amount, string notes = null, Guid? summarizedBy = null, bool isCommitted = false, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
-            
-            Account a = GetAccountByGuid(accountGuid);
+
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
+            ITransaction transaction = null;
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
-                entry = _ORM.Insert<Entry>(entry);
+                transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
 
+                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
+                entry = await _EntryRepository.CreateAsync(entry, transaction, token).ConfigureAwait(false);
+
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+
+                Guid entryGuid = entry.GUID;
+
+                transaction?.Dispose();
+                transaction = null;
+
+                // If isCommitted is true, immediately commit the entry
                 if (isCommitted)
                 {
-                    Balance updated = CommitEntries(accountGuid, new List<string> { entry.GUID }, false);
+                    List<Guid> guidsToCommit = new List<Guid> { entryGuid };
+                    await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
                 }
 
-                return entry.GUID;
+                return entryGuid;
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw;
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                transaction?.Dispose();
+                UnlockAccount(accountGuid, accountLock);
                 if (entry != null) Task.Run(() => CreditAdded?.Invoke(this, new EntryEventArgs(a, entry)));
             }
         }
@@ -269,39 +368,103 @@ namespace NetLedger
         /// Add a debit.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="amount">Amount of the debit (zero or greater).</param>
+        /// <param name="amount">Amount of the debit.</param>
+        /// <param name="notes">Notes for the entry.</param>
         /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
-        /// <param name="isCommitted">Indicates if the transaction has already been commited to the current committed balance.</param>
-        /// <param name="notes">Notes for the transaction.</param>
-        /// <returns>String containing the GUID of the newly-created entry.</returns>
-        public string AddDebit(string accountGuid, decimal amount, string notes = null, string summarizedBy = null, bool isCommitted = false)
+        /// <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>GUID of the newly-created entry.</returns>
+        public async Task<Guid> AddDebitAsync(Guid accountGuid, decimal amount, string notes = null, Guid? summarizedBy = null, bool isCommitted = false, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
-            
-            Account a = GetAccountByGuidInternal(accountGuid);
+
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
+            ITransaction transaction = null;
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
-                entry = _ORM.Insert<Entry>(entry);
+                transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
 
+                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
+                entry = await _EntryRepository.CreateAsync(entry, transaction, token).ConfigureAwait(false);
+
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+
+                Guid entryGuid = entry.GUID;
+
+                transaction?.Dispose();
+                transaction = null;
+
+                // If isCommitted is true, immediately commit the entry
                 if (isCommitted)
                 {
-                    Balance updated = CommitEntries(accountGuid, new List<string> { entry.GUID }, false);
+                    List<Guid> guidsToCommit = new List<Guid> { entryGuid };
+                    await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
                 }
 
-                return entry.GUID;
+                return entryGuid;
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw;
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                transaction?.Dispose();
+                UnlockAccount(accountGuid, accountLock);
                 if (entry != null) Task.Run(() => DebitAdded?.Invoke(this, new EntryEventArgs(a, entry)));
             }
+        }
+
+        /// <summary>
+        /// Add multiple credits in batch.
+        /// </summary>
+        /// <param name="accountGuid">GUID of the account.</param>
+        /// <param name="credits">List of tuples containing (amount, notes) for each credit.</param>
+        /// <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>List of GUIDs for the newly-created entries.</returns>
+        public async Task<List<Guid>> AddCreditsAsync(Guid accountGuid, List<(decimal amount, string notes)> credits, bool isCommitted = false, CancellationToken token = default)
+        {
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+            if (credits == null || credits.Count == 0) throw new ArgumentException("Credits list cannot be null or empty.");
+
+            List<Guid> guids = new List<Guid>();
+            foreach ((decimal amount, string notes) credit in credits)
+            {
+                Guid guid = await AddCreditAsync(accountGuid, credit.amount, credit.notes, null, isCommitted, token).ConfigureAwait(false);
+                guids.Add(guid);
+            }
+            return guids;
+        }
+
+        /// <summary>
+        /// Add multiple debits in batch.
+        /// </summary>
+        /// <param name="accountGuid">GUID of the account.</param>
+        /// <param name="debits">List of tuples containing (amount, notes) for each debit.</param>
+        /// <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>List of GUIDs for the newly-created entries.</returns>
+        public async Task<List<Guid>> AddDebitsAsync(Guid accountGuid, List<(decimal amount, string notes)> debits, bool isCommitted = false, CancellationToken token = default)
+        {
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+            if (debits == null || debits.Count == 0) throw new ArgumentException("Debits list cannot be null or empty.");
+
+            List<Guid> guids = new List<Guid>();
+            foreach ((decimal amount, string notes) debit in debits)
+            {
+                Guid guid = await AddDebitAsync(accountGuid, debit.amount, debit.notes, null, isCommitted, token).ConfigureAwait(false);
+                guids.Add(guid);
+            }
+            return guids;
         }
 
         /// <summary>
@@ -309,28 +472,40 @@ namespace NetLedger
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
         /// <param name="entryGuid">GUID of the entry.</param>
-        /// <returns></returns>
-        public void CancelPending(string accountGuid, string entryGuid)
+        /// <param name="token">Cancellation token.</param>
+        public async Task CancelPendingAsync(Guid accountGuid, Guid entryGuid, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            if (String.IsNullOrEmpty(entryGuid)) throw new ArgumentNullException(nameof(entryGuid));
-            
-            Account a = GetAccountByGuidInternal(accountGuid);
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+            if (entryGuid == Guid.Empty) throw new ArgumentNullException(nameof(entryGuid));
+
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
+            ITransaction transaction = null;
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                entry = GetPendingEntryInternal(accountGuid, entryGuid);
+                transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
+
+                entry = await GetPendingEntryInternalAsync(accountGuid, entryGuid, transaction, token).ConfigureAwait(false);
                 if (entry == null) throw new KeyNotFoundException("Unable to find pending entry with GUID " + entryGuid + ".");
 
-                _ORM.Delete<Entry>(entry);
+                await _EntryRepository.DeleteAsync(entry, transaction, token).ConfigureAwait(false);
+
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw;
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                transaction?.Dispose();
+                UnlockAccount(accountGuid, accountLock);
                 if (entry != null) Task.Run(() => EntryCanceled?.Invoke(this, new EntryEventArgs(a, entry)));
             }
         }
@@ -339,68 +514,92 @@ namespace NetLedger
         /// Retrieve a list of pending entries for a given account.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>List of pending entries.</returns>
-        public List<Entry> GetPendingEntries(string accountGuid)
+        public async Task<List<Entry>> GetPendingEntriesAsync(Guid accountGuid, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
 
-            Account a = GetAccountByGuidInternal(accountGuid);
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
+
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                return GetPendingEntriesInternal(accountGuid);
+                return await GetPendingEntriesInternalAsync(accountGuid, token).ConfigureAwait(false);
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                UnlockAccount(accountGuid, accountLock);
             }
         }
 
         /// <summary>
-        /// Retrieve a list of pending credit entries for a given account.
+        /// Retrieve a list of pending credits for a given account.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <returns>List of pending credit entries.</returns>
-        public List<Entry> GetPendingCredits(string accountGuid)
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>List of pending credits.</returns>
+        public async Task<List<Entry>> GetPendingCreditsAsync(Guid accountGuid, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
 
-            Account a = GetAccountByGuidInternal(accountGuid);
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
+
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                return GetPendingCreditsInternal(accountGuid);
+                int creditTypeInt = (int)EntryType.Credit;
+
+                List<Entry> results = (await _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == accountGuid)
+                    .Where(e => !e.IsCommitted)
+                    .Where(e => (int)e.Type == creditTypeInt)
+                    .OrderByDescending(e => e.CreatedUtc)
+                    .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                return results;
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                UnlockAccount(accountGuid, accountLock);
             }
         }
 
         /// <summary>
-        /// Retrieve a list of pending debit entries for a given account.
+        /// Retrieve a list of pending debits for a given account.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <returns>List of pending debit entries.</returns>
-        public List<Entry> GetPendingDebits(string accountGuid)
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>List of pending debits.</returns>
+        public async Task<List<Entry>> GetPendingDebitsAsync(Guid accountGuid, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
 
-            Account a = GetAccountByGuidInternal(accountGuid);
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
+
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                return GetPendingDebitsInternal(accountGuid);
+                int debitTypeInt = (int)EntryType.Debit;
+
+                List<Entry> results = (await _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == accountGuid)
+                    .Where(e => !e.IsCommitted)
+                    .Where(e => (int)e.Type == debitTypeInt)
+                    .OrderByDescending(e => e.CreatedUtc)
+                    .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                return results;
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                UnlockAccount(accountGuid, accountLock);
             }
         }
 
@@ -414,15 +613,21 @@ namespace NetLedger
         /// <param name="entryType">The type of entry.</param>
         /// <param name="amountMin">Minimum amount.</param>
         /// <param name="amountMax">Maximum amount.</param>
+        /// <param name="skip">Number of records to skip.</param>
+        /// <param name="take">Number of records to take.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>List of matching entries.</returns>
-        public List<Entry> GetEntries(
-            string accountGuid, 
-            DateTime? startTimeUtc = null, 
-            DateTime? endTimeUtc = null, 
-            string searchTerm = null, 
+        public async Task<List<Entry>> GetEntriesAsync(
+            Guid accountGuid,
+            DateTime? startTimeUtc = null,
+            DateTime? endTimeUtc = null,
+            string searchTerm = null,
             EntryType? entryType = null,
             decimal? amountMin = null,
-            decimal? amountMax = null)
+            decimal? amountMax = null,
+            int? skip = null,
+            int? take = null,
+            CancellationToken token = default)
         {
             if (startTimeUtc != null && endTimeUtc != null)
             {
@@ -435,30 +640,274 @@ namespace NetLedger
             if (amountMin != null && amountMin.Value < 0) throw new ArgumentException("Minimum amount must be zero or greater.");
             if (amountMax != null && amountMax.Value < 0) throw new ArgumentException("Maximum amount must be zero or greater.");
 
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            
-            Account a = GetAccountByGuidInternal(accountGuid);
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+
+            Account a = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
+
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                LockAccount(accountGuid);
-                Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-                if (startTimeUtc != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OperatorEnum.GreaterThanOrEqualTo, startTimeUtc.Value);
-                if (endTimeUtc != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OperatorEnum.LessThanOrEqualTo, endTimeUtc.Value);
-                if (!String.IsNullOrEmpty(searchTerm)) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Description)), OperatorEnum.Contains, searchTerm);
-                if (amountMin != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), OperatorEnum.GreaterThanOrEqualTo, amountMin.Value);
-                if (amountMax != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Amount)), OperatorEnum.LessThanOrEqualTo, amountMax.Value);
-                if (entryType != null) e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, entryType);
-                else e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.NotEquals, EntryType.Balance);
+                IQueryBuilder<Entry> query = _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == accountGuid);
 
-                ResultOrder[] ro = new ResultOrder[1];
-                ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
-                return _ORM.SelectMany<Entry>(null, null, e2, ro);
+                if (startTimeUtc != null)
+                    query = query.Where(e => e.CreatedUtc >= startTimeUtc.Value);
+
+                if (endTimeUtc != null)
+                    query = query.Where(e => e.CreatedUtc <= endTimeUtc.Value);
+
+                if (!String.IsNullOrEmpty(searchTerm))
+                    query = query.Where(e => e.Description.Contains(searchTerm));
+
+                if (amountMin != null)
+                    query = query.Where(e => e.Amount >= amountMin.Value);
+
+                if (amountMax != null)
+                    query = query.Where(e => e.Amount <= amountMax.Value);
+
+                if (entryType != null)
+                {
+                    int entryTypeInt = (int)entryType.Value;
+                    query = query.Where(e => (int)e.Type == entryTypeInt);
+                }
+                else
+                {
+                    int balanceTypeInt = (int)EntryType.Balance;
+                    query = query.Where(e => (int)e.Type != balanceTypeInt);
+                }
+
+                query = query.OrderByDescending(e => e.CreatedUtc);
+
+                if (skip != null)
+                    query = query.Skip(skip.Value);
+
+                if (take != null)
+                    query = query.Take(take.Value);
+
+                List<Entry> results = (await query.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+                return results;
             }
             finally
             {
-                UnlockAccount(accountGuid);
+                UnlockAccount(accountGuid, accountLock);
+            }
+        }
+
+        /// <summary>
+        /// Enumerate transactions in a paginated way.
+        /// </summary>
+        /// <param name="query">Enumeration query containing account GUID, pagination parameters, and ordering.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Enumeration result containing the page of entries and metadata for continuing the enumeration.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when query is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when skip and continuation token are both specified.</exception>
+        /// <exception cref="KeyNotFoundException">Thrown when the specified account does not exist.</exception>
+        public async Task<EnumerationResult<Entry>> EnumerateTransactionsAsync(
+            EnumerationQuery query,
+            CancellationToken token = default)
+        {
+            if (query == null) throw new ArgumentNullException(nameof(query));
+            if (query.AccountGUID == Guid.Empty) throw new ArgumentNullException(nameof(query.AccountGUID));
+            if (query.ContinuationToken != null && query.Skip > 0)
+                throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
+
+            Account account = await GetAccountByGuidInternalAsync(query.AccountGUID, token).ConfigureAwait(false);
+            if (account == null) throw new KeyNotFoundException("Unable to find account with GUID " + query.AccountGUID + ".");
+
+            EnumerationResult<Entry> result = new EnumerationResult<Entry>
+            {
+                MaxResults = query.MaxResults,
+                Skip = query.Skip
+            };
+
+            SemaphoreSlim accountLock = await LockAccountAsync(query.AccountGUID, token).ConfigureAwait(false);
+
+            try
+            {
+                // Build base query for total count
+                IQueryBuilder<Entry> countQuery = _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == query.AccountGUID);
+
+                // Exclude balance entries from enumeration
+                int balanceTypeInt = (int)EntryType.Balance;
+                countQuery = countQuery.Where(e => (int)e.Type != balanceTypeInt);
+
+                // Apply date filters
+                if (query.CreatedAfterUtc != null)
+                    countQuery = countQuery.Where(e => e.CreatedUtc >= query.CreatedAfterUtc.Value);
+
+                if (query.CreatedBeforeUtc != null)
+                    countQuery = countQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+                // Apply amount filters
+                if (query.AmountMinimum != null)
+                    countQuery = countQuery.Where(e => e.Amount >= query.AmountMinimum.Value);
+
+                if (query.AmountMaximum != null)
+                    countQuery = countQuery.Where(e => e.Amount <= query.AmountMaximum.Value);
+
+                List<Entry> totalEntries = (await countQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+                result.TotalRecords = totalEntries.Count;
+
+                // Build query for this page
+                IQueryBuilder<Entry> pageQuery = _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == query.AccountGUID)
+                    .Where(e => (int)e.Type != balanceTypeInt);
+
+                // Apply date filters
+                if (query.CreatedAfterUtc != null)
+                    pageQuery = pageQuery.Where(e => e.CreatedUtc >= query.CreatedAfterUtc.Value);
+
+                if (query.CreatedBeforeUtc != null)
+                    pageQuery = pageQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+                // Apply amount filters
+                if (query.AmountMinimum != null)
+                    pageQuery = pageQuery.Where(e => e.Amount >= query.AmountMinimum.Value);
+
+                if (query.AmountMaximum != null)
+                    pageQuery = pageQuery.Where(e => e.Amount <= query.AmountMaximum.Value);
+
+                // Handle continuation token
+                DateTime? lastCreatedOrAmount = await GetCreatedUtcFromEntryGuidAsync(query.ContinuationToken, token).ConfigureAwait(false);
+                if (lastCreatedOrAmount != null)
+                {
+                    if (query.Ordering == EnumerationOrderEnum.CreatedDescending || query.Ordering == EnumerationOrderEnum.AmountDescending)
+                    {
+                        if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
+                            pageQuery = pageQuery.Where(e => e.CreatedUtc < lastCreatedOrAmount.Value);
+                        else
+                        {
+                            decimal? lastAmount = await GetAmountFromEntryGuidAsync(query.ContinuationToken.Value, token).ConfigureAwait(false);
+                            if (lastAmount != null)
+                                pageQuery = pageQuery.Where(e => e.Amount < lastAmount.Value);
+                        }
+                    }
+                    else
+                    {
+                        if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
+                            pageQuery = pageQuery.Where(e => e.CreatedUtc > lastCreatedOrAmount.Value);
+                        else
+                        {
+                            decimal? lastAmount = await GetAmountFromEntryGuidAsync(query.ContinuationToken.Value, token).ConfigureAwait(false);
+                            if (lastAmount != null)
+                                pageQuery = pageQuery.Where(e => e.Amount > lastAmount.Value);
+                        }
+                    }
+                }
+
+                // Apply ordering
+                switch (query.Ordering)
+                {
+                    case EnumerationOrderEnum.CreatedAscending:
+                        pageQuery = pageQuery.OrderBy(e => e.CreatedUtc);
+                        break;
+                    case EnumerationOrderEnum.CreatedDescending:
+                        pageQuery = pageQuery.OrderByDescending(e => e.CreatedUtc);
+                        break;
+                    case EnumerationOrderEnum.AmountAscending:
+                        pageQuery = pageQuery.OrderBy(e => e.Amount);
+                        break;
+                    case EnumerationOrderEnum.AmountDescending:
+                        pageQuery = pageQuery.OrderByDescending(e => e.Amount);
+                        break;
+                }
+
+                // Handle skip
+                if (query.Skip > 0)
+                {
+                    IQueryBuilder<Entry> skipQuery = _EntryRepository.Query()
+                        .Where(e => e.AccountGUID == query.AccountGUID)
+                        .Where(e => (int)e.Type != balanceTypeInt);
+
+                    // Apply date filters to skip query
+                    if (query.CreatedAfterUtc != null)
+                        skipQuery = skipQuery.Where(e => e.CreatedUtc >= query.CreatedAfterUtc.Value);
+
+                    if (query.CreatedBeforeUtc != null)
+                        skipQuery = skipQuery.Where(e => e.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+                    // Apply amount filters to skip query
+                    if (query.AmountMinimum != null)
+                        skipQuery = skipQuery.Where(e => e.Amount >= query.AmountMinimum.Value);
+
+                    if (query.AmountMaximum != null)
+                        skipQuery = skipQuery.Where(e => e.Amount <= query.AmountMaximum.Value);
+
+                    // Apply same ordering to skip query
+                    switch (query.Ordering)
+                    {
+                        case EnumerationOrderEnum.CreatedAscending:
+                            skipQuery = skipQuery.OrderBy(e => e.CreatedUtc);
+                            break;
+                        case EnumerationOrderEnum.CreatedDescending:
+                            skipQuery = skipQuery.OrderByDescending(e => e.CreatedUtc);
+                            break;
+                        case EnumerationOrderEnum.AmountAscending:
+                            skipQuery = skipQuery.OrderBy(e => e.Amount);
+                            break;
+                        case EnumerationOrderEnum.AmountDescending:
+                            skipQuery = skipQuery.OrderByDescending(e => e.Amount);
+                            break;
+                    }
+
+                    skipQuery = skipQuery.Take(query.Skip);
+                    List<Entry> skippedResults = (await skipQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                    if (skippedResults != null && skippedResults.Count == query.Skip)
+                    {
+                        if (query.Ordering == EnumerationOrderEnum.CreatedDescending || query.Ordering == EnumerationOrderEnum.CreatedAscending)
+                        {
+                            DateTime skipCreated = query.Ordering == EnumerationOrderEnum.CreatedDescending
+                                ? skippedResults.Min(r => r.CreatedUtc)
+                                : skippedResults.Max(r => r.CreatedUtc);
+
+                            if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
+                                pageQuery = pageQuery.Where(e => e.CreatedUtc < skipCreated);
+                            else
+                                pageQuery = pageQuery.Where(e => e.CreatedUtc > skipCreated);
+                        }
+                        else
+                        {
+                            decimal skipAmount = query.Ordering == EnumerationOrderEnum.AmountDescending
+                                ? skippedResults.Min(r => r.Amount)
+                                : skippedResults.Max(r => r.Amount);
+
+                            if (query.Ordering == EnumerationOrderEnum.AmountDescending)
+                                pageQuery = pageQuery.Where(e => e.Amount < skipAmount);
+                            else
+                                pageQuery = pageQuery.Where(e => e.Amount > skipAmount);
+                        }
+                    }
+                }
+
+                // Count remaining records after applying filters
+                List<Entry> remainingEntries = (await pageQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+                result.RecordsRemaining = remainingEntries.Count;
+
+                // Get the actual page
+                pageQuery = pageQuery.Take(query.MaxResults);
+                result.Objects = (await pageQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+                result.IterationsRequired = 1;
+
+                if (result.Objects == null) result.Objects = new List<Entry>();
+                result.RecordsRemaining -= result.Objects.Count;
+
+                if (result.Objects != null
+                    && result.Objects.Count > 0
+                    && result.RecordsRemaining > 0)
+                {
+                    result.EndOfResults = false;
+                    result.ContinuationToken = result.Objects.Last().GUID;
+                }
+
+                return result;
+            }
+            finally
+            {
+                UnlockAccount(query.AccountGUID, accountLock);
             }
         }
 
@@ -470,35 +919,44 @@ namespace NetLedger
         /// Retrieve balance details for a given account.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
+        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details. Leave this value as 'true'.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>Balance details.</returns>
-        public Balance GetBalance(string accountGuid, bool applyLock = true)
+        public async Task<Balance> GetBalanceAsync(Guid accountGuid, bool applyLock = true, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
-            Account a = GetAccountByGuidInternal(accountGuid);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+
+            Account account = null;
+            Balance balance = new Balance();
+            balance.AccountGUID = accountGuid;
+
+            SemaphoreSlim accountLock = null;
+            if (applyLock)
+                accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                if (applyLock) LockAccount(accountGuid);
-                Balance balance = new Balance();
+                account = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
+                if (account == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
-                Entry balanceEntry = GetLatestBalanceEntryInternal(accountGuid);
-                if (balanceEntry == null) throw new InvalidOperationException("No balance entry found for account with GUID " + accountGuid + ".");
+                balance.Name = account.Name;
+                balance.CreatedUtc = account.CreatedUtc;
 
-                balance.AccountGUID = accountGuid;
-                balance.EntryGUID = balanceEntry.GUID;
-                balance.BalanceTimestampUtc = balanceEntry.CreatedUtc;
-                balance.CommittedBalance = balanceEntry.Amount;
+                Entry balanceEntry = await GetLatestBalanceEntryInternalAsync(accountGuid, token).ConfigureAwait(false);
+                if (balanceEntry != null)
+                {
+                    balance.EntryGUID = balanceEntry.GUID;
+                    balance.CommittedBalance = balanceEntry.Amount;
+                    balance.BalanceTimestampUtc = balanceEntry.CreatedUtc;
+                }
 
-                List<Entry> pendingEntries = GetPendingEntriesInternal(accountGuid);
+                List<Entry> pendingEntries = await GetPendingEntriesInternalAsync(accountGuid, token).ConfigureAwait(false);
 
                 if (pendingEntries != null && pendingEntries.Count > 0)
                 {
                     foreach (Entry entry in pendingEntries)
                     {
-                        if (entry.Type == EntryType.Balance) continue;
-                        else if (entry.Type == EntryType.Credit)
+                        if (entry.Type == EntryType.Credit)
                         {
                             balance.PendingCredits.Count++;
                             balance.PendingCredits.Total += entry.Amount;
@@ -518,39 +976,42 @@ namespace NetLedger
             }
             finally
             {
-                if (applyLock) UnlockAccount(accountGuid);
+                if (applyLock && accountLock != null) UnlockAccount(accountGuid, accountLock);
             }
         }
 
         /// <summary>
-        /// Commit pending entries to the balance.  
+        /// Commit pending entries to the balance.
         /// Specify entries to commit using the guids property, or leave it null to commit all pending entries.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="guids">List of entry GUIDs to commit.  Leave null to commit all pending entries.</param>
-        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details.  Leave this value as 'true'.</param>
+        /// <param name="guids">List of entry GUIDs to commit. Leave null to commit all pending entries.</param>
+        /// <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details. Leave this value as 'true'.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>Balance details.</returns>
-        public Balance CommitEntries(string accountGuid, List<string> guids = null, bool applyLock = true)
+        public async Task<Balance> CommitEntriesAsync(Guid accountGuid, List<Guid> guids = null, bool applyLock = true, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
 
             Account account = null;
             Balance balanceBefore = null;
             Balance balanceAfter = null;
-            List<string> summarized = new List<string>();
+            List<Guid> summarized = new List<Guid>();
+
+            SemaphoreSlim accountLock = null;
+            if (applyLock)
+                accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
-                if (applyLock) LockAccount(accountGuid);
-
-                account = GetAccountByGuidInternal(accountGuid);
-                balanceBefore = GetBalance(accountGuid, false);
-                Entry balanceOld = GetLatestBalanceEntryInternal(accountGuid);
+                account = await GetAccountByGuidInternalAsync(accountGuid, token).ConfigureAwait(false);
+                balanceBefore = await GetBalanceAsync(accountGuid, false, token).ConfigureAwait(false);
+                Entry balanceOld = await GetLatestBalanceEntryInternalAsync(accountGuid, token).ConfigureAwait(false);
 
                 // validate requested GUIDs
                 if (guids != null && guids.Count > 0)
                 {
-                    List<Entry> requestedEntries = GetEntriesByGuids(accountGuid, guids);
+                    List<Entry> requestedEntries = await GetEntriesByGuidsAsync(accountGuid, guids, token).ConfigureAwait(false);
                     if (requestedEntries == null || requestedEntries.Count != guids.Count)
                     {
                         throw new KeyNotFoundException("One or more requested entries to commit were not found.");
@@ -574,15 +1035,332 @@ namespace NetLedger
                         }
                     }
 
-                    foreach (string guid in guids)
+                    foreach (Guid guid in guids)
                     {
-                        if (!requestedEntries.Any(e => e.GUID.Equals(guid)))
+                        if (!requestedEntries.Any(e => e.GUID == guid))
                         {
                             throw new KeyNotFoundException("No entry found with GUID " + guid + ".");
                         }
                     }
                 }
-                 
+
+                return await CommitEntriesInternalAsync(accountGuid, guids, balanceBefore, balanceOld, token).ConfigureAwait(false);
+            }
+            finally
+            {
+                if (applyLock && accountLock != null) UnlockAccount(accountGuid, accountLock);
+            }
+        }
+
+        /// <summary>
+        /// Get the balance of an account as of a specific timestamp.
+        /// </summary>
+        /// <param name="accountGuid">GUID of the account.</param>
+        /// <param name="asOfUtc">Timestamp UTC.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Balance as of the specified timestamp.</returns>
+        public async Task<decimal> GetBalanceAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken token = default)
+        {
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
+
+            try
+            {
+                List<Entry> balanceEntries = (await _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == accountGuid)
+                    .Where(e => (int)e.Type == (int)EntryType.Balance)
+                    .Where(e => e.CreatedUtc <= asOfUtc)
+                    .OrderByDescending(e => e.CreatedUtc)
+                    .Take(1)
+                    .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                if (balanceEntries == null || balanceEntries.Count == 0)
+                    return 0m;
+
+                return balanceEntries[0].Amount;
+            }
+            finally
+            {
+                UnlockAccount(accountGuid, accountLock);
+            }
+        }
+
+        /// <summary>
+        /// Get balances for all accounts.
+        /// </summary>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Dictionary mapping account GUID to Balance object.</returns>
+        public async Task<Dictionary<Guid, Balance>> GetAllBalancesAsync(CancellationToken token = default)
+        {
+            List<Account> accounts = await GetAllAccountsAsync(null, null, null, token).ConfigureAwait(false);
+
+            Dictionary<Guid, Balance> balances = new Dictionary<Guid, Balance>();
+
+            if (accounts != null && accounts.Count > 0)
+            {
+                foreach (Account account in accounts)
+                {
+                    Balance balance = await GetBalanceAsync(account.GUID, true, token).ConfigureAwait(false);
+                    balances[account.GUID] = balance;
+                }
+            }
+
+            return balances;
+        }
+
+        /// <summary>
+        /// Verify the balance chain for an account.
+        /// </summary>
+        /// <param name="accountGuid">GUID of the account.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>True if the chain is valid.</returns>
+        public async Task<bool> VerifyBalanceChainAsync(Guid accountGuid, CancellationToken token = default)
+        {
+            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+
+            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
+
+            try
+            {
+                int balanceTypeInt = (int)EntryType.Balance;
+
+                List<Entry> balanceEntries = (await _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == accountGuid)
+                    .Where(e => (int)e.Type == balanceTypeInt)
+                    .OrderByDescending(e => e.CreatedUtc)
+                    .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                if (balanceEntries == null || balanceEntries.Count == 0) return true;
+                if (balanceEntries.Count == 1) return true;
+
+                for (int i = 0; i < balanceEntries.Count - 1; i++)
+                {
+                    Entry current = balanceEntries[i];
+                    Entry next = balanceEntries[i + 1];
+
+                    if (current.Replaces == null) return false;
+                    if (current.Replaces.Value != next.GUID) return false;
+                }
+
+                return true;
+            }
+            finally
+            {
+                UnlockAccount(accountGuid, accountLock);
+            }
+        }
+
+        #endregion
+
+        #region Private-Initialization-Methods
+
+        private async Task InitializeDatabaseAsync(CancellationToken token)
+        {
+            using (SqliteConnection connection = (SqliteConnection)_ConnectionFactory.GetConnection())
+            {
+                using (SqliteCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS accounts (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            guid TEXT NOT NULL,
+                            name TEXT NOT NULL,
+                            notes TEXT,
+                            createdutc TEXT NOT NULL
+                        )";
+                    await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+                    command.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS entries (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            guid TEXT NOT NULL,
+                            accountguid TEXT NOT NULL,
+                            type INTEGER NOT NULL,
+                            amount REAL NOT NULL,
+                            description TEXT,
+                            replaces TEXT,
+                            committed INTEGER NOT NULL,
+                            committedbyguid TEXT,
+                            committedutc TEXT,
+                            createdutc TEXT NOT NULL
+                        )";
+                    await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                }
+            }
+        }
+
+        #endregion
+
+        #region Private-Locking-Methods
+
+        private async Task<SemaphoreSlim> LockAccountAsync(Guid accountGuid, CancellationToken token)
+        {
+            SemaphoreSlim semaphore = _AccountLocks.GetOrAdd(accountGuid, _ => new SemaphoreSlim(1, 1));
+            await semaphore.WaitAsync(token).ConfigureAwait(false);
+            return semaphore;
+        }
+
+        private void UnlockAccount(Guid accountGuid, SemaphoreSlim semaphore)
+        {
+            semaphore.Release();
+        }
+
+        #endregion
+
+        #region Private-Query-Methods
+
+        private async Task<List<Account>> GetAllAccountsInternalAsync(string searchTerm = null, int? skip = null, int? take = null, CancellationToken token = default)
+        {
+            IQueryBuilder<Account> query = _AccountRepository.Query()
+                .Where(a => a.Id > 0)
+                .OrderByDescending(a => a.CreatedUtc);
+
+            if (!String.IsNullOrEmpty(searchTerm))
+                query = query.Where(a => a.Name.Contains(searchTerm));
+
+            if (skip != null)
+                query = query.Skip(skip.Value);
+
+            if (take != null)
+                query = query.Take(take.Value);
+
+            List<Account> results = (await query.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+            return results;
+        }
+
+        private async Task<Account> GetAccountByNameInternalAsync(string name, CancellationToken token = default)
+        {
+            List<Account> results = (await _AccountRepository.Query()
+                .Where(a => a.Name == name)
+                .Take(1)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            return results.FirstOrDefault();
+        }
+
+        private async Task<Account> GetAccountByGuidInternalAsync(Guid guid, CancellationToken token = default)
+        {
+            List<Account> results = (await _AccountRepository.Query()
+                .Where(a => a.GUID == guid)
+                .Take(1)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            return results.FirstOrDefault();
+        }
+
+        private async Task<Entry> GetPendingEntryInternalAsync(Guid accountGuid, Guid entryGuid, ITransaction transaction = null, CancellationToken token = default)
+        {
+            IQueryBuilder<Entry> query = transaction != null
+                ? _EntryRepository.Query(transaction)
+                : _EntryRepository.Query();
+
+            List<Entry> results = (await query
+                .Where(e => e.AccountGUID == accountGuid)
+                .Where(e => e.GUID == entryGuid)
+                .Where(e => !e.IsCommitted)
+                .Take(1)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            return results.FirstOrDefault();
+        }
+
+        private async Task<List<Entry>> GetPendingEntriesInternalAsync(Guid accountGuid, CancellationToken token = default)
+        {
+            int balanceTypeInt = (int)EntryType.Balance;
+
+            List<Entry> results = (await _EntryRepository.Query()
+                .Where(e => e.AccountGUID == accountGuid)
+                .Where(e => !e.IsCommitted)
+                .Where(e => (int)e.Type != balanceTypeInt)
+                .OrderByDescending(e => e.CreatedUtc)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            return results;
+        }
+
+        private async Task<Entry> GetLatestBalanceEntryInternalAsync(Guid accountGuid, CancellationToken token = default)
+        {
+            int balanceTypeInt = (int)EntryType.Balance;
+
+            List<Entry> results = (await _EntryRepository.Query()
+                .Where(e => e.AccountGUID == accountGuid)
+                .Where(e => (int)e.Type == balanceTypeInt)
+                .OrderByDescending(e => e.CreatedUtc)
+                .Take(1)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            return results.FirstOrDefault();
+        }
+
+        private async Task<List<Entry>> GetEntriesByGuidsAsync(Guid accountGuid, List<Guid> guids, CancellationToken token = default)
+        {
+            List<Entry> results = new List<Entry>();
+
+            foreach (Guid guid in guids)
+            {
+                List<Entry> entries = (await _EntryRepository.Query()
+                    .Where(e => e.AccountGUID == accountGuid)
+                    .Where(e => e.GUID == guid)
+                    .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                if (entries != null && entries.Count > 0)
+                    results.AddRange(entries);
+            }
+
+            return results;
+        }
+
+        private async Task<DateTime?> GetCreatedUtcFromEntryGuidAsync(Guid? guid, CancellationToken token = default)
+        {
+            if (guid == null) return null;
+
+            List<Entry> entries = (await _EntryRepository.Query()
+                .Where(e => e.GUID == guid.Value)
+                .Take(1)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            Entry entry = entries.FirstOrDefault();
+            return entry != null ? entry.CreatedUtc : null;
+        }
+
+        private async Task<decimal?> GetAmountFromEntryGuidAsync(Guid guid, CancellationToken token = default)
+        {
+            List<Entry> entries = (await _EntryRepository.Query()
+                .Where(e => e.GUID == guid)
+                .Take(1)
+                .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+            Entry entry = entries.FirstOrDefault();
+            return entry != null ? entry.Amount : null;
+        }
+
+        #endregion
+
+        #region Private-Commit-Methods
+
+        private async Task<Balance> CommitEntriesInternalAsync(
+            Guid accountGuid,
+            List<Guid> guids,
+            Balance balanceBefore,
+            Entry balanceOld,
+            CancellationToken token)
+        {
+            List<Guid> summarized = new List<Guid>();
+            ITransaction transaction = null;
+
+            try
+            {
+                transaction = await _EntryRepository.BeginTransactionAsync(token).ConfigureAwait(false);
+
+                // Pre-fetch account using transaction connection
+                Account account = null;
+                List<Account> accountResults = (await _AccountRepository.Query(transaction)
+                    .Where(a => a.GUID == accountGuid)
+                    .Take(1)
+                    .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+                account = accountResults.FirstOrDefault();
+
                 // commit credits
                 decimal committedCreditsTotal = 0m;
                 if (balanceBefore.PendingCredits.Entries != null && balanceBefore.PendingCredits.Entries.Count > 0)
@@ -592,8 +1370,8 @@ namespace NetLedger
                         if (guids != null && guids.Count > 0 && !guids.Contains(entry.GUID)) continue;
                         summarized.Add(entry.GUID);
                         entry.IsCommitted = true;
-                        entry.CommittedUtc = DateTime.Now.ToUniversalTime(); 
-                        _ORM.Update<Entry>(entry);
+                        entry.CommittedUtc = DateTime.Now.ToUniversalTime();
+                        await _EntryRepository.UpdateAsync(entry, transaction, token).ConfigureAwait(false);
                         committedCreditsTotal += entry.Amount;
                     }
                 }
@@ -607,168 +1385,104 @@ namespace NetLedger
                         if (guids != null && guids.Count > 0 && !guids.Contains(entry.GUID)) continue;
                         summarized.Add(entry.GUID);
                         entry.IsCommitted = true;
-                        entry.CommittedUtc = DateTime.Now.ToUniversalTime(); 
-                        _ORM.Update<Entry>(entry);
+                        entry.CommittedUtc = DateTime.Now.ToUniversalTime();
+                        await _EntryRepository.UpdateAsync(entry, transaction, token).ConfigureAwait(false);
                         committedDebitsTotal += entry.Amount;
                     }
                 }
 
-                // create new balance entry
-                Entry balanceNew = new Entry();
-                balanceNew.GUID = Guid.NewGuid().ToString();
-                balanceNew.AccountGUID = accountGuid;
-                balanceNew.Type = EntryType.Balance;
-                balanceNew.Amount = balanceBefore.CommittedBalance + committedCreditsTotal - committedDebitsTotal;
-                balanceNew.Description = "Summarized balance after committing pending entries";
-                balanceNew.CommittedByGUID = null;
-                balanceNew.IsCommitted = true;
-                balanceNew.Replaces = balanceOld.GUID;
-                DateTime ts = DateTime.Now.ToUniversalTime();
-                balanceNew.CreatedUtc = ts;
-                balanceNew.CommittedUtc = ts;
-                balanceNew = _ORM.Insert<Entry>(balanceNew);
-
-                // update committed credits and debits
-                if (balanceBefore.PendingCredits.Entries != null && balanceBefore.PendingCredits.Entries.Count > 0)
+                if (summarized.Count > 0)
                 {
-                    foreach (Entry entry in balanceBefore.PendingCredits.Entries)
+                    // Create new balance entry
+                    decimal newBalance = balanceBefore.CommittedBalance + committedCreditsTotal - committedDebitsTotal;
+                    Entry balanceNew = new Entry();
+                    balanceNew.GUID = Guid.NewGuid();
+                    balanceNew.AccountGUID = accountGuid;
+                    balanceNew.Type = EntryType.Balance;
+                    balanceNew.Amount = newBalance;
+                    balanceNew.Description = "Balance after commit";
+                    balanceNew.IsCommitted = true;
+                    balanceNew.CommittedUtc = DateTime.Now.ToUniversalTime();
+
+                    if (balanceOld != null)
+                        balanceNew.Replaces = balanceOld.GUID;
+
+                    balanceNew = await _EntryRepository.CreateAsync(balanceNew, transaction, token).ConfigureAwait(false);
+
+                    // Update committed entries
+                    foreach (Guid guid in summarized)
                     {
-                        if (guids != null && guids.Count > 0 && !guids.Contains(entry.GUID)) continue;
-                        entry.CommittedByGUID = balanceNew.GUID;
-                        _ORM.Update<Entry>(entry);
+                        List<Entry> committedEntryList = (await _EntryRepository.Query(transaction)
+                            .Where(e => e.GUID == guid)
+                            .ExecuteAsync(token).ConfigureAwait(false)).ToList();
+
+                        if (committedEntryList != null && committedEntryList.Count > 0)
+                        {
+                            Entry committedEntry = committedEntryList[0];
+                            committedEntry.CommittedByGUID = balanceNew.GUID;
+                            await _EntryRepository.UpdateAsync(committedEntry, transaction, token).ConfigureAwait(false);
+                        }
                     }
                 }
 
-                // commit debits
-                if (balanceBefore.PendingDebits.Entries != null && balanceBefore.PendingDebits.Entries.Count > 0)
-                {
-                    foreach (Entry entry in balanceBefore.PendingDebits.Entries)
-                    {
-                        if (guids != null && guids.Count > 0 && !guids.Contains(entry.GUID)) continue;
-                        entry.CommittedByGUID = balanceNew.GUID;
-                        _ORM.Update<Entry>(entry);
-                    }
-                }
+                await transaction.CommitAsync(token).ConfigureAwait(false);
 
-                // updated balance before
-                balanceOld.CommittedByGUID = balanceNew.GUID;
-                balanceOld = _ORM.Update<Entry>(balanceOld);
-
-                balanceAfter = GetBalance(accountGuid, false);
+                Balance balanceAfter = await GetBalanceAsync(accountGuid, false, token).ConfigureAwait(false);
                 balanceAfter.Committed = summarized;
+                Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter)));
 
-                // return new balance
                 return balanceAfter;
+            }
+            catch
+            {
+                if (transaction != null)
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                throw;
             }
             finally
             {
-                if (applyLock) UnlockAccount(accountGuid);
-                if (balanceBefore != null && balanceAfter != null)
-                    Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter)));
+                transaction?.Dispose();
             }
         }
 
         #endregion
 
-        #region Private-Methods
+        #region Public-Disposal-Methods
 
-        private void LockAccount(string accountGuid)
+        /// <summary>
+        /// Dispose of the ledger.
+        /// </summary>
+        /// <returns>Task.</returns>
+        public async ValueTask DisposeAsync()
         {
-            while (!_LockedAccounts.TryAdd(accountGuid, DateTime.Now.ToUniversalTime()))
+            if (_Disposed) return;
+
+            foreach (SemaphoreSlim semaphore in _AccountLocks.Values)
             {
-                Task.Delay(100).Wait();
+                semaphore?.Dispose();
             }
-        }
 
-        private void UnlockAccount(string accountGuid)
-        {
-            _LockedAccounts.TryRemove(accountGuid, out _);
-        }
+            _AccountLocks.Clear();
 
-        private List<Account> GetAllAccountsInternal(string searchTerm = null)
-        {
-            ResultOrder[] ro = new ResultOrder[1];
-            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Account.CreatedUtc)), OrderDirectionEnum.Descending);
-            Expr e1 = new Expr(_ORM.GetColumnName<Account>(nameof(Account.Id)), OperatorEnum.GreaterThan, 0);
-            if (!String.IsNullOrEmpty(searchTerm)) e1.PrependAnd(_ORM.GetColumnName<Account>(nameof(Account.Name)), OperatorEnum.Contains, searchTerm);
-            return _ORM.SelectMany<Account>(null, null, e1, ro);
-        }
+            if (_ConnectionFactory != null)
+            {
+                _ConnectionFactory.Dispose();
+            }
 
-        private Account GetAccountByNameInternal(string name)
-        {
-            Expr e1 = new Expr(_ORM.GetColumnName<Account>(nameof(Account.Name)), OperatorEnum.Equals, name);
-            return _ORM.SelectFirst<Account>(e1);
-        }
-
-        private Account GetAccountByGuidInternal(string accountGuid)
-        {
-            Expr e1 = new Expr(_ORM.GetColumnName<Account>(nameof(Account.GUID)), OperatorEnum.Equals, accountGuid);
-            return _ORM.SelectFirst<Account>(e1);
-        }
-
-        private Entry GetPendingEntryInternal(string accountGuid, string entryGuid)
-        {
-            Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), OperatorEnum.Equals, entryGuid);
-            return _ORM.SelectFirst<Entry>(e2);
-        }
-
-        private List<Entry> GetPendingEntriesInternal(string accountGuid)
-        {
-            Expr e = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
-            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
-
-            ResultOrder[] ro = new ResultOrder[1];
-            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
-            return _ORM.SelectMany<Entry>(null, null, e, ro);
-        }
-
-        private List<Entry> GetPendingCreditsInternal(string accountGuid)
-        {
-            Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, EntryType.Credit);
-
-            ResultOrder[] ro = new ResultOrder[1];
-            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
-            return _ORM.SelectMany<Entry>(null, null, e2, ro);
-        }
-
-        private List<Entry> GetPendingDebitsInternal(string accountGuid)
-        {
-            Expr e2 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.IsCommitted)), OperatorEnum.Equals, false);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.CommittedUtc)), OperatorEnum.IsNull, null);
-            e2.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, EntryType.Debit);
-
-            ResultOrder[] ro = new ResultOrder[1];
-            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
-            return _ORM.SelectMany<Entry>(null, null, e2, ro);
-        }
-
-        private Entry GetLatestBalanceEntryInternal(string accountGuid)
-        {
-            Expr e = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-            e.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.Type)), OperatorEnum.Equals, EntryType.Balance);
-
-            ResultOrder[] ro = new ResultOrder[1];
-            ro[0] = new ResultOrder(_ORM.GetColumnName<Entry>(nameof(Entry.CreatedUtc)), OrderDirectionEnum.Descending);
-            List<Entry> balanceEntries = _ORM.SelectMany<Entry>(null, 1, e, ro);
-            if (balanceEntries != null && balanceEntries.Count == 1) return balanceEntries[0];
-            return null;
-        }
-
-        private List<Entry> GetEntriesByGuids(string accountGuid, List<string> guids)
-        {
-            Expr e3 = new Expr(_ORM.GetColumnName<Entry>(nameof(Entry.AccountGUID)), OperatorEnum.Equals, accountGuid);
-            e3.PrependAnd(_ORM.GetColumnName<Entry>(nameof(Entry.GUID)), OperatorEnum.In, guids);
-            return _ORM.SelectMany<Entry>(e3);
+            _Disposed = true;
+            await Task.CompletedTask;
         }
 
         #endregion
+
+#pragma warning restore CS8604 // Possible null reference argument.
+#pragma warning restore CS8629 // Nullable value type may be null.
+#pragma warning restore CS0219 // Variable is assigned but its value is never used
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+#pragma warning restore CS8603 // Possible null reference return.
+#pragma warning restore CS8602 // Dereference of a possibly null reference.
+#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
+#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
+#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
     }
 }
