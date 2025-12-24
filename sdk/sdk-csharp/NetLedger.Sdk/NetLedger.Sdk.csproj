@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>NetLedger.Sdk.xml</DocumentationFile>
+    <Version>1.0.0</Version>
+    <Authors>Joel Christner</Authors>
+    <Company>Joel Christner</Company>
+    <Product>NetLedger SDK</Product>
+    <Description>SDK for interacting with NetLedger Server REST API</Description>
+    <Copyright>Copyright (c) 2024 Joel Christner</Copyright>
+    <PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
+    <PackageTags>ledger;accounting;sdk;api</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

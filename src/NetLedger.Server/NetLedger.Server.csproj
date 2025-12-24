@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+		<Version>2.0.1</Version>
+		<Authors>Joel Christner</Authors>
+		<Company>Joel Christner</Company>
+		<Description>REST API server for NetLedger, a self-contained ledgering library.</Description>
+		<Copyright>(c)2025 Joel Christner</Copyright>
+		<PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
+		<RepositoryType>github</RepositoryType>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+	</PropertyGroup>
+
+	<PropertyGroup>
+	  <NoWarn>1701;1702;CS8604;CS8600</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\NetLedger\NetLedger.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Durable.Sqlite" Version="0.1.10" />
+		<PackageReference Include="SyslogLogging" Version="2.0.2" />
+		<PackageReference Include="Timestamps" Version="1.0.11" />
+		<PackageReference Include="Watson" Version="6.5.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="clean.bat">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+		<Content Include="clean.sh">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+</Project>

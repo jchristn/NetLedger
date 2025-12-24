@@ -1,0 +1,90 @@
+.api-keys-page {
+}
+
+/* API Key display */
+.api-key-display {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+/* GUID cell */
+.guid-cell-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.guid-cell {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* Checkbox label */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: normal;
+  margin-bottom: 0;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
+/* New Key Modal */
+.new-key-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background-color: rgba(245, 124, 0, 0.1);
+  border: 1px solid rgba(245, 124, 0, 0.3);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.new-key-warning svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+}
+
+.new-key-warning p {
+  margin: 0;
+  color: var(--color-warning);
+  font-weight: 500;
+}
+
+.new-key-display {
+  margin-bottom: 1rem;
+}
+
+.new-key-display label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.new-key-value {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.new-key-value code {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.875rem;
+  word-break: break-all;
+}

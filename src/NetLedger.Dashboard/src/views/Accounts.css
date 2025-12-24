@@ -1,0 +1,62 @@
+.accounts-page {
+}
+
+/* Account name cell */
+.account-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.account-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.account-notes {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* GUID cell */
+.guid-cell-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.guid-cell {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* Pending entries badge */
+.pending-entries-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.pending-credits {
+  color: var(--color-success);
+}
+
+.pending-debits {
+  color: var(--color-danger);
+}
+
+.pending-divider {
+  color: var(--text-muted);
+}
+
+/* Form textarea */
+.accounts-page textarea {
+  resize: vertical;
+  min-height: 80px;
+}

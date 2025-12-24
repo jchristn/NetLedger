@@ -45,6 +45,57 @@
             </summary>
             <param name="name">Name of the account.</param>
         </member>
+        <member name="T:NetLedger.AccountEnumerationQuery">
+            <summary>
+            Object used to request account enumeration.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.MaxResults">
+            <summary>
+            Maximum number of results to retrieve.
+            Minimum value is 1, maximum value is 1000.
+            Default value is 1000.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.Skip">
+            <summary>
+            The number of records to skip.
+            Minimum value is 0.
+            Default value is 0.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.ContinuationToken">
+            <summary>
+            Continuation token for pagination.
+            When provided, skip should not be used.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.Ordering">
+            <summary>
+            Order by.
+            Default is CreatedDescending.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.SearchTerm">
+            <summary>
+            Search term to filter accounts by name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.CreatedAfterUtc">
+            <summary>
+            Only include accounts created on or after this timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEnumerationQuery.CreatedBeforeUtc">
+            <summary>
+            Only include accounts created on or before this timestamp UTC.
+            </summary>
+        </member>
+        <member name="M:NetLedger.AccountEnumerationQuery.#ctor">
+            <summary>
+            Instantiate.
+            </summary>
+        </member>
         <member name="T:NetLedger.AccountEventArgs">
             <summary>
             Account event arguments.
@@ -133,6 +184,36 @@
             <summary>
             Instantiate a balance object.
             </summary>
+        </member>
+        <member name="T:NetLedger.BatchEntryInput">
+            <summary>
+            Represents input data for a batch entry operation (credit or debit).
+            </summary>
+        </member>
+        <member name="P:NetLedger.BatchEntryInput.Amount">
+            <summary>
+            Amount for the entry.
+            Must be a non-negative value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.BatchEntryInput.Notes">
+            <summary>
+            Optional notes or description for the entry.
+            Can be null.
+            </summary>
+        </member>
+        <member name="M:NetLedger.BatchEntryInput.#ctor">
+            <summary>
+            Instantiate a batch entry input with default values.
+            </summary>
+        </member>
+        <member name="M:NetLedger.BatchEntryInput.#ctor(System.Decimal,System.String)">
+            <summary>
+            Instantiate a batch entry input with the specified amount and notes.
+            </summary>
+            <param name="amount">Amount for the entry. Must be non-negative.</param>
+            <param name="notes">Optional notes or description for the entry.</param>
+            <exception cref="T:System.ArgumentOutOfRangeException">Thrown when amount is negative.</exception>
         </member>
         <member name="T:NetLedger.CommitEventArgs">
             <summary>
@@ -495,6 +576,16 @@
             <param name="token">Cancellation token.</param>
             <returns>List of Account objects.</returns>
         </member>
+        <member name="M:NetLedger.Ledger.EnumerateAccountsAsync(NetLedger.AccountEnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate accounts in a paginated way.
+            </summary>
+            <param name="query">Enumeration query containing pagination parameters and filters.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Enumeration result containing the page of accounts and metadata for continuing the enumeration.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
+        </member>
         <member name="M:NetLedger.Ledger.AddCreditAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add a credit.
@@ -519,25 +610,29 @@
             <param name="token">Cancellation token.</param>
             <returns>GUID of the newly-created entry.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.AddCreditsAsync(System.Guid,System.Collections.Generic.List{System.ValueTuple{System.Decimal,System.String}},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.AddCreditsAsync(System.Guid,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add multiple credits in batch.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="credits">List of tuples containing (amount, notes) for each credit.</param>
+            <param name="credits">List of batch entry inputs containing amount and notes for each credit.</param>
             <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
             <param name="token">Cancellation token.</param>
             <returns>List of GUIDs for the newly-created entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when credits list is null or empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.AddDebitsAsync(System.Guid,System.Collections.Generic.List{System.ValueTuple{System.Decimal,System.String}},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.AddDebitsAsync(System.Guid,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add multiple debits in batch.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="debits">List of tuples containing (amount, notes) for each debit.</param>
+            <param name="debits">List of batch entry inputs containing amount and notes for each debit.</param>
             <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
             <param name="token">Cancellation token.</param>
             <returns>List of GUIDs for the newly-created entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when debits list is null or empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.CancelPendingAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
             <summary>

@@ -1,0 +1,133 @@
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+.login-header {
+  text-align: center;
+  padding: 2rem 2rem 1.5rem;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
+  color: var(--text-inverse);
+}
+
+.login-logo {
+  margin-bottom: 1rem;
+}
+
+.login-logo-img {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-secondary);
+  padding: 4px;
+}
+
+.login-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: var(--text-inverse);
+}
+
+.login-subtitle {
+  font-size: 0.9375rem;
+  opacity: 0.9;
+  margin: 0;
+}
+
+.login-form {
+  padding: 1.5rem 2rem 2rem;
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(198, 40, 40, 0.1);
+  border: 1px solid rgba(198, 40, 40, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.login-error svg {
+  flex-shrink: 0;
+}
+
+.login-form .form-group {
+  margin-bottom: 1.25rem;
+}
+
+.login-form label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.login-form input {
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+}
+
+.login-submit {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.login-footer {
+  display: flex;
+  justify-content: center;
+  padding: 0 2rem 1.5rem;
+}
+
+.login-theme-toggle {
+  padding: 0.5rem;
+  border-radius: 50%;
+}
+
+.login-theme-toggle svg {
+  display: block;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .login-card {
+    border-radius: var(--radius-lg);
+  }
+
+  .login-header {
+    padding: 1.5rem 1.5rem 1rem;
+  }
+
+  .login-form {
+    padding: 1.25rem 1.5rem 1.5rem;
+  }
+
+  .login-logo-img {
+    width: 56px;
+    height: 56px;
+  }
+
+  .login-title {
+    font-size: 1.5rem;
+  }
+}

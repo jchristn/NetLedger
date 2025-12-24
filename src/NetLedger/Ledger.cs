@@ -15,16 +15,6 @@ namespace NetLedger
     /// </summary>
     public class Ledger : IAsyncDisposable
     {
-#pragma warning disable CS8600 // Converting null literal or possible null value to non-nullable type.
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
-#pragma warning disable CS8603 // Possible null reference return.
-#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-#pragma warning disable CS0219 // Variable is assigned but its value is never used
-#pragma warning disable CS8629 // Nullable value type may be null.
-#pragma warning disable CS8604 // Possible null reference argument.
-
         #region Public-Members
 
         /// <summary>
@@ -301,6 +291,115 @@ namespace NetLedger
             return await GetAllAccountsInternalAsync(searchTerm, skip, take, token).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Enumerate accounts in a paginated way.
+        /// </summary>
+        /// <param name="query">Enumeration query containing pagination parameters and filters.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Enumeration result containing the page of accounts and metadata for continuing the enumeration.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when query is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when skip and continuation token are both specified.</exception>
+        public async Task<EnumerationResult<Account>> EnumerateAccountsAsync(
+            AccountEnumerationQuery query,
+            CancellationToken token = default)
+        {
+            if (query == null) throw new ArgumentNullException(nameof(query));
+            if (query.ContinuationToken != null && query.Skip > 0)
+                throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
+
+            EnumerationResult<Account> result = new EnumerationResult<Account>
+            {
+                MaxResults = query.MaxResults,
+                Skip = query.Skip
+            };
+
+            // Build base query for total count
+            IQueryBuilder<Account> countQuery = _AccountRepository.Query()
+                .Where(a => a.Id > 0);
+
+            // Apply search filter
+            if (!String.IsNullOrEmpty(query.SearchTerm))
+                countQuery = countQuery.Where(a => a.Name.Contains(query.SearchTerm));
+
+            // Apply date filters
+            if (query.CreatedAfterUtc != null)
+                countQuery = countQuery.Where(a => a.CreatedUtc >= query.CreatedAfterUtc.Value);
+
+            if (query.CreatedBeforeUtc != null)
+                countQuery = countQuery.Where(a => a.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+            List<Account> totalAccounts = (await countQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+            result.TotalRecords = totalAccounts.Count;
+
+            // Build query for this page
+            IQueryBuilder<Account> pageQuery = _AccountRepository.Query()
+                .Where(a => a.Id > 0);
+
+            // Apply search filter
+            if (!String.IsNullOrEmpty(query.SearchTerm))
+                pageQuery = pageQuery.Where(a => a.Name.Contains(query.SearchTerm));
+
+            // Apply date filters
+            if (query.CreatedAfterUtc != null)
+                pageQuery = pageQuery.Where(a => a.CreatedUtc >= query.CreatedAfterUtc.Value);
+
+            if (query.CreatedBeforeUtc != null)
+                pageQuery = pageQuery.Where(a => a.CreatedUtc <= query.CreatedBeforeUtc.Value);
+
+            // Handle continuation token
+            if (query.ContinuationToken != null)
+            {
+                Account? continuationAccount = await GetAccountByGuidInternalAsync(query.ContinuationToken.Value, token).ConfigureAwait(false);
+                if (continuationAccount != null)
+                {
+                    if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
+                        pageQuery = pageQuery.Where(a => a.CreatedUtc < continuationAccount.CreatedUtc);
+                    else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
+                        pageQuery = pageQuery.Where(a => a.CreatedUtc > continuationAccount.CreatedUtc);
+                }
+            }
+
+            // Apply ordering
+            switch (query.Ordering)
+            {
+                case EnumerationOrderEnum.CreatedAscending:
+                    pageQuery = pageQuery.OrderBy(a => a.CreatedUtc);
+                    break;
+                case EnumerationOrderEnum.CreatedDescending:
+                default:
+                    pageQuery = pageQuery.OrderByDescending(a => a.CreatedUtc);
+                    break;
+            }
+
+            // Handle skip
+            if (query.Skip > 0 && query.ContinuationToken == null)
+            {
+                pageQuery = pageQuery.Skip(query.Skip);
+            }
+
+            // Count remaining records
+            List<Account> remainingAccounts = (await pageQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+            result.RecordsRemaining = remainingAccounts.Count;
+
+            // Get the actual page
+            pageQuery = pageQuery.Take(query.MaxResults);
+            result.Objects = (await pageQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
+            result.IterationsRequired = 1;
+
+            if (result.Objects == null) result.Objects = new List<Account>();
+            result.RecordsRemaining -= result.Objects.Count;
+
+            if (result.Objects != null
+                && result.Objects.Count > 0
+                && result.RecordsRemaining > 0)
+            {
+                result.EndOfResults = false;
+                result.ContinuationToken = result.Objects.Last().GUID;
+            }
+
+            return result;
+        }
+
         #endregion
 
         #region Public-Entry-Methods
@@ -427,19 +526,21 @@ namespace NetLedger
         /// Add multiple credits in batch.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="credits">List of tuples containing (amount, notes) for each credit.</param>
+        /// <param name="credits">List of batch entry inputs containing amount and notes for each credit.</param>
         /// <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>List of GUIDs for the newly-created entries.</returns>
-        public async Task<List<Guid>> AddCreditsAsync(Guid accountGuid, List<(decimal amount, string notes)> credits, bool isCommitted = false, CancellationToken token = default)
+        /// <exception cref="ArgumentNullException">Thrown when accountGuid is empty.</exception>
+        /// <exception cref="ArgumentException">Thrown when credits list is null or empty.</exception>
+        public async Task<List<Guid>> AddCreditsAsync(Guid accountGuid, List<BatchEntryInput> credits, bool isCommitted = false, CancellationToken token = default)
         {
             if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
             if (credits == null || credits.Count == 0) throw new ArgumentException("Credits list cannot be null or empty.");
 
             List<Guid> guids = new List<Guid>();
-            foreach ((decimal amount, string notes) credit in credits)
+            foreach (BatchEntryInput credit in credits)
             {
-                Guid guid = await AddCreditAsync(accountGuid, credit.amount, credit.notes, null, isCommitted, token).ConfigureAwait(false);
+                Guid guid = await AddCreditAsync(accountGuid, credit.Amount, credit.Notes, null, isCommitted, token).ConfigureAwait(false);
                 guids.Add(guid);
             }
             return guids;
@@ -449,19 +550,21 @@ namespace NetLedger
         /// Add multiple debits in batch.
         /// </summary>
         /// <param name="accountGuid">GUID of the account.</param>
-        /// <param name="debits">List of tuples containing (amount, notes) for each debit.</param>
+        /// <param name="debits">List of batch entry inputs containing amount and notes for each debit.</param>
         /// <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>List of GUIDs for the newly-created entries.</returns>
-        public async Task<List<Guid>> AddDebitsAsync(Guid accountGuid, List<(decimal amount, string notes)> debits, bool isCommitted = false, CancellationToken token = default)
+        /// <exception cref="ArgumentNullException">Thrown when accountGuid is empty.</exception>
+        /// <exception cref="ArgumentException">Thrown when debits list is null or empty.</exception>
+        public async Task<List<Guid>> AddDebitsAsync(Guid accountGuid, List<BatchEntryInput> debits, bool isCommitted = false, CancellationToken token = default)
         {
             if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
             if (debits == null || debits.Count == 0) throw new ArgumentException("Debits list cannot be null or empty.");
 
             List<Guid> guids = new List<Guid>();
-            foreach ((decimal amount, string notes) debit in debits)
+            foreach (BatchEntryInput debit in debits)
             {
-                Guid guid = await AddDebitAsync(accountGuid, debit.amount, debit.notes, null, isCommitted, token).ConfigureAwait(false);
+                Guid guid = await AddDebitAsync(accountGuid, debit.Amount, debit.Notes, null, isCommitted, token).ConfigureAwait(false);
                 guids.Add(guid);
             }
             return guids;
@@ -995,7 +1098,6 @@ namespace NetLedger
 
             Account account = null;
             Balance balanceBefore = null;
-            Balance balanceAfter = null;
             List<Guid> summarized = new List<Guid>();
 
             SemaphoreSlim accountLock = null;
@@ -1183,6 +1285,18 @@ namespace NetLedger
                             committed INTEGER NOT NULL,
                             committedbyguid TEXT,
                             committedutc TEXT,
+                            createdutc TEXT NOT NULL
+                        )";
+                    await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+                    command.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS apikeys (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            guid TEXT NOT NULL,
+                            name TEXT NOT NULL,
+                            apikey TEXT NOT NULL,
+                            active INTEGER NOT NULL,
+                            isadmin INTEGER NOT NULL,
                             createdutc TEXT NOT NULL
                         )";
                     await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
@@ -1474,15 +1588,5 @@ namespace NetLedger
         }
 
         #endregion
-
-#pragma warning restore CS8604 // Possible null reference argument.
-#pragma warning restore CS8629 // Nullable value type may be null.
-#pragma warning restore CS0219 // Variable is assigned but its value is never used
-#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
-#pragma warning restore CS8603 // Possible null reference return.
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
-#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-#pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
     }
 }

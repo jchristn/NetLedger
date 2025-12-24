@@ -7,8 +7,6 @@ namespace NetLedger
     /// </summary>
     public class CommitEventArgs : EventArgs
     {
-#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
-
         /// <summary>
         /// Account.
         /// </summary>
@@ -34,7 +32,5 @@ namespace NetLedger
             BalanceBefore = before;
             BalanceAfter = after;
         }
-
-#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }

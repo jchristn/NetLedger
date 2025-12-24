@@ -1,0 +1,44 @@
+services:
+  server:
+    image: jchristn/netledger:v2.0.1
+    container_name: netledger-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./server:/app/data
+    command: ["-f", "/app/data/netledger.json"]
+    environment:
+      - DOTNET_RUNNING_IN_CONTAINER=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - netledger
+
+  dashboard:
+    image: jchristn/netledger-ui:v2.0.1
+    container_name: netledger-dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./dashboard:/app/data
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - netledger
+
+networks:
+  netledger:
+    driver: bridge

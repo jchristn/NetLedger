@@ -1,0 +1,16 @@
+{
+  "Webserver": {
+    "Hostname": "*",
+    "Port": 8080,
+    "Ssl": false
+  },
+  "Logging": {
+    "EnableConsole": true,
+    "LogRequests": true
+  },
+  "Authentication": {
+    "Enabled": true,
+    "AdminApiKey": "netledgeradmin"
+  },
+  "LedgerDatabase": "/app/data/netledger.db"
+}

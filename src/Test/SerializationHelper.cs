@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -99,20 +100,19 @@ namespace Test
 
             public override void Write(Utf8JsonWriter writer, TExceptionType value, JsonSerializerOptions options)
             {
-                var serializableProperties = value.GetType()
+                IEnumerable<PropertyInfo> properties = value.GetType()
                     .GetProperties()
-                    .Select(uu => new { uu.Name, Value = uu.GetValue(value) })
                     .Where(uu => uu.Name != nameof(Exception.TargetSite));
 
 #pragma warning disable SYSLIB0020
                 if (options?.IgnoreNullValues == true
                     || options.DefaultIgnoreCondition == JsonIgnoreCondition.WhenWritingNull)
                 {
-                    serializableProperties = serializableProperties.Where(uu => uu.Value != null);
+                    properties = properties.Where(uu => uu.GetValue(value) != null);
                 }
 #pragma warning restore SYSLIB0020
 
-                var propList = serializableProperties.ToList();
+                List<PropertyInfo> propList = properties.ToList();
 
                 if (propList.Count == 0)
                 {
@@ -122,10 +122,10 @@ namespace Test
 
                 writer.WriteStartObject();
 
-                foreach (var prop in propList)
+                foreach (PropertyInfo prop in propList)
                 {
                     writer.WritePropertyName(prop.Name);
-                    JsonSerializer.Serialize(writer, prop.Value, options);
+                    JsonSerializer.Serialize(writer, prop.GetValue(value), options);
                 }
 
                 writer.WriteEndObject();
@@ -138,9 +138,9 @@ namespace Test
 
             public override void Write(Utf8JsonWriter writer, NameValueCollection value, JsonSerializerOptions options)
             {
-                var val = value.Keys.Cast<string>()
+                Dictionary<string, string> dict = value.Keys.Cast<string>()
                     .ToDictionary(k => k, k => string.Join(", ", value.GetValues(k)));
-                System.Text.Json.JsonSerializer.Serialize(writer, val);
+                System.Text.Json.JsonSerializer.Serialize(writer, dict);
             }
         }
 

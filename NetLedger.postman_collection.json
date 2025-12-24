@@ -1,0 +1,2292 @@
+{
+	"info": {
+		"_postman_id": "b96fef4f-51a0-42bf-a386-692ecc3297c3",
+		"name": "NetLedger",
+		"description": "Comprehensive Postman collection for testing the NetLedger.Server REST API.\n\n## Variables\n- `{{protocol}}` - HTTP or HTTPS (default: http)\n- `{{hostname}}` - Server hostname (default: localhost)\n- `{{port}}` - Server port (default: 8080)\n- `{{apiKey}}` - Bearer token for authentication (see below)\n- `{{accountGuid}}` - Auto-captured account GUID\n- `{{entryGuid}}` - Auto-captured entry GUID\n- `{{apiKeyGuid}}` - Auto-captured API key GUID\n\n## API Key Setup\nThe server generates a random admin API key on first run if none is configured. Check the server console for: `created default admin API key: nlk_...`\n\nAlternatively, set `DefaultAdminKey` in your server settings before starting.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "720438"
+	},
+	"item": [
+		{
+			"name": "Service",
+			"item": [
+				{
+					"name": "Health Check (HEAD)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "HEAD",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								""
+							]
+						},
+						"description": "Verify the service is running. Returns 200 OK with no body."
+					},
+					"response": []
+				},
+				{
+					"name": "Service Information (GET)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has service info\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('Name');",
+									"    pm.expect(jsonData).to.have.property('Version');",
+									"    pm.expect(jsonData).to.have.property('StartTimeUtc');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								""
+							]
+						},
+						"description": "Get service information including name, version, and uptime."
+					},
+					"response": []
+				}
+			],
+			"description": "Service health check and information endpoints (unauthenticated)"
+		},
+		{
+			"name": "Accounts",
+			"item": [
+				{
+					"name": "Create Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has account data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('GUID');",
+									"    pm.expect(jsonData).to.have.property('Name');",
+									"});",
+									"",
+									"// Capture account GUID for subsequent requests",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.GUID) {",
+									"    pm.collectionVariables.set(\"accountGuid\", jsonData.GUID);",
+									"    console.log(\"Captured accountGuid: \" + jsonData.GUID);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Name\": \"{{accountName}}\",\n    \"InitialBalance\": 1000.00\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts"
+							]
+						},
+						"description": "Create a new ledger account with optional initial balance."
+					},
+					"response": []
+				},
+				{
+					"name": "Enumerate Accounts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('TotalRecords');",
+									"    pm.expect(jsonData).to.have.property('Objects');",
+									"    pm.expect(jsonData).to.have.property('EndOfResults');",
+									"    pm.expect(jsonData.Objects).to.be.an('array');",
+									"});",
+									"",
+									"// Capture first account GUID if available",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.Objects && jsonData.Objects.length > 0) {",
+									"    pm.collectionVariables.set(\"accountGuid\", jsonData.Objects[0].GUID);",
+									"}",
+									"",
+									"// Capture continuation token if available",
+									"if (jsonData && jsonData.ContinuationToken) {",
+									"    pm.collectionVariables.set(\"accountContinuationToken\", jsonData.ContinuationToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts?maxResults=100&skip=0&ordering=CreatedDescending",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts"
+							],
+							"query": [
+								{
+									"key": "maxResults",
+									"value": "100",
+									"description": "Maximum results per page (1-1000)"
+								},
+								{
+									"key": "skip",
+									"value": "0",
+									"description": "Number of results to skip"
+								},
+								{
+									"key": "ordering",
+									"value": "CreatedDescending",
+									"description": "CreatedAscending, CreatedDescending"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search term for account name",
+									"disabled": true
+								},
+								{
+									"key": "startTime",
+									"value": "",
+									"description": "Filter accounts created after this UTC timestamp",
+									"disabled": true
+								},
+								{
+									"key": "endTime",
+									"value": "",
+									"description": "Filter accounts created before this UTC timestamp",
+									"disabled": true
+								},
+								{
+									"key": "continuationToken",
+									"value": "",
+									"description": "GUID for pagination continuation",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Enumerate accounts with pagination, filtering, and ordering. Returns EnumerationResult with totalRecords, objects array, and continuation token."
+					},
+					"response": []
+				},
+				{
+					"name": "Search Accounts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('TotalRecords');",
+									"    pm.expect(jsonData).to.have.property('Objects');",
+									"    pm.expect(jsonData.Objects).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts?search={{accountName}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "{{accountName}}",
+									"description": "Search term for account name"
+								}
+							]
+						},
+						"description": "Search for accounts by name. Returns EnumerationResult."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Account Exists (HEAD)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200 (exists) or 404 (not found)\", function () {",
+									"    pm.expect(pm.response.code).to.be.oneOf([200, 404]);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "HEAD",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}"
+							]
+						},
+						"description": "Check if an account exists by GUID. Returns 200 if exists, 404 if not."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account by GUID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has account details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('GUID');",
+									"    pm.expect(jsonData).to.have.property('Name');",
+									"    pm.expect(jsonData).to.have.property('CreatedUtc');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}"
+							]
+						},
+						"description": "Retrieve account details by GUID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account by Name",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has account details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('GUID');",
+									"    pm.expect(jsonData).to.have.property('Name');",
+									"});",
+									"",
+									"// Capture account GUID",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.GUID) {",
+									"    pm.collectionVariables.set(\"accountGuid\", jsonData.GUID);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/byname/{{accountName}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"byname",
+								"{{accountName}}"
+							]
+						},
+						"description": "Retrieve account details by name."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}"
+							]
+						},
+						"description": "Delete an account by GUID. Warning: This is destructive."
+					},
+					"response": []
+				}
+			],
+			"description": "Account management endpoints"
+		},
+		{
+			"name": "Credits",
+			"item": [
+				{
+					"name": "Add Single Credit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has entry GUIDs\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('EntryGuids');",
+									"    pm.expect(jsonData.EntryGuids).to.be.an('array');",
+									"});",
+									"",
+									"// Capture entry GUID for subsequent requests",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.EntryGuids && jsonData.EntryGuids.length > 0) {",
+									"    pm.collectionVariables.set(\"entryGuid\", jsonData.EntryGuids[0]);",
+									"    console.log(\"Captured entryGuid: \" + jsonData.EntryGuids[0]);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Amount\": 500.00,\n    \"Notes\": \"Deposit from client payment\",\n    \"IsCommitted\": false\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/credits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"credits"
+							]
+						},
+						"description": "Add a single credit (deposit) to an account."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Batch Credits",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has multiple entry GUIDs\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('EntryGuids');",
+									"    pm.expect(jsonData.EntryGuids).to.be.an('array');",
+									"    pm.expect(jsonData.EntryGuids.length).to.be.greaterThan(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Entries\": [\n        {\n            \"Amount\": 250.00,\n            \"Notes\": \"Batch credit 1 - Invoice #1001\"\n        },\n        {\n            \"Amount\": 175.50,\n            \"Notes\": \"Batch credit 2 - Invoice #1002\"\n        },\n        {\n            \"Amount\": 89.99,\n            \"Notes\": \"Batch credit 3 - Refund\"\n        }\n    ],\n    \"IsCommitted\": false\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/credits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"credits"
+							]
+						},
+						"description": "Add multiple credits in a single batch operation."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Pre-Committed Credit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has entry GUIDs\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('EntryGuids');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Amount\": 1000.00,\n    \"Notes\": \"Initial deposit - immediately committed\",\n    \"IsCommitted\": true\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/credits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"credits"
+							]
+						},
+						"description": "Add a credit that is immediately committed (bypasses pending state)."
+					},
+					"response": []
+				}
+			],
+			"description": "Credit (deposit) operations"
+		},
+		{
+			"name": "Debits",
+			"item": [
+				{
+					"name": "Add Single Debit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has entry GUIDs\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('EntryGuids');",
+									"    pm.expect(jsonData.EntryGuids).to.be.an('array');",
+									"});",
+									"",
+									"// Capture entry GUID",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.EntryGuids && jsonData.EntryGuids.length > 0) {",
+									"    pm.collectionVariables.set(\"entryGuid\", jsonData.EntryGuids[0]);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Amount\": 150.00,\n    \"Notes\": \"Withdrawal - Equipment purchase\",\n    \"IsCommitted\": false\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/debits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"debits"
+							]
+						},
+						"description": "Add a single debit (withdrawal) to an account."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Batch Debits",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has multiple entry GUIDs\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('EntryGuids');",
+									"    pm.expect(jsonData.EntryGuids.length).to.be.greaterThan(1);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Entries\": [\n        {\n            \"Amount\": 50.00,\n            \"Notes\": \"Batch debit 1 - Office supplies\"\n        },\n        {\n            \"Amount\": 25.00,\n            \"Notes\": \"Batch debit 2 - Shipping cost\"\n        },\n        {\n            \"Amount\": 12.50,\n            \"Notes\": \"Batch debit 3 - Service fee\"\n        }\n    ],\n    \"IsCommitted\": false\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/debits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"debits"
+							]
+						},
+						"description": "Add multiple debits in a single batch operation."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Pre-Committed Debit",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has entry GUIDs\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('EntryGuids');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Amount\": 200.00,\n    \"Notes\": \"Immediate expense - immediately committed\",\n    \"IsCommitted\": true\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/debits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"debits"
+							]
+						},
+						"description": "Add a debit that is immediately committed (bypasses pending state)."
+					},
+					"response": []
+				}
+			],
+			"description": "Debit (withdrawal) operations"
+		},
+		{
+			"name": "Entries",
+			"item": [
+				{
+					"name": "Enumerate Entries",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('AccountGUID');",
+									"    pm.expect(jsonData).to.have.property('TotalCount');",
+									"    pm.expect(jsonData).to.have.property('Records');",
+									"    pm.expect(jsonData).to.have.property('EndOfResults');",
+									"});",
+									"",
+									"// Capture continuation token if available",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.ContinuationToken) {",
+									"    pm.collectionVariables.set(\"continuationToken\", jsonData.ContinuationToken);",
+									"}",
+									"",
+									"// Capture first entry GUID if available",
+									"if (jsonData && jsonData.Records && jsonData.Records.length > 0) {",
+									"    pm.collectionVariables.set(\"entryGuid\", jsonData.Records[0].GUID);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?maxResults=100&skip=0&ordering=CreatedDescending",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries"
+							],
+							"query": [
+								{
+									"key": "maxResults",
+									"value": "100",
+									"description": "Maximum results per page (1-1000)"
+								},
+								{
+									"key": "skip",
+									"value": "0",
+									"description": "Number of results to skip"
+								},
+								{
+									"key": "ordering",
+									"value": "CreatedDescending",
+									"description": "CreatedAscending, CreatedDescending, AmountAscending, AmountDescending"
+								},
+								{
+									"key": "startTime",
+									"value": "",
+									"description": "Filter entries after this UTC timestamp",
+									"disabled": true
+								},
+								{
+									"key": "endTime",
+									"value": "",
+									"description": "Filter entries before this UTC timestamp",
+									"disabled": true
+								},
+								{
+									"key": "amountMin",
+									"value": "",
+									"description": "Minimum amount filter",
+									"disabled": true
+								},
+								{
+									"key": "amountMax",
+									"value": "",
+									"description": "Maximum amount filter",
+									"disabled": true
+								},
+								{
+									"key": "continuationToken",
+									"value": "",
+									"description": "GUID for pagination continuation",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Enumerate all entries for an account with pagination, filtering, and ordering."
+					},
+					"response": []
+				},
+				{
+					"name": "Enumerate Entries with Date Filter",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Set date range for last 30 days",
+									"var endDate = new Date();",
+									"var startDate = new Date();",
+									"startDate.setDate(startDate.getDate() - 30);",
+									"",
+									"pm.collectionVariables.set(\"filterStartTime\", startDate.toISOString());",
+									"pm.collectionVariables.set(\"filterEndTime\", endDate.toISOString());"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('Records');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?startTime={{filterStartTime}}&endTime={{filterEndTime}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries"
+							],
+							"query": [
+								{
+									"key": "startTime",
+									"value": "{{filterStartTime}}"
+								},
+								{
+									"key": "endTime",
+									"value": "{{filterEndTime}}"
+								}
+							]
+						},
+						"description": "List entries filtered by date range (last 30 days)."
+					},
+					"response": []
+				},
+				{
+					"name": "Enumerate Entries with Amount Filter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('Records');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?amountMin=100&amountMax=1000&ordering=AmountDescending",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries"
+							],
+							"query": [
+								{
+									"key": "amountMin",
+									"value": "100"
+								},
+								{
+									"key": "amountMax",
+									"value": "1000"
+								},
+								{
+									"key": "ordering",
+									"value": "AmountDescending"
+								}
+							]
+						},
+						"description": "List entries filtered by amount range, ordered by amount descending."
+					},
+					"response": []
+				},
+				{
+					"name": "Enumerate Entries (POST)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('TotalCount');",
+									"    pm.expect(jsonData).to.have.property('Records');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"MaxResults\": 50,\n    \"Skip\": 0,\n    \"ContinuationToken\": null,\n    \"Ordering\": \"CreatedDescending\",\n    \"CreatedAfterUtc\": null,\n    \"CreatedBeforeUtc\": null,\n    \"AmountMinimum\": null,\n    \"AmountMaximum\": null\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/enumerate",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries",
+								"enumerate"
+							]
+						},
+						"description": "Advanced entry enumeration using request body for complex filtering."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Entries",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});",
+									"",
+									"// Capture first pending entry GUID",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.length > 0) {",
+									"    pm.collectionVariables.set(\"entryGuid\", jsonData[0].GUID);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/pending",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries",
+								"pending"
+							]
+						},
+						"description": "Get all pending (uncommitted) entries for an account."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Credits",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array of credits\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"    ",
+									"    // Verify all entries are credits",
+									"    jsonData.forEach(function(entry) {",
+									"        pm.expect(entry.Type).to.eql('Credit');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/pending/credits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries",
+								"pending",
+								"credits"
+							]
+						},
+						"description": "Get only pending credit entries for an account."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Pending Debits",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array of debits\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"    ",
+									"    // Verify all entries are debits",
+									"    jsonData.forEach(function(entry) {",
+									"        pm.expect(entry.Type).to.eql('Debit');",
+									"    });",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/pending/debits",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries",
+								"pending",
+								"debits"
+							]
+						},
+						"description": "Get only pending debit entries for an account."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Entry",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/{{entryGuid}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"entries",
+								"{{entryGuid}}"
+							]
+						},
+						"description": "Cancel (delete) a pending entry. Only uncommitted entries can be cancelled."
+					},
+					"response": []
+				}
+			],
+			"description": "Entry enumeration and management"
+		},
+		{
+			"name": "Balances",
+			"item": [
+				{
+					"name": "Get Account Balance",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has balance details\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('AccountGUID');",
+									"    pm.expect(jsonData).to.have.property('CommittedBalance');",
+									"    pm.expect(jsonData).to.have.property('PendingBalance');",
+									"    pm.expect(jsonData).to.have.property('PendingCredits');",
+									"    pm.expect(jsonData).to.have.property('PendingDebits');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/balance",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"balance"
+							]
+						},
+						"description": "Get the current balance for an account, including committed and pending amounts."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Historical Balance",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"// Set as-of date to yesterday",
+									"var asOfDate = new Date();",
+									"asOfDate.setDate(asOfDate.getDate() - 1);",
+									"pm.collectionVariables.set(\"asOfDate\", asOfDate.toISOString());"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has historical balance\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('accountGuid');",
+									"    pm.expect(jsonData).to.have.property('asOfUtc');",
+									"    pm.expect(jsonData).to.have.property('balance');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/balance/asof?asOf={{asOfDate}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"balance",
+								"asof"
+							],
+							"query": [
+								{
+									"key": "asOf",
+									"value": "{{asOfDate}}",
+									"description": "UTC timestamp for historical balance query"
+								}
+							]
+						},
+						"description": "Get the balance for an account at a specific point in time (historical query)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Account Balances",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has balances object\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/balances",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"balances"
+							]
+						},
+						"description": "Get current balances for all accounts in the ledger."
+					},
+					"response": []
+				},
+				{
+					"name": "Commit All Pending Entries",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has updated balance\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('CommittedBalance');",
+									"    pm.expect(jsonData).to.have.property('PendingBalance');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/commit",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"commit"
+							]
+						},
+						"description": "Commit all pending entries for an account, finalizing them to the committed balance."
+					},
+					"response": []
+				},
+				{
+					"name": "Commit Specific Entries",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has updated balance\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('CommittedBalance');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"EntryGuids\": [\n        \"{{entryGuid}}\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/commit",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"commit"
+							]
+						},
+						"description": "Commit specific pending entries by their GUIDs."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Balance Chain",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response indicates balance chain validity\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('accountGuid');",
+									"    pm.expect(jsonData).to.have.property('isValid');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/verify",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"{{accountGuid}}",
+								"verify"
+							]
+						},
+						"description": "Verify the integrity of the balance chain for audit purposes."
+					},
+					"response": []
+				}
+			],
+			"description": "Balance retrieval and commit operations"
+		},
+		{
+			"name": "API Keys (Admin)",
+			"item": [
+				{
+					"name": "Enumerate API Keys",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has enumeration result\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('TotalRecords');",
+									"    pm.expect(jsonData).to.have.property('Objects');",
+									"    pm.expect(jsonData).to.have.property('EndOfResults');",
+									"    pm.expect(jsonData.Objects).to.be.an('array');",
+									"});",
+									"",
+									"// Capture first API key GUID if available",
+									"var jsonData = pm.response.json();",
+									"if (jsonData && jsonData.Objects && jsonData.Objects.length > 0) {",
+									"    pm.collectionVariables.set(\"apiKeyGuid\", jsonData.Objects[0].GUID);",
+									"}",
+									"",
+									"// Capture continuation token if available",
+									"if (jsonData && jsonData.ContinuationToken) {",
+									"    pm.collectionVariables.set(\"apiKeyContinuationToken\", jsonData.ContinuationToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/apikeys?maxResults=100&skip=0&ordering=CreatedDescending",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"apikeys"
+							],
+							"query": [
+								{
+									"key": "maxResults",
+									"value": "100",
+									"description": "Maximum results per page (1-1000)"
+								},
+								{
+									"key": "skip",
+									"value": "0",
+									"description": "Number of results to skip"
+								},
+								{
+									"key": "ordering",
+									"value": "CreatedDescending",
+									"description": "CreatedAscending, CreatedDescending"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search term for API key name",
+									"disabled": true
+								},
+								{
+									"key": "continuationToken",
+									"value": "",
+									"description": "GUID for pagination continuation",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Enumerate API keys with pagination (keys are redacted in response). Requires admin privileges. Returns EnumerationResult."
+					},
+					"response": []
+				},
+				{
+					"name": "Create API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has full API key\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('GUID');",
+									"    pm.expect(jsonData).to.have.property('Key');",
+									"    pm.expect(jsonData).to.have.property('Name');",
+									"    pm.expect(jsonData).to.have.property('Active');",
+									"    pm.expect(jsonData).to.have.property('IsAdmin');",
+									"});",
+									"",
+									"// Capture the new API key GUID and key value",
+									"var jsonData = pm.response.json();",
+									"if (jsonData) {",
+									"    pm.collectionVariables.set(\"apiKeyGuid\", jsonData.GUID);",
+									"    pm.collectionVariables.set(\"newApiKey\", jsonData.Key);",
+									"    console.log(\"New API Key created: \" + jsonData.Key);",
+									"    console.log(\"Save this key - it will be redacted in future responses!\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Name\": \"Application API Key\",\n    \"IsAdmin\": false\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/apikeys",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"apikeys"
+							]
+						},
+						"description": "Create a new API key. The full key is only shown once at creation time. Requires admin privileges."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Admin API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has admin API key\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('IsAdmin');",
+									"    pm.expect(jsonData.IsAdmin).to.eql(true);",
+									"});",
+									"",
+									"// Capture the new admin API key",
+									"var jsonData = pm.response.json();",
+									"if (jsonData) {",
+									"    pm.collectionVariables.set(\"apiKeyGuid\", jsonData.GUID);",
+									"    pm.collectionVariables.set(\"newAdminApiKey\", jsonData.Key);",
+									"    console.log(\"New Admin API Key: \" + jsonData.Key);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"Name\": \"Admin API Key\",\n    \"IsAdmin\": true\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/apikeys",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"apikeys"
+							]
+						},
+						"description": "Create a new admin API key with full privileges. Requires admin privileges."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/apikeys/{{apiKeyGuid}}",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"apikeys",
+								"{{apiKeyGuid}}"
+							]
+						},
+						"description": "Revoke (delete) an API key. Requires admin privileges."
+					},
+					"response": []
+				}
+			],
+			"description": "API key management endpoints (requires admin privileges)"
+		},
+		{
+			"name": "Workflows",
+			"item": [
+				{
+					"name": "Complete Transaction Workflow",
+					"item": [
+						{
+							"name": "1. Create Account",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Account created\", function () {",
+											"    pm.response.to.have.status(201);",
+											"});",
+											"",
+											"var jsonData = pm.response.json();",
+											"if (jsonData && jsonData.GUID) {",
+											"    pm.collectionVariables.set(\"workflowAccountGuid\", jsonData.GUID);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"Name\": \"Workflow Test Account\",\n    \"InitialBalance\": 0\n}"
+								},
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "2. Add Initial Deposit",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Credit added\", function () {",
+											"    pm.response.to.have.status(201);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"Amount\": 5000.00,\n    \"Notes\": \"Initial deposit\",\n    \"IsCommitted\": true\n}"
+								},
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/credits",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts",
+										"{{workflowAccountGuid}}",
+										"credits"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "3. Add Pending Transactions",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Transactions added\", function () {",
+											"    pm.response.to.have.status(201);",
+											"});",
+											"",
+											"var jsonData = pm.response.json();",
+											"if (jsonData && jsonData.EntryGuids) {",
+											"    pm.collectionVariables.set(\"workflowEntryGuids\", JSON.stringify(jsonData.EntryGuids));",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"Entries\": [\n        { \"Amount\": 200.00, \"Notes\": \"Payment received - Invoice #001\" },\n        { \"Amount\": 350.00, \"Notes\": \"Payment received - Invoice #002\" }\n    ],\n    \"IsCommitted\": false\n}"
+								},
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/credits",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts",
+										"{{workflowAccountGuid}}",
+										"credits"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "4. Check Balance (With Pending)",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Balance retrieved\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"",
+											"pm.test(\"Has pending credits\", function () {",
+											"    var jsonData = pm.response.json();",
+											"    pm.expect(jsonData.PendingCredits.Count).to.be.greaterThan(0);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/balance",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts",
+										"{{workflowAccountGuid}}",
+										"balance"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "5. Commit Pending Entries",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Entries committed\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{}"
+								},
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/commit",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts",
+										"{{workflowAccountGuid}}",
+										"commit"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "6. Verify Final Balance",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Balance retrieved\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});",
+											"",
+											"pm.test(\"No pending entries\", function () {",
+											"    var jsonData = pm.response.json();",
+											"    pm.expect(jsonData.PendingCredits.Count).to.eql(0);",
+											"    pm.expect(jsonData.PendingDebits.Count).to.eql(0);",
+											"});",
+											"",
+											"pm.test(\"Balance is correct\", function () {",
+											"    var jsonData = pm.response.json();",
+											"    // 5000 + 200 + 350 = 5550",
+											"    pm.expect(jsonData.CommittedBalance).to.eql(5550);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/balance",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts",
+										"{{workflowAccountGuid}}",
+										"balance"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "7. Cleanup - Delete Account",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Account deleted\", function () {",
+											"    pm.response.to.have.status(200);",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}",
+									"protocol": "{{protocol}}",
+									"host": [
+										"{{hostname}}"
+									],
+									"port": "{{port}}",
+									"path": [
+										"v1",
+										"accounts",
+										"{{workflowAccountGuid}}"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "A folder demonstrating a complete transaction workflow"
+				}
+			],
+			"description": "End-to-end workflow examples combining multiple requests"
+		},
+		{
+			"name": "Error Cases",
+			"item": [
+				{
+					"name": "401 - Missing API Key",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 401\", function () {",
+									"    pm.response.to.have.status(401);",
+									"});",
+									"",
+									"pm.test(\"Response indicates authentication required\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('Error');",
+									"    pm.expect(jsonData.Error).to.eql('Unauthorized');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts"
+							]
+						},
+						"description": "Demonstrates 401 Unauthorized when no API key is provided."
+					},
+					"response": []
+				},
+				{
+					"name": "400 - Missing Required Field",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Response indicates bad request\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('Error');",
+									"    pm.expect(jsonData.Error).to.eql('BadRequest');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"InitialBalance\": 100\n}"
+						},
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts"
+							]
+						},
+						"description": "Demonstrates 400 Bad Request when account name is missing."
+					},
+					"response": []
+				},
+				{
+					"name": "404 - Account Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 404\", function () {",
+									"    pm.response.to.have.status(404);",
+									"});",
+									"",
+									"pm.test(\"Response indicates not found\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('Error');",
+									"    pm.expect(jsonData.Error).to.eql('NotFound');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/00000000-0000-0000-0000-000000000000",
+							"protocol": "{{protocol}}",
+							"host": [
+								"{{hostname}}"
+							],
+							"port": "{{port}}",
+							"path": [
+								"v1",
+								"accounts",
+								"00000000-0000-0000-0000-000000000000"
+							]
+						},
+						"description": "Demonstrates 404 Not Found when account doesn't exist."
+					},
+					"response": []
+				}
+			],
+			"description": "Examples of error responses"
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{apiKey}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "protocol",
+			"value": "http",
+			"type": "string"
+		},
+		{
+			"key": "hostname",
+			"value": "localhost",
+			"type": "string"
+		},
+		{
+			"key": "port",
+			"value": "8080",
+			"type": "string"
+		},
+		{
+			"key": "apiKey",
+			"value": "netledgeradmin",
+			"type": "string"
+		},
+		{
+			"key": "accountGuid",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "accountName",
+			"value": "Test Account",
+			"type": "string"
+		},
+		{
+			"key": "entryGuid",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "apiKeyGuid",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "filterStartTime",
+			"value": ""
+		},
+		{
+			"key": "filterEndTime",
+			"value": ""
+		}
+	]
+}

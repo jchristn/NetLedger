@@ -1,0 +1,182 @@
+.home-page {
+}
+
+/* Server Info */
+.server-info-card {
+  margin-bottom: 1.5rem;
+}
+
+.server-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+}
+
+.server-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.server-info-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.server-info-value {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card .card-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  flex-shrink: 0;
+}
+
+.stat-icon-accounts {
+  background-color: rgba(220, 20, 60, 0.1);
+  color: var(--color-primary);
+}
+
+.stat-icon-balance {
+  background-color: rgba(45, 122, 60, 0.1);
+  color: var(--color-success);
+}
+
+.stat-icon-pending {
+  background-color: rgba(245, 124, 0, 0.1);
+  color: var(--color-warning);
+}
+
+.stat-icon-credits {
+  background-color: rgba(45, 122, 60, 0.1);
+  color: var(--color-success);
+}
+
+.stat-icon-debits {
+  background-color: rgba(198, 40, 40, 0.1);
+  color: var(--color-danger);
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Recent Accounts */
+.recent-accounts {
+  margin-bottom: 1.5rem;
+}
+
+.recent-accounts .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recent-accounts .card-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.accounts-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.accounts-summary-table th,
+.accounts-summary-table td {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.accounts-summary-table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.accounts-summary-table th.text-right,
+.accounts-summary-table td.text-right {
+  text-align: right;
+}
+
+.accounts-summary-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.accounts-summary-table tbody tr:hover {
+  background-color: var(--bg-hover);
+}
+
+.account-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-card .card-body {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stat-icon {
+    margin: 0 auto;
+  }
+
+  .stat-content {
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

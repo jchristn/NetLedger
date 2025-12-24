@@ -52,7 +52,13 @@ NetLedger is designed for developers building applications that require:
 - ❌ **Budget Enforcement** - No built-in spending limits or budget tracking
 - ❌ **Custom Fields** - Fixed schema for accounts and entries
 
-## Installation
+## Quick Start
+
+Choose the approach that best fits your needs:
+
+### Option 1: NuGet Package (Library Integration)
+
+Install the library directly into your .NET application:
 
 ```bash
 dotnet add package NetLedger
@@ -64,7 +70,7 @@ Or via NuGet Package Manager:
 Install-Package NetLedger
 ```
 
-## Quick Start
+Then use it in your code:
 
 ```csharp
 using NetLedger;
@@ -93,6 +99,205 @@ Console.WriteLine($"Committed: ${balance.CommittedBalance}");  // 1350.00
 // Cleanup
 await ledger.DisposeAsync();
 ```
+
+### Option 2: Build and Run from Source
+
+Clone the repository and build locally:
+
+```bash
+# Clone the repository
+git clone https://github.com/jchristn/NetLedger.git
+cd NetLedger
+
+# Build the solution
+dotnet build src/NetLedger.sln
+
+# Run the interactive test application
+dotnet run --project src/Test/Test.csproj
+
+# Run the automated test suite
+dotnet run --project src/Test.Automated/Test.Automated.csproj
+
+# Run the REST API server
+dotnet run --project src/NetLedger.Server/NetLedger.Server.csproj
+```
+
+### Option 3: Docker
+
+Run NetLedger Server and Dashboard using Docker Compose:
+
+```bash
+# Navigate to the docker directory
+cd docker
+
+# Start the server and dashboard
+docker compose up -d
+
+# View logs
+docker compose logs -f
+```
+
+This starts:
+- **NetLedger Server** on `http://localhost:8080` - REST API server
+- **NetLedger Dashboard** on `http://localhost:3000` - Web-based management UI
+
+Default admin API key: `netledgeradmin` (change this in production!)
+
+To stop the services:
+
+```bash
+docker compose down
+```
+
+#### Docker Configuration
+
+The Docker setup uses configuration files in the `docker/server/` directory:
+
+**netledger.json** - Server configuration:
+```json
+{
+  "Webserver": {
+    "Hostname": "*",
+    "Port": 8080,
+    "Ssl": false
+  },
+  "Logging": {
+    "EnableConsole": true,
+    "LogRequests": true
+  },
+  "Authentication": {
+    "AdminApiKey": "netledgeradmin",
+    "ApiKeyDatabase": "/app/data/apikeys.db"
+  },
+  "LedgerDatabase": "/app/data/netledger.db"
+}
+```
+
+## Dashboard
+
+NetLedger includes a web-based dashboard for managing accounts and viewing transactions.
+
+### Starting the Dashboard
+
+**With Docker (recommended):**
+```bash
+cd docker
+docker compose up -d
+```
+
+**For development:**
+```bash
+cd src/NetLedger.Dashboard
+npm install
+npm run dev
+```
+
+### Accessing the Dashboard
+
+- **Docker**: Open `http://localhost:3000` in your browser
+- **Development**: Open `http://localhost:5173` in your browser (Vite default port)
+
+The dashboard provides:
+- Account management (create, view, delete)
+- Transaction entry (credits and debits)
+- Balance viewing and history
+- Entry commit operations
+- API key management
+
+## SDKs
+
+NetLedger provides official SDKs for integrating with the REST API server:
+
+### .NET SDK
+
+```bash
+dotnet add package NetLedger.Sdk
+```
+
+```csharp
+using NetLedger.Sdk;
+
+// Create a client
+using var client = new NetLedgerClient("http://localhost:8080", "your-api-key");
+
+// Create an account
+Account account = await client.Account.CreateAsync("My Account");
+
+// Add credits and debits
+await client.Entry.AddCreditAsync(account.GUID, 100.00m, "Deposit");
+await client.Entry.AddDebitAsync(account.GUID, 25.50m, "Purchase");
+
+// Get balance and commit
+Balance balance = await client.Balance.GetAsync(account.GUID);
+await client.Balance.CommitAsync(account.GUID);
+```
+
+See [sdk/sdk-csharp/NetLedger.Sdk/README.md](sdk/sdk-csharp/NetLedger.Sdk/README.md) for full documentation.
+
+### JavaScript/TypeScript SDK
+
+```bash
+npm install netledger-sdk
+```
+
+```typescript
+import { NetLedgerClient } from 'netledger-sdk';
+
+// Create a client
+const client = new NetLedgerClient('http://localhost:8080', 'your-api-key');
+
+// Create an account
+const account = await client.account.create('My Account');
+
+// Add credits and debits
+await client.entry.addCredit(account.guid, 100.00, 'Deposit');
+await client.entry.addDebit(account.guid, 25.50, 'Purchase');
+
+// Get balance and commit
+const balance = await client.balance.get(account.guid);
+await client.balance.commit(account.guid);
+```
+
+See [sdk/sdk-js/README.md](sdk/sdk-js/README.md) for full documentation.
+
+## REST API
+
+When running NetLedger Server (via Docker or directly), a full REST API is available for programmatic access.
+
+**Base URL**: `http://localhost:8080`
+
+**Authentication**: Bearer token via `Authorization: Bearer <api-key>` header
+
+### Quick Examples
+
+```bash
+# Health check
+curl http://localhost:8080/
+
+# Create an account
+curl -X PUT http://localhost:8080/v1/accounts \
+  -H "Authorization: Bearer netledgeradmin" \
+  -H "Content-Type: application/json" \
+  -d '{"Name": "My Account", "InitialBalance": 100.00}'
+
+# Add a credit
+curl -X PUT http://localhost:8080/v1/accounts/{accountGuid}/credits \
+  -H "Authorization: Bearer netledgeradmin" \
+  -H "Content-Type: application/json" \
+  -d '{"Amount": 50.00, "Notes": "Customer payment"}'
+
+# Get balance
+curl http://localhost:8080/v1/accounts/{accountGuid}/balance \
+  -H "Authorization: Bearer netledgeradmin"
+
+# Commit pending entries
+curl -X POST http://localhost:8080/v1/accounts/{accountGuid}/commit \
+  -H "Authorization: Bearer netledgeradmin" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+For complete API documentation including all 24 endpoints, see [REST_API.md](REST_API.md).
 
 ## Detailed Usage
 

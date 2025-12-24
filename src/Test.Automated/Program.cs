@@ -10,8 +10,6 @@ namespace Test.Automated
 
     class Program
     {
-#pragma warning disable CS8602 // Dereference of a possibly null reference.
-
         private static List<TestResult> _Results = new List<TestResult>();
         private static string _DatabaseFile = "test_automated.db";
         private static Ledger? _Ledger = null;
@@ -255,11 +253,11 @@ namespace Test.Automated
 
             await TestAsync("Add multiple credits in batch", async () =>
             {
-                List<(decimal amount, string? notes)> credits = new List<(decimal, string?)>
+                List<BatchEntryInput> credits = new List<BatchEntryInput>
                 {
-                    (10.00m, "Batch credit 1"),
-                    (20.00m, "Batch credit 2"),
-                    (30.00m, "Batch credit 3")
+                    new BatchEntryInput(10.00m, "Batch credit 1"),
+                    new BatchEntryInput(20.00m, "Batch credit 2"),
+                    new BatchEntryInput(30.00m, "Batch credit 3")
                 };
                 List<Guid> guids = await _Ledger!.AddCreditsAsync(accountGuid, credits).ConfigureAwait(false);
                 return guids != null && guids.Count == 3;
@@ -267,10 +265,10 @@ namespace Test.Automated
 
             await TestAsync("Add multiple debits in batch", async () =>
             {
-                List<(decimal amount, string? notes)> debits = new List<(decimal, string?)>
+                List<BatchEntryInput> debits = new List<BatchEntryInput>
                 {
-                    (5.00m, "Batch debit 1"),
-                    (10.00m, "Batch debit 2")
+                    new BatchEntryInput(5.00m, "Batch debit 1"),
+                    new BatchEntryInput(10.00m, "Batch debit 2")
                 };
                 List<Guid> guids = await _Ledger!.AddDebitsAsync(accountGuid, debits).ConfigureAwait(false);
                 return guids != null && guids.Count == 2;
@@ -286,10 +284,10 @@ namespace Test.Automated
             await TestAsync("Add batch credits with immediate commit", async () =>
             {
                 Guid accountGuid2 = await _Ledger!.CreateAccountAsync("Batch Test 2", 0m).ConfigureAwait(false);
-                List<(decimal amount, string? notes)> credits = new List<(decimal, string?)>
+                List<BatchEntryInput> credits = new List<BatchEntryInput>
                 {
-                    (100.00m, "Committed batch 1"),
-                    (200.00m, "Committed batch 2")
+                    new BatchEntryInput(100.00m, "Committed batch 1"),
+                    new BatchEntryInput(200.00m, "Committed batch 2")
                 };
                 List<Guid> guids = await _Ledger.AddCreditsAsync(accountGuid2, credits, true).ConfigureAwait(false);
                 Balance balance = await _Ledger.GetBalanceAsync(accountGuid2).ConfigureAwait(false);
@@ -1664,7 +1662,5 @@ namespace Test.Automated
         }
 
         #endregion
-
-#pragma warning restore CS8602 // Dereference of a possibly null reference.
     }
 }

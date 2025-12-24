@@ -8,8 +8,6 @@ namespace NetLedger
     /// </summary>
     public class Balance
     {
-#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
-
         /// <summary>
         /// GUID of the account.
         /// </summary>
@@ -71,7 +69,5 @@ namespace NetLedger
         {
 
         }
-
-#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }

@@ -7,8 +7,6 @@ namespace NetLedger
     /// </summary>
     public class EntryEventArgs
     {
-#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
-
         /// <summary>
         /// Account details.
         /// </summary>
@@ -27,7 +25,5 @@ namespace NetLedger
             Account = a;
             Entry = e;
         }
-
-#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }

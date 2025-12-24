@@ -7,9 +7,6 @@ namespace NetLedger
     /// </summary>
     public class AccountEventArgs : EventArgs
     {
-#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
-#pragma warning disable CS8601 // Possible null reference assignment.
-
         /// <summary>
         /// Globally-unique identifier for the account.
         /// </summary>
@@ -39,8 +36,5 @@ namespace NetLedger
             Notes = a.Notes;
             CreatedUtc = a.CreatedUtc;
         }
-
-#pragma warning restore CS8601 // Possible null reference assignment.
-#pragma warning restore CS8625 // Cannot convert null literal to non-nullable reference type.
     }
 }
