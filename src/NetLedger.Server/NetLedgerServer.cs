@@ -168,7 +168,7 @@ namespace NetLedger.Server
             _Logging.Settings.EnableConsole = _Settings.Logging.EnableConsole;  
 
             // Initialize ledger
-            _Ledger = new Ledger(_Settings.LedgerDatabase);
+            _Ledger = new Ledger(_Settings.Database);
 
             // Initialize authentication
             _AuthService = new AuthService(_Settings, _Logging);

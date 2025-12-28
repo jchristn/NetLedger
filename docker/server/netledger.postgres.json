@@ -1,0 +1,28 @@
+{
+  "Webserver": {
+    "Hostname": "*",
+    "Port": 8080,
+    "Ssl": false
+  },
+  "Logging": {
+    "EnableConsole": true,
+    "LogRequests": true
+  },
+  "Authentication": {
+    "Enabled": true,
+    "AdminApiKey": "netledgeradmin"
+  },
+  "Database": {
+    "Type": "Postgresql",
+    "Hostname": "postgres-server",
+    "Port": 5432,
+    "Username": "netledger",
+    "Password": "changeme",
+    "DatabaseName": "netledger",
+    "Schema": "public",
+    "RequireEncryption": false,
+    "ConnectionTimeoutSeconds": 30,
+    "MaxPoolSize": 100,
+    "LogQueries": false
+  }
+}

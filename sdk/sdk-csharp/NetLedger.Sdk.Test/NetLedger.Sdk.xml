@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>NetLedger.Sdk.Test</name>
+    </assembly>
+    <members>
+        <member name="T:NetLedger.Sdk.Test.Program">
+            <summary>
+            Test harness for the NetLedger SDK.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.Test.TestResult">
+            <summary>
+            Represents the result of a single test.
+            </summary>
+        </member>
+    </members>
+</doc>

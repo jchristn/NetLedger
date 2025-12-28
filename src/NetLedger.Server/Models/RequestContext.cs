@@ -133,6 +133,16 @@ namespace NetLedger.Server.Models
         public decimal? AmountMax { get; set; }
 
         /// <summary>
+        /// Minimum balance filter for account enumeration.
+        /// </summary>
+        public decimal? BalanceMinimum { get; set; }
+
+        /// <summary>
+        /// Maximum balance filter for account enumeration.
+        /// </summary>
+        public decimal? BalanceMaximum { get; set; }
+
+        /// <summary>
         /// Continuation token for pagination.
         /// </summary>
         public Guid? ContinuationToken { get; set; }
@@ -300,6 +310,20 @@ namespace NetLedger.Server.Models
             if (!string.IsNullOrEmpty(amountMaxStr) && decimal.TryParse(amountMaxStr, out decimal amountMax))
             {
                 req.AmountMax = amountMax;
+            }
+
+            // BalanceMinimum
+            string? balanceMinStr = req.QueryString["balanceMin"];
+            if (!string.IsNullOrEmpty(balanceMinStr) && decimal.TryParse(balanceMinStr, out decimal balanceMin))
+            {
+                req.BalanceMinimum = balanceMin;
+            }
+
+            // BalanceMaximum
+            string? balanceMaxStr = req.QueryString["balanceMax"];
+            if (!string.IsNullOrEmpty(balanceMaxStr) && decimal.TryParse(balanceMaxStr, out decimal balanceMax))
+            {
+                req.BalanceMaximum = balanceMax;
             }
 
             // ContinuationToken

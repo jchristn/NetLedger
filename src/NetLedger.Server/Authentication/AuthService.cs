@@ -48,7 +48,7 @@ namespace NetLedger.Server.Authentication
             };
 
             _ConnectionFactory = new SqliteConnectionFactory(
-                $"Data Source={_Settings.LedgerDatabase}",
+                $"Data Source={_Settings.Database.Filename}",
                 poolOptions);
 
             _ApiKeyRepository = new SqliteRepository<ApiKey>(_ConnectionFactory);

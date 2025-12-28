@@ -44,57 +44,7 @@
             Instantiate an account with the specified name.
             </summary>
             <param name="name">Name of the account.</param>
-        </member>
-        <member name="T:NetLedger.AccountEnumerationQuery">
-            <summary>
-            Object used to request account enumeration.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.MaxResults">
-            <summary>
-            Maximum number of results to retrieve.
-            Minimum value is 1, maximum value is 1000.
-            Default value is 1000.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.Skip">
-            <summary>
-            The number of records to skip.
-            Minimum value is 0.
-            Default value is 0.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.ContinuationToken">
-            <summary>
-            Continuation token for pagination.
-            When provided, skip should not be used.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.Ordering">
-            <summary>
-            Order by.
-            Default is CreatedDescending.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.SearchTerm">
-            <summary>
-            Search term to filter accounts by name.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.CreatedAfterUtc">
-            <summary>
-            Only include accounts created on or after this timestamp UTC.
-            </summary>
-        </member>
-        <member name="P:NetLedger.AccountEnumerationQuery.CreatedBeforeUtc">
-            <summary>
-            Only include accounts created on or before this timestamp UTC.
-            </summary>
-        </member>
-        <member name="M:NetLedger.AccountEnumerationQuery.#ctor">
-            <summary>
-            Instantiate.
-            </summary>
+            <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
         <member name="T:NetLedger.AccountEventArgs">
             <summary>
@@ -120,6 +70,71 @@
             <summary>
             UTC timestamp when the account was created.
             </summary>
+        </member>
+        <member name="T:NetLedger.ApiKey">
+            <summary>
+            API key for authentication.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.Id">
+            <summary>
+            Database row ID.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.GUID">
+            <summary>
+            Unique identifier for the API key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.Name">
+            <summary>
+            Display name for the API key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.Key">
+            <summary>
+            The API key value. This is the Bearer token.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.Active">
+            <summary>
+            Whether the API key is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.IsAdmin">
+            <summary>
+            Whether this is an admin API key with full permissions.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.CreatedUtc">
+            <summary>
+            Creation timestamp (UTC).
+            </summary>
+        </member>
+        <member name="M:NetLedger.ApiKey.#ctor">
+            <summary>
+            Instantiate.
+            </summary>
+        </member>
+        <member name="M:NetLedger.ApiKey.#ctor(System.String,System.Boolean)">
+            <summary>
+            Instantiate with name.
+            </summary>
+            <param name="name">Display name.</param>
+            <param name="isAdmin">Whether this is an admin key.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.ApiKey.GenerateApiKey">
+            <summary>
+            Generate a new random API key.
+            </summary>
+            <returns>API key string as a GUID.</returns>
+        </member>
+        <member name="M:NetLedger.ApiKey.Redact">
+            <summary>
+            Create a redacted copy of the API key (for display purposes).
+            </summary>
+            <returns>Redacted copy.</returns>
         </member>
         <member name="T:NetLedger.Balance">
             <summary>
@@ -235,6 +250,1573 @@
             Balance from after the commit.
             </summary>
         </member>
+        <member name="T:NetLedger.Database.DatabaseDriverBase">
+            <summary>
+            Abstract base class for database drivers.
+            Derived classes must initialize the implementation methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.Accounts">
+            <summary>
+            Account methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.Entries">
+            <summary>
+            Entry methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.ApiKeys">
+            <summary>
+            API key methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.Settings">
+            <summary>
+            Database settings.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.LogQueries">
+            <summary>
+            Enable or disable query logging.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.LogQueryAction">
+            <summary>
+            Action to invoke when logging queries.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.#ctor(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Database driver base class.
+            Derived classes must initialize the implementation methods.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.ExecuteQueryAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Execute a raw SQL query.
+            </summary>
+            <param name="query">SQL query string.</param>
+            <param name="isTransaction">Whether to execute within a transaction.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>DataTable containing query results.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.ExecuteQueriesAsync(System.Collections.Generic.IEnumerable{System.String},System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Execute multiple raw SQL queries.
+            </summary>
+            <param name="queries">SQL query strings.</param>
+            <param name="isTransaction">Whether to execute within a transaction.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>DataTable containing results of the last query.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when queries is null.</exception>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.BeginTransactionAsync(System.Threading.CancellationToken)">
+            <summary>
+            Begin a database transaction.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Database transaction object.</returns>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.Dispose">
+            <summary>
+            Dispose of resources.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.DisposeAsync">
+            <summary>
+            Dispose of resources asynchronously.
+            </summary>
+            <returns>ValueTask.</returns>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.Dispose(System.Boolean)">
+            <summary>
+            Dispose of resources.
+            </summary>
+            <param name="disposing">Whether disposing is occurring.</param>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.LogQuery(System.String)">
+            <summary>
+            Log a query if logging is enabled.
+            </summary>
+            <param name="query">Query to log.</param>
+        </member>
+        <member name="T:NetLedger.Database.DatabaseSettings">
+            <summary>
+            Database configuration settings.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Type">
+            <summary>
+            Database type.
+            Default is SQLite.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Filename">
+            <summary>
+            Database filename (for SQLite).
+            Default is "./netledger.db".
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Hostname">
+            <summary>
+            Database hostname (for MySQL, PostgreSQL, SQL Server).
+            Default is "localhost".
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Port">
+            <summary>
+            Database port.
+            Default values: MySQL=3306, PostgreSQL=5432, SQL Server=1433.
+            Value must be between 1 and 65535.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Username">
+            <summary>
+            Database username.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Password">
+            <summary>
+            Database password.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.DatabaseName">
+            <summary>
+            Database name.
+            Default is "netledger".
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Instance">
+            <summary>
+            Instance name (for SQL Server).
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.Schema">
+            <summary>
+            Schema name (for PostgreSQL).
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.LogQueries">
+            <summary>
+            Enable query logging.
+            Default is false.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.RequireEncryption">
+            <summary>
+            Require encryption for database connections.
+            Default is false.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.ConnectionTimeoutSeconds">
+            <summary>
+            Connection timeout in seconds.
+            Default is 30 seconds. Must be between 1 and 300.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseSettings.MaxPoolSize">
+            <summary>
+            Maximum connection pool size.
+            Default is 100. Must be between 1 and 500.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseSettings.#ctor">
+            <summary>
+            Instantiate database settings with defaults.
+            Default configuration is SQLite with filename "./netledger.db".
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseSettings.GetDefaultPort">
+            <summary>
+            Get the default port for the configured database type.
+            </summary>
+            <returns>Default port number.</returns>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseSettings.GetEffectivePort">
+            <summary>
+            Get the effective port (uses default if port is 0).
+            </summary>
+            <returns>Effective port number.</returns>
+        </member>
+        <member name="T:NetLedger.Database.DatabaseTypeEnum">
+            <summary>
+            Supported database types.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.DatabaseTypeEnum.Sqlite">
+            <summary>
+            SQLite database.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.DatabaseTypeEnum.Mysql">
+            <summary>
+            MySQL database.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.DatabaseTypeEnum.Postgresql">
+            <summary>
+            PostgreSQL database.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.DatabaseTypeEnum.SqlServer">
+            <summary>
+            Microsoft SQL Server database.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Database.FilterBuilder">
+            <summary>
+            Dynamic search filter builder for constructing SQL WHERE clauses.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.StartTimeUtc">
+            <summary>
+            Start time UTC filter (created on or after).
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.EndTimeUtc">
+            <summary>
+            End time UTC filter (created on or before).
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.SearchTerm">
+            <summary>
+            Search term for description/notes.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.EntryType">
+            <summary>
+            Entry type filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.AmountMinimum">
+            <summary>
+            Minimum amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.AmountMaximum">
+            <summary>
+            Maximum amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.IsCommitted">
+            <summary>
+            Is committed filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.ExcludeBalanceEntries">
+            <summary>
+            Exclude balance entries.
+            Default is true.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.Ordering">
+            <summary>
+            Ordering.
+            Default is CreatedDescending.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.Skip">
+            <summary>
+            Skip count (offset).
+            Default is 0.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.MaxResults">
+            <summary>
+            Maximum number of results to return.
+            Minimum value is 1.
+            Maximum value is 1000.
+            Default value is 1000.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.#ctor">
+            <summary>
+            Instantiate the filter builder.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.FromEnumerationQuery(NetLedger.EnumerationQuery)">
+            <summary>
+            Create a filter builder from an enumeration query.
+            </summary>
+            <param name="query">Enumeration query.</param>
+            <returns>Filter builder.</returns>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.BuildEntryConditions(NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            Build the WHERE clause conditions for entries (without WHERE keyword).
+            </summary>
+            <param name="dbType">Database type for syntax differences.</param>
+            <returns>WHERE clause conditions or empty string.</returns>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.BuildAccountConditions(NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            Build the WHERE clause conditions for accounts (without WHERE keyword).
+            </summary>
+            <param name="dbType">Database type for syntax differences.</param>
+            <returns>WHERE clause conditions or empty string.</returns>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.GetOrderByClause(NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            Get the ORDER BY clause.
+            </summary>
+            <param name="dbType">Database type for syntax differences.</param>
+            <returns>ORDER BY clause.</returns>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.GetLimitOffsetClause(NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            Get the LIMIT/OFFSET clause.
+            </summary>
+            <param name="dbType">Database type for syntax differences.</param>
+            <returns>LIMIT/OFFSET clause.</returns>
+        </member>
+        <member name="M:NetLedger.Database.FilterBuilder.SanitizeString(System.String)">
+            <summary>
+            Sanitize a string for SQL injection prevention.
+            </summary>
+            <param name="input">Input string.</param>
+            <returns>Sanitized string.</returns>
+        </member>
+        <member name="T:NetLedger.Database.IDatabaseTransaction">
+            <summary>
+            Interface for database transaction operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.IDatabaseTransaction.CommitAsync(System.Threading.CancellationToken)">
+            <summary>
+            Commit the transaction.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.IDatabaseTransaction.RollbackAsync(System.Threading.CancellationToken)">
+            <summary>
+            Rollback the transaction.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IAccountMethods">
+            <summary>
+            Interface for account CRUD operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <summary>
+            Create a new account.
+            </summary>
+            <param name="account">Account to create.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Created account.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Read an account by GUID.
+            </summary>
+            <param name="guid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Account if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read an account by name.
+            </summary>
+            <param name="name">Account name.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Account if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <summary>
+            Read all accounts.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>List of all accounts.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.SearchByNameAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Search accounts by name.
+            </summary>
+            <param name="searchTerm">Search term for account name.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of matching accounts.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate accounts with pagination and filtering.
+            </summary>
+            <param name="query">Enumeration query parameters.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Enumeration result with accounts.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <summary>
+            Update an account.
+            </summary>
+            <param name="account">Account to update.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Updated account.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Delete an account by GUID.
+            </summary>
+            <param name="guid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Check if an account exists by GUID.
+            </summary>
+            <param name="guid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>True if account exists.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Check if an account exists by name.
+            </summary>
+            <param name="name">Account name.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>True if account exists.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.GetCountAsync(System.Threading.CancellationToken)">
+            <summary>
+            Get total account count.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Number of accounts.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IApiKeyMethods">
+            <summary>
+            Interface for API key CRUD operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <summary>
+            Create a new API key.
+            </summary>
+            <param name="apiKey">API key to create.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Created API key.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Read an API key by GUID.
+            </summary>
+            <param name="guid">API key GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>API key if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read an API key by the key value.
+            </summary>
+            <param name="key">API key value.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>API key if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <summary>
+            Read all API keys.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>List of all API keys.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate API keys with pagination.
+            </summary>
+            <param name="query">Enumeration query parameters.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Enumeration result with API keys.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <summary>
+            Update an API key.
+            </summary>
+            <param name="apiKey">API key to update.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Updated API key.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Delete an API key by GUID.
+            </summary>
+            <param name="guid">API key GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Check if an active API key exists.
+            </summary>
+            <param name="key">API key value.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>True if active API key exists.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.AuthenticateAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Authenticate using an API key.
+            Returns the API key if valid and active, null otherwise.
+            </summary>
+            <param name="key">API key value.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>API key if valid and active, null otherwise.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IEntryMethods">
+            <summary>
+            Interface for entry CRUD operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.CreateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <summary>
+            Create a new entry.
+            </summary>
+            <param name="entry">Entry to create.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Created entry.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <summary>
+            Create multiple entries in a batch.
+            </summary>
+            <param name="entries">Entries to create.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of created entries.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Read an entry by GUID.
+            </summary>
+            <param name="guid">Entry GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Entry if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Read entries by multiple GUIDs.
+            </summary>
+            <param name="guids">List of entry GUIDs.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of entries.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Read entries by account GUID.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of entries for the account.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+            <summary>
+            Read pending entries by account GUID.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="entryType">Optional entry type filter.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of pending entries.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Read the latest balance entry for an account.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Latest balance entry if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+            <summary>
+            Read balance entry as of a specific timestamp.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="asOfUtc">Timestamp in UTC.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Balance entry if found, null otherwise.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+            <summary>
+            Read entries with filtering.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="filter">Filter builder with search criteria.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of filtered entries.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate entries with pagination and filtering.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="query">Enumeration query parameters.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Enumeration result with entries.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <summary>
+            Update an entry.
+            </summary>
+            <param name="entry">Entry to update.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Updated entry.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <summary>
+            Update multiple entries in a batch.
+            </summary>
+            <param name="entries">Entries to update.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Delete an entry by GUID.
+            </summary>
+            <param name="guid">Entry GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Delete all entries by account GUID.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Check if an entry exists by GUID.
+            </summary>
+            <param name="guid">Entry GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>True if entry exists.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Get count of entries for an account.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Number of entries.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Sum pending credits for an account.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Sum of pending credits.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Sum pending debits for an account.
+            </summary>
+            <param name="accountGuid">Account GUID.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Sum of pending debits.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Mysql.Implementations.AccountMethods">
+            <summary>
+            MySQL implementation of account methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.#ctor(NetLedger.Database.Mysql.MysqlDatabaseDriver)">
+            <summary>
+            Instantiate the account methods.
+            </summary>
+            <param name="driver">MySQL database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.SearchByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.GetCountAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Mysql.Implementations.ApiKeyMethods">
+            <summary>
+            MySQL implementation of API key methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.#ctor(NetLedger.Database.Mysql.MysqlDatabaseDriver)">
+            <summary>
+            Instantiate the API key methods.
+            </summary>
+            <param name="driver">MySQL database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.AuthenticateAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Mysql.Implementations.EntryMethods">
+            <summary>
+            MySQL implementation of entry methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.#ctor(NetLedger.Database.Mysql.MysqlDatabaseDriver)">
+            <summary>
+            Instantiate the entry methods.
+            </summary>
+            <param name="driver">MySQL database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.CreateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Mysql.MysqlDatabaseDriver">
+            <summary>
+            MySQL database driver.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseDriver.#ctor(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Instantiate the MySQL database driver.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when required settings are missing.</exception>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseDriver.ExecuteQueryAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseDriver.ExecuteQueriesAsync(System.Collections.Generic.IEnumerable{System.String},System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseDriver.BeginTransactionAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseDriver.Dispose(System.Boolean)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Mysql.MysqlDatabaseTransaction">
+            <summary>
+            MySQL database transaction wrapper.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseTransaction.#ctor(MySqlConnector.MySqlConnection,MySqlConnector.MySqlTransaction)">
+            <summary>
+            Instantiate the MySQL database transaction.
+            </summary>
+            <param name="connection">MySQL connection.</param>
+            <param name="transaction">MySQL transaction.</param>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseTransaction.CommitAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseTransaction.RollbackAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseTransaction.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Mysql.MysqlDatabaseTransaction.DisposeAsync">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Mysql.Queries.SetupQueries">
+            <summary>
+            MySQL setup queries for table and index creation.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.Mysql.Queries.SetupQueries.TimestampFormat">
+            <summary>
+            Timestamp format for MySQL DATETIME columns.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Queries.SetupQueries.CreateTables">
+            <summary>
+            Get the SQL statements to create all required tables.
+            </summary>
+            <returns>Array of SQL statements.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Mysql.Queries.SetupQueries.CreateIndices">
+            <summary>
+            Get the SQL statements to create all required indices.
+            These use CREATE INDEX without IF NOT EXISTS for MySQL compatibility.
+            The driver will catch and ignore duplicate index errors.
+            </summary>
+            <returns>Array of SQL statements.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Postgresql.Implementations.AccountMethods">
+            <summary>
+            PostgreSQL implementation of account methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.#ctor(NetLedger.Database.Postgresql.PostgresqlDatabaseDriver)">
+            <summary>
+            Instantiate the account methods.
+            </summary>
+            <param name="driver">PostgreSQL database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.SearchByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.GetCountAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods">
+            <summary>
+            PostgreSQL implementation of API key methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.#ctor(NetLedger.Database.Postgresql.PostgresqlDatabaseDriver)">
+            <summary>
+            Instantiate the API key methods.
+            </summary>
+            <param name="driver">PostgreSQL database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.AuthenticateAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Postgresql.Implementations.EntryMethods">
+            <summary>
+            PostgreSQL implementation of entry methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.#ctor(NetLedger.Database.Postgresql.PostgresqlDatabaseDriver)">
+            <summary>
+            Instantiate the entry methods.
+            </summary>
+            <param name="driver">PostgreSQL database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.CreateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver">
+            <summary>
+            PostgreSQL database driver.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver.#ctor(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Instantiate the PostgreSQL database driver.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when required settings are missing.</exception>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver.ExecuteQueryAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver.ExecuteQueriesAsync(System.Collections.Generic.IEnumerable{System.String},System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver.BeginTransactionAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver.Dispose(System.Boolean)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Postgresql.PostgresqlDatabaseTransaction">
+            <summary>
+            PostgreSQL database transaction wrapper.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseTransaction.#ctor(Npgsql.NpgsqlConnection,Npgsql.NpgsqlTransaction)">
+            <summary>
+            Instantiate the PostgreSQL database transaction.
+            </summary>
+            <param name="connection">PostgreSQL connection.</param>
+            <param name="transaction">PostgreSQL transaction.</param>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseTransaction.CommitAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseTransaction.RollbackAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseTransaction.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.PostgresqlDatabaseTransaction.DisposeAsync">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Postgresql.Queries.SetupQueries">
+            <summary>
+            PostgreSQL setup queries for table and index creation.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.Postgresql.Queries.SetupQueries.TimestampFormat">
+            <summary>
+            Timestamp format for PostgreSQL TIMESTAMP columns.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Queries.SetupQueries.CreateTables">
+            <summary>
+            Get the SQL statements to create all required tables.
+            </summary>
+            <returns>Array of SQL statements.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Postgresql.Queries.SetupQueries.CreateIndices">
+            <summary>
+            Get the SQL statements to create all required indices.
+            </summary>
+            <returns>Array of SQL statements.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.AccountMethods">
+            <summary>
+            SQLite implementation of account methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the account methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.SearchByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.GetCountAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods">
+            <summary>
+            SQLite implementation of API key methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the API key methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.AuthenticateAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.EntryMethods">
+            <summary>
+            SQLite implementation of entry methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the entry methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.CreateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Queries.SetupQueries">
+            <summary>
+            SQLite setup queries for creating tables and indices.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.Sqlite.Queries.SetupQueries.TimestampFormat">
+            <summary>
+            Timestamp format for SQLite.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Queries.SetupQueries.CreateTables">
+            <summary>
+            Create all required tables.
+            </summary>
+            <returns>SQL statements to create tables.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Queries.SetupQueries.CreateIndices">
+            <summary>
+            Create indices for better query performance.
+            </summary>
+            <returns>SQL statements to create indices.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.SqliteDatabaseDriver">
+            <summary>
+            SQLite database driver implementation.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseDriver.#ctor(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Instantiate the SQLite database driver.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when filename is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseDriver.ExecuteQueryAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseDriver.ExecuteQueriesAsync(System.Collections.Generic.IEnumerable{System.String},System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseDriver.BeginTransactionAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseDriver.Dispose(System.Boolean)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.SqliteDatabaseTransaction">
+            <summary>
+            SQLite database transaction wrapper.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.#ctor(Microsoft.Data.Sqlite.SqliteConnection,Microsoft.Data.Sqlite.SqliteTransaction)">
+            <summary>
+            Instantiate the SQLite database transaction.
+            </summary>
+            <param name="connection">Open SQLite connection.</param>
+            <param name="transaction">SQLite transaction.</param>
+        </member>
+        <member name="P:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.Connection">
+            <summary>
+            The underlying SQLite connection.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.Transaction">
+            <summary>
+            The underlying SQLite transaction.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.CommitAsync(System.Threading.CancellationToken)">
+            <summary>
+            Commit the transaction.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.RollbackAsync(System.Threading.CancellationToken)">
+            <summary>
+            Rollback the transaction.
+            </summary>
+            <param name="token">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.Dispose">
+            <summary>
+            Dispose of resources.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.SqliteDatabaseTransaction.DisposeAsync">
+            <summary>
+            Dispose of resources asynchronously.
+            </summary>
+            <returns>ValueTask.</returns>
+        </member>
+        <member name="T:NetLedger.Database.SqlServer.Implementations.AccountMethods">
+            <summary>
+            SQL Server implementation of account methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.#ctor(NetLedger.Database.SqlServer.SqlServerDatabaseDriver)">
+            <summary>
+            Instantiate the account methods.
+            </summary>
+            <param name="driver">SQL Server database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.SearchByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.GetCountAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods">
+            <summary>
+            SQL Server implementation of API key methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.#ctor(NetLedger.Database.SqlServer.SqlServerDatabaseDriver)">
+            <summary>
+            Instantiate the API key methods.
+            </summary>
+            <param name="driver">SQL Server database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ReadAllAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.AuthenticateAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.SqlServer.Implementations.EntryMethods">
+            <summary>
+            SQL Server implementation of entry methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.#ctor(NetLedger.Database.SqlServer.SqlServerDatabaseDriver)">
+            <summary>
+            Instantiate the entry methods.
+            </summary>
+            <param name="driver">SQL Server database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.CreateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.SqlServer.Queries.SetupQueries">
+            <summary>
+            SQL Server setup queries for table and index creation.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Database.SqlServer.Queries.SetupQueries.TimestampFormat">
+            <summary>
+            Timestamp format for SQL Server DATETIME2 columns.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Queries.SetupQueries.CreateTables">
+            <summary>
+            Get the SQL statements to create all required tables.
+            </summary>
+            <returns>Array of SQL statements.</returns>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.Queries.SetupQueries.CreateIndices">
+            <summary>
+            Get the SQL statements to create all required indices.
+            </summary>
+            <returns>Array of SQL statements.</returns>
+        </member>
+        <member name="T:NetLedger.Database.SqlServer.SqlServerDatabaseDriver">
+            <summary>
+            SQL Server database driver.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseDriver.#ctor(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Instantiate the SQL Server database driver.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when required settings are missing.</exception>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseDriver.ExecuteQueryAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseDriver.ExecuteQueriesAsync(System.Collections.Generic.IEnumerable{System.String},System.Boolean,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseDriver.BeginTransactionAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseDriver.Dispose(System.Boolean)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction">
+            <summary>
+            SQL Server database transaction wrapper.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction.#ctor(Microsoft.Data.SqlClient.SqlConnection,Microsoft.Data.SqlClient.SqlTransaction)">
+            <summary>
+            Instantiate the SQL Server database transaction.
+            </summary>
+            <param name="connection">SQL Server connection.</param>
+            <param name="transaction">SQL Server transaction.</param>
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction.CommitAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction.RollbackAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction.Dispose">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction.DisposeAsync">
+            <inheritdoc />
+        </member>
         <member name="T:NetLedger.Entry">
             <summary>
             An entry in the ledger for a given account.
@@ -310,6 +1892,8 @@
             <param name="notes">Notes for the entry.</param>
             <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
             <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when amount is negative.</exception>
         </member>
         <member name="T:NetLedger.EntryEventArgs">
             <summary>
@@ -373,52 +1957,83 @@
         </member>
         <member name="T:NetLedger.EnumerationQuery">
             <summary>
-            Object used to request enumeration.
+            Object used to request enumeration of accounts or entries.
+            When enumerating accounts, AccountGUID should be null.
+            When enumerating entries, AccountGUID must be specified.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.AccountGUID">
             <summary>
-            Bucket GUID.
+            Account GUID.
+            Required when enumerating entries within an account.
+            Should be null when enumerating accounts.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.MaxResults">
             <summary>
             Maximum number of results to retrieve.
+            Minimum value is 1, maximum value is 1000.
+            Default value is 1000.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.Skip">
             <summary>
             The number of records to skip.
+            Minimum value is 0.
+            Default value is 0.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.ContinuationToken">
             <summary>
-            Continuation token.
+            Continuation token for pagination.
+            When provided, Skip should not be used.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.Ordering">
             <summary>
             Order by.
+            Default is CreatedDescending.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.SearchTerm">
+            <summary>
+            Search term to filter results.
+            When enumerating accounts, filters by account name.
+            When enumerating entries, filters by entry description.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.CreatedAfterUtc">
             <summary>
-            Only include entries created on or after this timestamp UTC.
+            Only include records created on or after this timestamp UTC.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.CreatedBeforeUtc">
             <summary>
-            Only include entries created on or before this timestamp UTC.
+            Only include records created on or before this timestamp UTC.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.AmountMinimum">
             <summary>
             Only include entries with an amount greater than or equal to this value.
+            Applicable only when enumerating entries.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.AmountMaximum">
             <summary>
             Only include entries with an amount less than or equal to this value.
+            Applicable only when enumerating entries.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.BalanceMinimum">
+            <summary>
+            Only include accounts with a committed balance greater than or equal to this value.
+            Applicable only when enumerating accounts.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.BalanceMaximum">
+            <summary>
+            Only include accounts with a committed balance less than or equal to this value.
+            Applicable only when enumerating accounts.
             </summary>
         </member>
         <member name="M:NetLedger.EnumerationQuery.#ctor">
@@ -521,11 +2136,25 @@
             Event fired when entries are committed successfully.
             </summary>
         </member>
+        <member name="P:NetLedger.Ledger.Driver">
+            <summary>
+            Database driver providing direct access to database operations.
+            </summary>
+        </member>
         <member name="M:NetLedger.Ledger.#ctor(System.String)">
             <summary>
-            Instantiate the ledger using Sqlite.
+            Instantiate the ledger using default SQLite with specified filename.
             </summary>
-            <param name="filename">Sqlite database filename.</param>
+            <param name="filename">SQLite database filename.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when filename is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.#ctor(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Instantiate the ledger using specified database settings.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when database type is unsupported.</exception>
         </member>
         <member name="M:NetLedger.Ledger.CreateAccountAsync(System.String,System.Nullable{System.Decimal},System.Threading.CancellationToken)">
             <summary>
@@ -535,6 +2164,7 @@
             <param name="initialBalance">Initial balance of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>GUID of the newly-created account.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.DeleteAccountByNameAsync(System.String,System.Threading.CancellationToken)">
             <summary>
@@ -542,6 +2172,7 @@
             </summary>
             <param name="name">Name of the account.</param>
             <param name="token">Cancellation token.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.DeleteAccountByGuidAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
@@ -549,6 +2180,7 @@
             </summary>
             <param name="guid">GUID of the account.</param>
             <param name="token">Cancellation token.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when guid is empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetAccountByNameAsync(System.String,System.Threading.CancellationToken)">
             <summary>
@@ -557,6 +2189,7 @@
             <param name="name">Name of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>Account or null if it does not exist.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetAccountByGuidAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
@@ -565,6 +2198,7 @@
             <param name="guid">GUID of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>Account or null if it does not exist.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when guid is empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetAllAccountsAsync(System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>
@@ -576,7 +2210,7 @@
             <param name="token">Cancellation token.</param>
             <returns>List of Account objects.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.EnumerateAccountsAsync(NetLedger.AccountEnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.EnumerateAccountsAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <summary>
             Enumerate accounts in a paginated way.
             </summary>
@@ -584,7 +2218,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Enumeration result containing the page of accounts and metadata for continuing the enumeration.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when query is null.</exception>
-            <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified, or when AmountMinimum/AmountMaximum ordering is used.</exception>
         </member>
         <member name="M:NetLedger.Ledger.AddCreditAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
             <summary>
@@ -597,6 +2231,9 @@
             <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
             <param name="token">Cancellation token.</param>
             <returns>GUID of the newly-created entry.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when amount is negative.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
         <member name="M:NetLedger.Ledger.AddDebitAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
             <summary>
@@ -609,6 +2246,9 @@
             <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
             <param name="token">Cancellation token.</param>
             <returns>GUID of the newly-created entry.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when amount is negative.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
         <member name="M:NetLedger.Ledger.AddCreditsAsync(System.Guid,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
             <summary>
@@ -641,93 +2281,152 @@
             <param name="accountGuid">GUID of the account.</param>
             <param name="entryGuid">GUID of the entry.</param>
             <param name="token">Cancellation token.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid or entryGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+            <exception cref="T:System.InvalidOperationException">Thrown when entry is not found or already committed.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingEntriesAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetEntryAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
-            Retrieve a list of pending entries for a given account.
+            Get an entry by its GUID.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="entryGuid">GUID of the entry.</param>
             <param name="token">Cancellation token.</param>
-            <returns>List of pending entries.</returns>
+            <returns>Entry or null if not found.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when entryGuid is empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetEntriesAsync(System.Guid,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>
-            Retrieve a list of pending credits for a given account.
+            Get entries for an account with optional filtering.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="token">Cancellation token.</param>
-            <returns>List of pending credits.</returns>
-        </member>
-        <member name="M:NetLedger.Ledger.GetPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
-            <summary>
-            Retrieve a list of pending debits for a given account.
-            </summary>
-            <param name="accountGuid">GUID of the account.</param>
-            <param name="token">Cancellation token.</param>
-            <returns>List of pending debits.</returns>
-        </member>
-        <member name="M:NetLedger.Ledger.GetEntriesAsync(System.Guid,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
-            <summary>
-            Retrieve a list of entries matching the specified conditions.
-            </summary>
-            <param name="accountGuid">GUID of the account.</param>
-            <param name="startTimeUtc">Start time UTC.</param>
-            <param name="endTimeUtc">End time UTC.</param>
-            <param name="searchTerm">Search term that must appear in the entry description.</param>
-            <param name="entryType">The type of entry.</param>
-            <param name="amountMin">Minimum amount.</param>
-            <param name="amountMax">Maximum amount.</param>
+            <param name="startTimeUtc">Start time UTC filter.</param>
+            <param name="endTimeUtc">End time UTC filter.</param>
+            <param name="amountMin">Minimum amount filter.</param>
+            <param name="amountMax">Maximum amount filter.</param>
+            <param name="searchTerm">Search term for description.</param>
+            <param name="entryType">Entry type filter.</param>
             <param name="skip">Number of records to skip.</param>
             <param name="take">Number of records to take.</param>
             <param name="token">Cancellation token.</param>
             <returns>List of matching entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.EnumerateTransactionsAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.SearchEntriesAsync(System.Guid,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Threading.CancellationToken)">
             <summary>
-            Enumerate transactions in a paginated way.
+            Search for entries within an account.
             </summary>
-            <param name="query">Enumeration query containing account GUID, pagination parameters, and ordering.</param>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="startTimeUtc">Start time UTC.</param>
+            <param name="endTimeUtc">End time UTC.</param>
+            <param name="amountMin">Minimum amount.</param>
+            <param name="amountMax">Maximum amount.</param>
+            <param name="searchTerm">Search term for description.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of matching entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.EnumerateEntriesAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate entries in a paginated way.
+            </summary>
+            <param name="query">Enumeration query containing pagination parameters and filters.</param>
             <param name="token">Cancellation token.</param>
             <returns>Enumeration result containing the page of entries and metadata for continuing the enumeration.</returns>
-            <exception cref="T:System.ArgumentNullException">Thrown when query is null.</exception>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null or AccountGUID is not specified.</exception>
             <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
-            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when the specified account does not exist.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetBalanceAsync(System.Guid,System.Boolean,System.Threading.CancellationToken)">
             <summary>
-            Retrieve balance details for a given account.
+            Get the current balance for an account.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details. Leave this value as 'true'.</param>
+            <param name="includePendingEntries">Whether to include pending entries in the balance calculation.</param>
             <param name="token">Cancellation token.</param>
-            <returns>Balance details.</returns>
-        </member>
-        <member name="M:NetLedger.Ledger.CommitEntriesAsync(System.Guid,System.Collections.Generic.List{System.Guid},System.Boolean,System.Threading.CancellationToken)">
-            <summary>
-            Commit pending entries to the balance.
-            Specify entries to commit using the guids property, or leave it null to commit all pending entries.
-            </summary>
-            <param name="accountGuid">GUID of the account.</param>
-            <param name="guids">List of entry GUIDs to commit. Leave null to commit all pending entries.</param>
-            <param name="applyLock">Indicate whether or not the account should be locked during retrieval of balance details. Leave this value as 'true'.</param>
-            <param name="token">Cancellation token.</param>
-            <returns>Balance details.</returns>
+            <returns>Balance object containing committed and pending balances.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
             <summary>
-            Get the balance of an account as of a specific timestamp.
+            Get the balance for an account as of a specific timestamp.
             </summary>
             <param name="accountGuid">GUID of the account.</param>
-            <param name="asOfUtc">Timestamp UTC.</param>
+            <param name="asOfUtc">Timestamp in UTC.</param>
             <param name="token">Cancellation token.</param>
             <returns>Balance as of the specified timestamp.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.CommitEntriesAsync(System.Guid,System.Collections.Generic.List{System.Guid},System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Commit pending entries for an account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="guids">Optional list of specific entry GUIDs to commit. If null, all pending entries are committed.</param>
+            <param name="acquireLock">Whether to acquire the account lock.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Balance after the commit operation.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.EnumerateTransactionsAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate entries for an account (alias for EnumerateEntriesAsync).
+            </summary>
+            <param name="query">Enumeration query containing pagination parameters and filters.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Enumeration result containing the page of entries and metadata for continuing the enumeration.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null or AccountGUID is not specified.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.GetPendingEntriesAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Get all pending entries for an account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of pending entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.GetPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Get all pending credit entries for an account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of pending credit entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.GetPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Get all pending debit entries for an account.
+            </summary>
+            <param name="accountGuid">GUID of the account.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>List of pending debit entries.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetAllBalancesAsync(System.Threading.CancellationToken)">
             <summary>
-            Get balances for all accounts.
+            Get balances for all accounts as a dictionary.
             </summary>
             <param name="token">Cancellation token.</param>
-            <returns>Dictionary mapping account GUID to Balance object.</returns>
+            <returns>Dictionary of account GUID to Balance objects.</returns>
+        </member>
+        <member name="M:NetLedger.Ledger.GetAllBalancesAsync(System.Boolean,System.Threading.CancellationToken)">
+            <summary>
+            Get balances for all accounts as a dictionary.
+            </summary>
+            <param name="includePendingEntries">Whether to include pending entries in the balance calculation.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Dictionary of account GUID to Balance objects.</returns>
         </member>
         <member name="M:NetLedger.Ledger.VerifyBalanceChainAsync(System.Guid,System.Threading.CancellationToken)">
             <summary>
@@ -735,7 +2434,9 @@
             </summary>
             <param name="accountGuid">GUID of the account.</param>
             <param name="token">Cancellation token.</param>
-            <returns>True if the chain is valid.</returns>
+            <returns>True if the balance chain is valid, false otherwise.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
         <member name="M:NetLedger.Ledger.DisposeAsync">
             <summary>

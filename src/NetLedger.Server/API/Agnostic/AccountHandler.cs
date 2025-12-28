@@ -73,7 +73,7 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with enumeration result.</returns>
         internal async Task<ResponseContext> EnumerateAsync(RequestContext req, CancellationToken token = default)
         {
-            AccountEnumerationQuery query = new AccountEnumerationQuery
+            EnumerationQuery query = new EnumerationQuery
             {
                 MaxResults = req.MaxResults,
                 Skip = req.Skip,
@@ -81,7 +81,9 @@ namespace NetLedger.Server.API.Agnostic
                 Ordering = req.Ordering,
                 SearchTerm = req.SearchTerm,
                 CreatedAfterUtc = req.StartTimeUtc,
-                CreatedBeforeUtc = req.EndTimeUtc
+                CreatedBeforeUtc = req.EndTimeUtc,
+                BalanceMinimum = req.BalanceMinimum,
+                BalanceMaximum = req.BalanceMaximum
             };
 
             EnumerationResult<Account> result = await _Ledger.EnumerateAccountsAsync(query, token).ConfigureAwait(false);

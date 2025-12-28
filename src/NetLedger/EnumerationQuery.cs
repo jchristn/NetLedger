@@ -1,24 +1,27 @@
 ﻿namespace NetLedger
 {
     using System;
-    using System.Collections.Generic;
-    using System.Text.Json.Serialization;
-    using Timestamps;
 
     /// <summary>
-    /// Object used to request enumeration.
+    /// Object used to request enumeration of accounts or entries.
+    /// When enumerating accounts, AccountGUID should be null.
+    /// When enumerating entries, AccountGUID must be specified.
     /// </summary>
     public class EnumerationQuery
     {
         #region Public-Members
 
         /// <summary>
-        /// Bucket GUID.
+        /// Account GUID.
+        /// Required when enumerating entries within an account.
+        /// Should be null when enumerating accounts.
         /// </summary>
-        public Guid AccountGUID { get; set; }
+        public Guid? AccountGUID { get; set; } = null;
 
         /// <summary>
         /// Maximum number of results to retrieve.
+        /// Minimum value is 1, maximum value is 1000.
+        /// Default value is 1000.
         /// </summary>
         public int MaxResults
         {
@@ -36,6 +39,8 @@
 
         /// <summary>
         /// The number of records to skip.
+        /// Minimum value is 0.
+        /// Default value is 0.
         /// </summary>
         public int Skip
         {
@@ -51,34 +56,57 @@
         }
 
         /// <summary>
-        /// Continuation token.
+        /// Continuation token for pagination.
+        /// When provided, Skip should not be used.
         /// </summary>
         public Guid? ContinuationToken { get; set; } = null;
 
         /// <summary>
         /// Order by.
+        /// Default is CreatedDescending.
         /// </summary>
         public EnumerationOrderEnum Ordering { get; set; } = EnumerationOrderEnum.CreatedDescending;
 
         /// <summary>
-        /// Only include entries created on or after this timestamp UTC.
+        /// Search term to filter results.
+        /// When enumerating accounts, filters by account name.
+        /// When enumerating entries, filters by entry description.
+        /// </summary>
+        public string? SearchTerm { get; set; } = null;
+
+        /// <summary>
+        /// Only include records created on or after this timestamp UTC.
         /// </summary>
         public DateTime? CreatedAfterUtc { get; set; } = null;
 
         /// <summary>
-        /// Only include entries created on or before this timestamp UTC.
+        /// Only include records created on or before this timestamp UTC.
         /// </summary>
         public DateTime? CreatedBeforeUtc { get; set; } = null;
 
         /// <summary>
         /// Only include entries with an amount greater than or equal to this value.
+        /// Applicable only when enumerating entries.
         /// </summary>
         public decimal? AmountMinimum { get; set; } = null;
 
         /// <summary>
         /// Only include entries with an amount less than or equal to this value.
+        /// Applicable only when enumerating entries.
         /// </summary>
         public decimal? AmountMaximum { get; set; } = null;
+
+        /// <summary>
+        /// Only include accounts with a committed balance greater than or equal to this value.
+        /// Applicable only when enumerating accounts.
+        /// </summary>
+        public decimal? BalanceMinimum { get; set; } = null;
+
+        /// <summary>
+        /// Only include accounts with a committed balance less than or equal to this value.
+        /// Applicable only when enumerating accounts.
+        /// </summary>
+        public decimal? BalanceMaximum { get; set; } = null;
 
         #endregion
 
@@ -96,7 +124,6 @@
         /// </summary>
         public EnumerationQuery()
         {
-
         }
 
         #endregion
@@ -107,6 +134,6 @@
 
         #region Private-Methods
 
-        #endregion 
+        #endregion
     }
 }

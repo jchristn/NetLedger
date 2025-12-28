@@ -9,6 +9,7 @@ namespace NetLedger.Server.API.Agnostic
     using NetLedger.Server.Models;
     using NetLedger.Server.Settings;
     using SyslogLogging;
+    using ApiKey = NetLedger.Server.Authentication.ApiKey;
 
     /// <summary>
     /// API key handler for managing API keys.

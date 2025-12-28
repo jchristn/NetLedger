@@ -1,0 +1,28 @@
+{
+  "Webserver": {
+    "Hostname": "*",
+    "Port": 8080,
+    "Ssl": false
+  },
+  "Logging": {
+    "EnableConsole": true,
+    "LogRequests": true
+  },
+  "Authentication": {
+    "Enabled": true,
+    "AdminApiKey": "netledgeradmin"
+  },
+  "Database": {
+    "Type": "SqlServer",
+    "Hostname": "sqlserver",
+    "Port": 1433,
+    "Instance": null,
+    "Username": "sa",
+    "Password": "changeme",
+    "DatabaseName": "netledger",
+    "RequireEncryption": false,
+    "ConnectionTimeoutSeconds": 30,
+    "MaxPoolSize": 100,
+    "LogQueries": false
+  }
+}

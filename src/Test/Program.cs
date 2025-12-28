@@ -377,7 +377,7 @@ namespace Test
                 if (!String.IsNullOrEmpty(minAmountStr)) minAmount = Convert.ToDecimal(minAmountStr);
                 if (!String.IsNullOrEmpty(maxAmountStr)) maxAmount = Convert.ToDecimal(maxAmountStr);
 
-                List<Entry> entries = await _Ledger.GetEntriesAsync(guid, startDate, endDate, searchTerm, null, minAmount, maxAmount);
+                List<Entry> entries = await _Ledger.GetEntriesAsync(guid, startDate, endDate, minAmount, maxAmount, searchTerm);
                 if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }

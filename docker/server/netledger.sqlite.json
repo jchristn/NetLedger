@@ -1,0 +1,20 @@
+{
+  "Webserver": {
+    "Hostname": "*",
+    "Port": 8080,
+    "Ssl": false
+  },
+  "Logging": {
+    "EnableConsole": true,
+    "LogRequests": true
+  },
+  "Authentication": {
+    "Enabled": true,
+    "AdminApiKey": "netledgeradmin"
+  },
+  "Database": {
+    "Type": "Sqlite",
+    "Filename": "/app/data/netledger.db",
+    "LogQueries": false
+  }
+}

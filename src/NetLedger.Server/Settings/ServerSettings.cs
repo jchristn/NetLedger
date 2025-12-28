@@ -1,6 +1,7 @@
 namespace NetLedger.Server.Settings
 {
     using System;
+    using NetLedger.Database;
 
     /// <summary>
     /// Main server configuration settings.
@@ -23,9 +24,9 @@ namespace NetLedger.Server.Settings
         public AuthSettings Authentication { get; set; } = new AuthSettings();
 
         /// <summary>
-        /// Path to the ledger database file.
+        /// Database settings for the ledger.
         /// </summary>
-        public string LedgerDatabase { get; set; } = "./netledger.db";
+        public DatabaseSettings Database { get; set; } = new DatabaseSettings();
 
         /// <summary>
         /// Instantiate.

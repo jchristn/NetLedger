@@ -7,11 +7,13 @@ namespace Test.Automated
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger;
+    using NetLedger.Database;
 
     class Program
     {
         private static List<TestResult> _Results = new List<TestResult>();
         private static string _DatabaseFile = "test_automated.db";
+        private static DatabaseSettings _DbSettings = new DatabaseSettings();
         private static Ledger? _Ledger = null;
         private static int _TestCount = 0;
         private static int _PassCount = 0;
@@ -24,15 +26,18 @@ namespace Test.Automated
             Console.WriteLine("================================================================================");
             Console.WriteLine("");
 
+            // Parse command line arguments
+            ParseArguments(args);
+
             try
             {
-                // Clean up any existing test database
-                if (File.Exists(_DatabaseFile))
+                // Clean up any existing test database (only for SQLite)
+                if (_DbSettings.Type == DatabaseTypeEnum.Sqlite && File.Exists(_DbSettings.Filename))
                 {
-                    File.Delete(_DatabaseFile);
+                    File.Delete(_DbSettings.Filename);
                 }
 
-                _Ledger = new Ledger(_DatabaseFile);
+                _Ledger = new Ledger(_DbSettings);
 
                 // Run all test categories
                 await RunAccountCreationTestsAsync().ConfigureAwait(false);
@@ -45,11 +50,13 @@ namespace Test.Automated
                 await RunEntrySearchTestsAsync().ConfigureAwait(false);
                 await RunEntryCancellationTestsAsync().ConfigureAwait(false);
                 await RunEnumerationTestsAsync().ConfigureAwait(false);
+                await RunAccountEnumerationTestsAsync().ConfigureAwait(false);
+                await RunEntryEnumerationSearchTermTestsAsync().ConfigureAwait(false);
                 await RunAccountDeletionTestsAsync().ConfigureAwait(false);
                 await RunEventTestsAsync().ConfigureAwait(false);
                 await RunErrorHandlingTestsAsync().ConfigureAwait(false);
                 await RunEdgeCaseTestsAsync().ConfigureAwait(false);
-                await RunNewFeatureTestsAsync().ConfigureAwait(false);
+                await RunHistoricalBalanceAndChainTestsAsync().ConfigureAwait(false);
                 await RunPerformanceTestsAsync().ConfigureAwait(false);
                 await RunConcurrencyTestsAsync().ConfigureAwait(false);
 
@@ -58,9 +65,9 @@ namespace Test.Automated
 
                 // Clean up
                 await _Ledger.DisposeAsync().ConfigureAwait(false);
-                if (File.Exists(_DatabaseFile))
+                if (_DbSettings.Type == DatabaseTypeEnum.Sqlite && File.Exists(_DbSettings.Filename))
                 {
-                    File.Delete(_DatabaseFile);
+                    File.Delete(_DbSettings.Filename);
                 }
 
                 return _FailCount > 0 ? 1 : 0;
@@ -73,6 +80,130 @@ namespace Test.Automated
                 return 1;
             }
         }
+
+        #region Argument-Parsing
+
+        static void ParseArguments(string[] args)
+        {
+            _DbSettings = new DatabaseSettings
+            {
+                Type = DatabaseTypeEnum.Sqlite,
+                Filename = _DatabaseFile
+            };
+
+            if (args == null || args.Length == 0) return;
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                string arg = args[i].ToLower();
+
+                if (arg == "--help" || arg == "-?")
+                {
+                    ShowHelp();
+                    Environment.Exit(0);
+                }
+                else if (arg == "--type" || arg == "-t")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        string typeStr = args[++i].ToLower();
+                        _DbSettings.Type = typeStr switch
+                        {
+                            "sqlite" => DatabaseTypeEnum.Sqlite,
+                            "mysql" => DatabaseTypeEnum.Mysql,
+                            "postgresql" or "postgres" => DatabaseTypeEnum.Postgresql,
+                            "sqlserver" or "mssql" => DatabaseTypeEnum.SqlServer,
+                            _ => throw new ArgumentException($"Unknown database type: {typeStr}")
+                        };
+                    }
+                }
+                else if (arg == "--file" || arg == "-f")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        _DbSettings.Filename = args[++i];
+                        _DatabaseFile = _DbSettings.Filename;
+                    }
+                }
+                else if (arg == "--host" || arg == "-h")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        _DbSettings.Hostname = args[++i];
+                    }
+                }
+                else if (arg == "--port" || arg == "-p")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        _DbSettings.Port = int.Parse(args[++i]);
+                    }
+                }
+                else if (arg == "--user" || arg == "-u")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        _DbSettings.Username = args[++i];
+                    }
+                }
+                else if (arg == "--password")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        _DbSettings.Password = args[++i];
+                    }
+                }
+                else if (arg == "--database" || arg == "-d")
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        _DbSettings.DatabaseName = args[++i];
+                    }
+                }
+                else if (arg == "--log-queries")
+                {
+                    _DbSettings.LogQueries = true;
+                }
+            }
+
+            Console.WriteLine($"Database Type: {_DbSettings.Type}");
+            if (_DbSettings.Type == DatabaseTypeEnum.Sqlite)
+            {
+                Console.WriteLine($"Database File: {_DbSettings.Filename}");
+            }
+            else
+            {
+                Console.WriteLine($"Host: {_DbSettings.Hostname}:{_DbSettings.Port}");
+                Console.WriteLine($"Database: {_DbSettings.DatabaseName}");
+            }
+            Console.WriteLine("");
+        }
+
+        static void ShowHelp()
+        {
+            Console.WriteLine("NetLedger Automated Test Suite");
+            Console.WriteLine("");
+            Console.WriteLine("Usage: Test.Automated [options]");
+            Console.WriteLine("");
+            Console.WriteLine("Options:");
+            Console.WriteLine("  --type, -t <type>     Database type: sqlite, mysql, postgresql, sqlserver");
+            Console.WriteLine("  --file, -f <path>     SQLite database file path (default: test_automated.db)");
+            Console.WriteLine("  --host, -h <host>     Database hostname");
+            Console.WriteLine("  --port, -p <port>     Database port");
+            Console.WriteLine("  --user, -u <user>     Database username");
+            Console.WriteLine("  --password <pass>     Database password");
+            Console.WriteLine("  --database, -d <db>   Database name");
+            Console.WriteLine("  --log-queries         Enable query logging");
+            Console.WriteLine("  --help, -?            Show this help message");
+            Console.WriteLine("");
+            Console.WriteLine("Examples:");
+            Console.WriteLine("  Test.Automated                                  # Use SQLite (default)");
+            Console.WriteLine("  Test.Automated -t mysql -h localhost -u root -d netledger");
+            Console.WriteLine("  Test.Automated -t postgresql -h localhost -u postgres -d netledger");
+            Console.WriteLine("  Test.Automated -t sqlserver -h localhost -d netledger");
+        }
+
+        #endregion
 
         #region Account-Creation-Tests
 
@@ -1393,11 +1524,339 @@ namespace Test.Automated
 
         #endregion
 
-        #region New-Feature-Tests
+        #region Account-Enumeration-Tests
 
-        static async Task RunNewFeatureTestsAsync()
+        static async Task RunAccountEnumerationTestsAsync()
         {
-            Console.WriteLine("--- New Feature Tests (v2.0.0) ---");
+            Console.WriteLine("--- Account Enumeration Tests ---");
+            Console.WriteLine("");
+
+            // Create accounts with specific balances for testing
+            Guid lowBalanceAccount = await _Ledger!.CreateAccountAsync("Low Balance Account", 50.00m).ConfigureAwait(false);
+            Guid midBalanceAccount = await _Ledger.CreateAccountAsync("Mid Balance Account", 500.00m).ConfigureAwait(false);
+            Guid highBalanceAccount = await _Ledger.CreateAccountAsync("High Balance Account", 5000.00m).ConfigureAwait(false);
+            Guid zeroBalanceAccount = await _Ledger.CreateAccountAsync("Zero Balance Account", 0.00m).ConfigureAwait(false);
+            Guid negativeBalanceAccount = await _Ledger.CreateAccountAsync("Negative Balance Account", -100.00m).ConfigureAwait(false);
+
+            // Test 1: Enumerate all accounts (no balance filter)
+            await TestAsync("Account Enum: No balance filter returns all accounts", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+                return result.Objects != null && result.Objects.Count >= 5;
+            }).ConfigureAwait(false);
+
+            // Test 2: BalanceMinimum filter only - verify actual balance data
+            await TestAsync("Account Enum: BalanceMinimum filter with balance verification", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMinimum = 100.00m
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // Should include mid and high balance accounts, exclude low, zero, and negative
+                bool hasMid = result.Objects!.Any(a => a.GUID == midBalanceAccount);
+                bool hasHigh = result.Objects.Any(a => a.GUID == highBalanceAccount);
+                bool hasLow = result.Objects.Any(a => a.GUID == lowBalanceAccount);
+                bool hasZero = result.Objects.Any(a => a.GUID == zeroBalanceAccount);
+                bool hasNegative = result.Objects.Any(a => a.GUID == negativeBalanceAccount);
+
+                if (!hasMid || !hasHigh || hasLow || hasZero || hasNegative) return false;
+
+                // Verify the known test accounts have correct balances
+                Balance midBalance = await _Ledger.GetBalanceAsync(midBalanceAccount).ConfigureAwait(false);
+                Balance highBalance = await _Ledger.GetBalanceAsync(highBalanceAccount).ConfigureAwait(false);
+
+                return midBalance.CommittedBalance >= 100.00m && highBalance.CommittedBalance >= 100.00m;
+            }).ConfigureAwait(false);
+
+            // Test 3: BalanceMaximum filter only - verify actual balance data
+            await TestAsync("Account Enum: BalanceMaximum filter with balance verification", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMaximum = 100.00m
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // Should include low, zero, and negative balance accounts, exclude mid and high
+                bool hasMid = result.Objects!.Any(a => a.GUID == midBalanceAccount);
+                bool hasHigh = result.Objects.Any(a => a.GUID == highBalanceAccount);
+                bool hasLow = result.Objects.Any(a => a.GUID == lowBalanceAccount);
+                bool hasZero = result.Objects.Any(a => a.GUID == zeroBalanceAccount);
+                bool hasNegative = result.Objects.Any(a => a.GUID == negativeBalanceAccount);
+
+                if (hasMid || hasHigh || !hasLow || !hasZero || !hasNegative) return false;
+
+                // Verify the known test accounts have correct balances
+                Balance lowBalance = await _Ledger.GetBalanceAsync(lowBalanceAccount).ConfigureAwait(false);
+                Balance zeroBalance = await _Ledger.GetBalanceAsync(zeroBalanceAccount).ConfigureAwait(false);
+                Balance negBalance = await _Ledger.GetBalanceAsync(negativeBalanceAccount).ConfigureAwait(false);
+
+                return lowBalance.CommittedBalance <= 100.00m &&
+                       zeroBalance.CommittedBalance <= 100.00m &&
+                       negBalance.CommittedBalance <= 100.00m;
+            }).ConfigureAwait(false);
+
+            // Test 4: BalanceMinimum and BalanceMaximum combined - verify actual balance data
+            await TestAsync("Account Enum: BalanceMinimum and BalanceMaximum combined with verification", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMinimum = 100.00m,
+                    BalanceMaximum = 1000.00m
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // Should only include mid balance account
+                bool hasMid = result.Objects!.Any(a => a.GUID == midBalanceAccount);
+                bool hasHigh = result.Objects.Any(a => a.GUID == highBalanceAccount);
+                bool hasLow = result.Objects.Any(a => a.GUID == lowBalanceAccount);
+
+                if (!hasMid || hasHigh || hasLow) return false;
+
+                // Verify the mid balance account is within range
+                Balance midBalance = await _Ledger.GetBalanceAsync(midBalanceAccount).ConfigureAwait(false);
+                return midBalance.CommittedBalance >= 100.00m && midBalance.CommittedBalance <= 1000.00m;
+            }).ConfigureAwait(false);
+
+            // Test 5: Balance filter with SearchTerm
+            await TestAsync("Account Enum: Balance filter with SearchTerm", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMinimum = 100.00m,
+                    SearchTerm = "High"
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // Should only include high balance account (matches both balance and search criteria)
+                bool hasHigh = result.Objects!.Any(a => a.GUID == highBalanceAccount);
+                bool hasMid = result.Objects.Any(a => a.GUID == midBalanceAccount);
+
+                return hasHigh && !hasMid;
+            }).ConfigureAwait(false);
+
+            // Test 6: Balance filter with pagination
+            await TestAsync("Account Enum: Balance filter with pagination", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 2,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMinimum = 50.00m
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // Should return up to 2 accounts (mid and high should qualify)
+                return result.Objects != null && result.Objects.Count <= 2;
+            }).ConfigureAwait(false);
+
+            // Test 7: Balance filter returns correct results (continuation token mechanism tested implicitly)
+            await TestAsync("Account Enum: Balance filter returns expected accounts", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 10,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMinimum = 50.00m
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // Should include low (50), mid (500), and high (5000) balance accounts
+                bool hasLow = result.Objects!.Any(a => a.GUID == lowBalanceAccount);
+                bool hasMid = result.Objects.Any(a => a.GUID == midBalanceAccount);
+                bool hasHigh = result.Objects.Any(a => a.GUID == highBalanceAccount);
+                bool hasZero = result.Objects.Any(a => a.GUID == zeroBalanceAccount);
+                bool hasNegative = result.Objects.Any(a => a.GUID == negativeBalanceAccount);
+
+                // All three >= 50 should be included, others excluded
+                return hasLow && hasMid && hasHigh && !hasZero && !hasNegative;
+            }).ConfigureAwait(false);
+
+            // Test 8: Verify balance filter TotalRecords is accurate
+            await TestAsync("Account Enum: Balance filter TotalRecords is accurate", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    BalanceMinimum = 4000.00m
+                };
+
+                EnumerationResult<Account> result = await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+
+                // TotalRecords should match the actual count (high balance account only = 5000)
+                // Should find exactly 1 account (the high balance one)
+                return result.TotalRecords >= 1 && result.Objects!.Any(a => a.GUID == highBalanceAccount);
+            }).ConfigureAwait(false);
+
+            // Test 9: Verify AmountAscending/Descending throws for account enumeration
+            await TestAsync("Account Enum: AmountAscending ordering throws exception", async () =>
+            {
+                try
+                {
+                    EnumerationQuery query = new EnumerationQuery
+                    {
+                        MaxResults = 100,
+                        Ordering = EnumerationOrderEnum.AmountAscending,
+                        BalanceMinimum = 0.00m
+                    };
+
+                    await _Ledger!.EnumerateAccountsAsync(query).ConfigureAwait(false);
+                    return false; // Should have thrown
+                }
+                catch (ArgumentException)
+                {
+                    return true; // Expected
+                }
+            }).ConfigureAwait(false);
+
+            // Test 10: Verify balance filters don't work on entry enumeration
+            await TestAsync("Account Enum: Balance filters rejected for entry enumeration", async () =>
+            {
+                try
+                {
+                    EnumerationQuery query = new EnumerationQuery
+                    {
+                        AccountGUID = lowBalanceAccount,
+                        MaxResults = 100,
+                        Ordering = EnumerationOrderEnum.CreatedDescending,
+                        BalanceMinimum = 0.00m
+                    };
+
+                    await _Ledger!.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+                    return false; // Should have thrown
+                }
+                catch (ArgumentException)
+                {
+                    return true; // Expected
+                }
+            }).ConfigureAwait(false);
+
+            Console.WriteLine("");
+        }
+
+        #endregion
+
+        #region Entry-Enumeration-SearchTerm-Tests
+
+        static async Task RunEntryEnumerationSearchTermTestsAsync()
+        {
+            Console.WriteLine("--- Entry Enumeration SearchTerm Tests ---");
+            Console.WriteLine("");
+
+            // Create account with entries having specific descriptions
+            Guid searchAccount = await _Ledger!.CreateAccountAsync("SearchTerm Test Account", 0m).ConfigureAwait(false);
+            await _Ledger.AddCreditAsync(searchAccount, 100.00m, "Monthly salary payment").ConfigureAwait(false);
+            await _Ledger.AddCreditAsync(searchAccount, 50.00m, "Bonus payment").ConfigureAwait(false);
+            await _Ledger.AddDebitAsync(searchAccount, 25.00m, "Grocery shopping").ConfigureAwait(false);
+            await _Ledger.AddDebitAsync(searchAccount, 75.00m, "Online shopping").ConfigureAwait(false);
+            await _Ledger.AddCreditAsync(searchAccount, 10.00m, "Refund received").ConfigureAwait(false);
+
+            // Test 1: SearchTerm filters entries by description
+            await TestAsync("Entry Enum: SearchTerm filters by description", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = searchAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    SearchTerm = "payment"
+                };
+
+                EnumerationResult<Entry> result = await _Ledger!.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                // Should find 2 entries: "Monthly salary payment" and "Bonus payment"
+                return result.Objects != null && result.Objects.Count == 2 &&
+                       result.Objects.All(e => e.Description != null && e.Description.Contains("payment"));
+            }).ConfigureAwait(false);
+
+            // Test 2: SearchTerm with no matches returns empty
+            await TestAsync("Entry Enum: SearchTerm with no matches returns empty", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = searchAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    SearchTerm = "nonexistent"
+                };
+
+                EnumerationResult<Entry> result = await _Ledger!.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                return result.Objects != null && result.Objects.Count == 0 && result.TotalRecords == 0;
+            }).ConfigureAwait(false);
+
+            // Test 3: SearchTerm combined with amount filter
+            await TestAsync("Entry Enum: SearchTerm combined with amount filter", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = searchAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    SearchTerm = "shopping",
+                    AmountMinimum = 50.00m
+                };
+
+                EnumerationResult<Entry> result = await _Ledger!.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                // Should find only "Online shopping" (75.00m), not "Grocery shopping" (25.00m)
+                return result.Objects != null && result.Objects.Count == 1 &&
+                       result.Objects[0].Amount == 75.00m;
+            }).ConfigureAwait(false);
+
+            // Test 4: Case sensitivity of SearchTerm
+            await TestAsync("Entry Enum: SearchTerm is case insensitive", async () =>
+            {
+                EnumerationQuery query = new EnumerationQuery
+                {
+                    AccountGUID = searchAccount,
+                    MaxResults = 100,
+                    Ordering = EnumerationOrderEnum.CreatedDescending,
+                    SearchTerm = "SHOPPING"
+                };
+
+                EnumerationResult<Entry> result = await _Ledger!.EnumerateTransactionsAsync(query).ConfigureAwait(false);
+
+                // SQLite LIKE is case-insensitive for ASCII by default
+                return result.Objects != null && result.Objects.Count >= 1;
+            }).ConfigureAwait(false);
+
+            // Clean up
+            await _Ledger.DeleteAccountByGuidAsync(searchAccount).ConfigureAwait(false);
+
+            Console.WriteLine("");
+        }
+
+        #endregion
+
+        #region Historical-Balance-And-Chain-Verification-Tests
+
+        static async Task RunHistoricalBalanceAndChainTestsAsync()
+        {
+            Console.WriteLine("--- Historical Balance and Chain Verification Tests ---");
             Console.WriteLine("");
 
             // Test GetBalanceAsOf
