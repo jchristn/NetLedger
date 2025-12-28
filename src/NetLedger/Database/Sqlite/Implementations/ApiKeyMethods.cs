@@ -42,7 +42,7 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             string query =
                 "INSERT INTO apikeys (guid, name, apikey, active, isadmin, createdutc) VALUES (" +
-                "'" + Sanitize(apiKey.GUID.ToString()) + "', " +
+                "'" + apiKey.GUID.ToString() + "', " +
                 "'" + Sanitize(apiKey.Name) + "', " +
                 "'" + Sanitize(apiKey.Key) + "', " +
                 (apiKey.Active ? "1" : "0") + ", " +
@@ -63,7 +63,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task<ApiKey> ReadByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            string query = "SELECT * FROM apikeys WHERE guid = '" + Sanitize(guid.ToString()) + "' LIMIT 1;";
+            string query = "SELECT * FROM apikeys WHERE guid = '" + guid.ToString() + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -163,7 +163,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "apikey = '" + Sanitize(apiKey.Key) + "', " +
                 "active = " + (apiKey.Active ? "1" : "0") + ", " +
                 "isadmin = " + (apiKey.IsAdmin ? "1" : "0") + " " +
-                "WHERE guid = '" + Sanitize(apiKey.GUID.ToString()) + "';";
+                "WHERE guid = '" + apiKey.GUID.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -173,7 +173,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            string query = "DELETE FROM apikeys WHERE guid = '" + Sanitize(guid.ToString()) + "';";
+            string query = "DELETE FROM apikeys WHERE guid = '" + guid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 

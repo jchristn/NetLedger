@@ -28,10 +28,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Include="..\..\..\Assets\icon.jpg">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>

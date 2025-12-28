@@ -45,8 +45,8 @@ namespace NetLedger.Database.SqlServer.Implementations
                 "INSERT INTO [entries] ([guid], [accountguid], [type], [amount], [description], [replaces], [iscommitted], [committedbyguid], [committedutc], [createdutc]) " +
                 "OUTPUT INSERTED.[id] " +
                 "VALUES (" +
-                "'" + Sanitize(entry.GUID.ToString()) + "', " +
-                "'" + Sanitize(entry.AccountGUID.ToString()) + "', " +
+                "'" + entry.GUID.ToString() + "', " +
+                "'" + entry.AccountGUID.ToString() + "', " +
                 "'" + entry.Type.ToString() + "', " +
                 entry.Amount.ToString() + ", " +
                 (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +
@@ -81,7 +81,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry?> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<Entry> ReadByGuidAsync(Guid guid, CancellationToken token = default)
         {
             string query = "SELECT TOP 1 * FROM [entries] WHERE [guid] = '" + Sanitize(guid.ToString()) + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -116,7 +116,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         /// <inheritdoc />
         public async Task<List<Entry>> ReadByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT * FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "' ORDER BY [createdutc] DESC;";
+            string query = "SELECT * FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "' ORDER BY [createdutc] DESC;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             List<Entry> entries = new List<Entry>();
@@ -136,7 +136,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         public async Task<List<Entry>> ReadPendingByAccountGuidAsync(Guid accountGuid, EntryType? entryType = null, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
-                "SELECT * FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "' " +
+                "SELECT * FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "' " +
                 "AND [iscommitted] = 0 " +
                 "AND [type] != 'Balance'");
 
@@ -163,9 +163,9 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry?> ReadLatestBalanceAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<Entry> ReadLatestBalanceAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT TOP 1 * FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "' AND [type] = 'Balance' ORDER BY [createdutc] DESC;";
+            string query = "SELECT TOP 1 * FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "' AND [type] = 'Balance' ORDER BY [createdutc] DESC;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -174,9 +174,9 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry?> ReadBalanceAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken token = default)
+        public async Task<Entry> ReadBalanceAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken token = default)
         {
-            string query = "SELECT TOP 1 * FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "' AND [type] = 'Balance' AND [createdutc] <= '" + asOfUtc.ToString(SetupQueries.TimestampFormat) + "' ORDER BY [createdutc] DESC;";
+            string query = "SELECT TOP 1 * FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "' AND [type] = 'Balance' AND [createdutc] <= '" + asOfUtc.ToString(SetupQueries.TimestampFormat) + "' ORDER BY [createdutc] DESC;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -189,7 +189,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         {
             if (filter == null) throw new ArgumentNullException(nameof(filter));
 
-            StringBuilder query = new StringBuilder("SELECT * FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "'");
+            StringBuilder query = new StringBuilder("SELECT * FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "'");
 
             string conditions = filter.BuildEntryConditions(DatabaseTypeEnum.SqlServer);
             if (!String.IsNullOrEmpty(conditions))
@@ -259,7 +259,7 @@ namespace NetLedger.Database.SqlServer.Implementations
             }
 
             // Get total count with filter (without pagination)
-            StringBuilder countQuery = new StringBuilder("SELECT COUNT(*) FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "'");
+            StringBuilder countQuery = new StringBuilder("SELECT COUNT(*) FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "'");
             if (!String.IsNullOrEmpty(conditions))
             {
                 countQuery.Append(" AND " + conditions);
@@ -273,7 +273,7 @@ namespace NetLedger.Database.SqlServer.Implementations
             }
 
             // Build main query with continuation token or skip
-            StringBuilder mainQuery = new StringBuilder("SELECT * FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "'");
+            StringBuilder mainQuery = new StringBuilder("SELECT * FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "'");
             if (!String.IsNullOrEmpty(conditions))
             {
                 mainQuery.Append(" AND " + conditions);
@@ -319,7 +319,7 @@ namespace NetLedger.Database.SqlServer.Implementations
                 if (result.Objects.Count > 0)
                 {
                     Entry lastEntry = result.Objects[result.Objects.Count - 1];
-                    StringBuilder remainingQuery = new StringBuilder("SELECT COUNT(*) FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "'");
+                    StringBuilder remainingQuery = new StringBuilder("SELECT COUNT(*) FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "'");
                     if (!String.IsNullOrEmpty(conditions))
                     {
                         remainingQuery.Append(" AND " + conditions);
@@ -380,7 +380,7 @@ namespace NetLedger.Database.SqlServer.Implementations
                 "[iscommitted] = " + (entry.IsCommitted ? "1" : "0") + ", " +
                 "[committedbyguid] = " + (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
                 "[committedutc] = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + " " +
-                "WHERE [guid] = '" + Sanitize(entry.GUID.ToString()) + "';";
+                "WHERE [guid] = '" + entry.GUID.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -408,7 +408,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         /// <inheritdoc />
         public async Task DeleteByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "DELETE FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "';";
+            string query = "DELETE FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
@@ -429,7 +429,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         /// <inheritdoc />
         public async Task<int> GetCountByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "';";
+            string query = "SELECT COUNT(*) FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
@@ -443,7 +443,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         /// <inheritdoc />
         public async Task<decimal> SumPendingCreditsAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT ISNULL(SUM([amount]), 0) FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "' AND [type] = 'Credit' AND [iscommitted] = 0;";
+            string query = "SELECT ISNULL(SUM([amount]), 0) FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "' AND [type] = 'Credit' AND [iscommitted] = 0;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0 && result.Rows[0][0] != DBNull.Value)
@@ -457,7 +457,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         /// <inheritdoc />
         public async Task<decimal> SumPendingDebitsAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT ISNULL(SUM([amount]), 0) FROM [entries] WHERE [accountguid] = '" + Sanitize(accountGuid.ToString()) + "' AND [type] = 'Debit' AND [iscommitted] = 0;";
+            string query = "SELECT ISNULL(SUM([amount]), 0) FROM [entries] WHERE [accountguid] = '" + accountGuid.ToString() + "' AND [type] = 'Debit' AND [iscommitted] = 0;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0 && result.Rows[0][0] != DBNull.Value)

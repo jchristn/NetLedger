@@ -106,7 +106,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task<List<Entry>> ReadByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT * FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "' ORDER BY createdutc DESC;";
+            string query = "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "' ORDER BY createdutc DESC;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             List<Entry> entries = new List<Entry>();
@@ -126,7 +126,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         public async Task<List<Entry>> ReadPendingByAccountGuidAsync(Guid accountGuid, EntryType? entryType = null, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
-                "SELECT * FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "' " +
+                "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "' " +
                 "AND committed = 0 " +
                 "AND type != '" + EntryType.Balance.ToString() + "'");
 
@@ -157,7 +157,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             string query =
                 "SELECT * FROM entries " +
-                "WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "' " +
+                "WHERE accountguid = '" + accountGuid.ToString() + "' " +
                 "AND type = '" + EntryType.Balance.ToString() + "' " +
                 "ORDER BY createdutc DESC LIMIT 1;";
 
@@ -173,7 +173,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             string query =
                 "SELECT * FROM entries " +
-                "WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "' " +
+                "WHERE accountguid = '" + accountGuid.ToString() + "' " +
                 "AND type = '" + EntryType.Balance.ToString() + "' " +
                 "AND createdutc <= '" + asOfUtc.ToString(SetupQueries.TimestampFormat) + "' " +
                 "ORDER BY createdutc DESC LIMIT 1;";
@@ -189,7 +189,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         public async Task<List<Entry>> ReadWithFilterAsync(Guid accountGuid, FilterBuilder filter, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
-                "SELECT * FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "'");
+                "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "'");
 
             if (filter != null)
             {
@@ -267,7 +267,7 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             // Get total count (without pagination but with filters)
             StringBuilder countQuery = new StringBuilder(
-                "SELECT COUNT(*) FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "'");
+                "SELECT COUNT(*) FROM entries WHERE accountguid = '" + accountGuid.ToString() + "'");
             if (!String.IsNullOrEmpty(conditions))
             {
                 countQuery.Append(" AND " + conditions);
@@ -282,7 +282,7 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             // Build main query with continuation token or skip
             StringBuilder mainQuery = new StringBuilder(
-                "SELECT * FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "'");
+                "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "'");
             if (!String.IsNullOrEmpty(conditions))
             {
                 mainQuery.Append(" AND " + conditions);
@@ -331,7 +331,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 {
                     Entry lastEntry = result.Objects[result.Objects.Count - 1];
                     StringBuilder remainingQuery = new StringBuilder(
-                        "SELECT COUNT(*) FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "'");
+                        "SELECT COUNT(*) FROM entries WHERE accountguid = '" + accountGuid.ToString() + "'");
                     if (!String.IsNullOrEmpty(conditions))
                     {
                         remainingQuery.Append(" AND " + conditions);
@@ -392,7 +392,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "committed = " + (entry.IsCommitted ? "1" : "0") + ", " +
                 "committedbyguid = " + (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
                 "committedutc = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + " " +
-                "WHERE guid = '" + Sanitize(entry.GUID.ToString()) + "';";
+                "WHERE guid = '" + entry.GUID.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -417,7 +417,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                     "committed = " + (entry.IsCommitted ? "1" : "0") + ", " +
                     "committedbyguid = " + (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
                     "committedutc = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + " " +
-                    "WHERE guid = '" + Sanitize(entry.GUID.ToString()) + "';"
+                    "WHERE guid = '" + entry.GUID.ToString() + "';"
                 );
             }
 
@@ -434,7 +434,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task DeleteByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "DELETE FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "';";
+            string query = "DELETE FROM entries WHERE accountguid = '" + accountGuid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
@@ -455,7 +455,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task<int> GetCountByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM entries WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "';";
+            string query = "SELECT COUNT(*) FROM entries WHERE accountguid = '" + accountGuid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
@@ -471,7 +471,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             string query =
                 "SELECT COALESCE(SUM(amount), 0) FROM entries " +
-                "WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "' " +
+                "WHERE accountguid = '" + accountGuid.ToString() + "' " +
                 "AND type = '" + EntryType.Credit.ToString() + "' " +
                 "AND committed = 0;";
 
@@ -490,7 +490,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             string query =
                 "SELECT COALESCE(SUM(amount), 0) FROM entries " +
-                "WHERE accountguid = '" + Sanitize(accountGuid.ToString()) + "' " +
+                "WHERE accountguid = '" + accountGuid.ToString() + "' " +
                 "AND type = '" + EntryType.Debit.ToString() + "' " +
                 "AND committed = 0;";
 
@@ -518,8 +518,8 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             return
                 "INSERT INTO entries (guid, accountguid, type, amount, description, replaces, committed, committedbyguid, committedutc, createdutc) VALUES (" +
-                "'" + Sanitize(entry.GUID.ToString()) + "', " +
-                "'" + Sanitize(entry.AccountGUID.ToString()) + "', " +
+                "'" + entry.GUID.ToString() + "', " +
+                "'" + entry.AccountGUID.ToString() + "', " +
                 "'" + entry.Type.ToString() + "', " +
                 entry.Amount.ToString() + ", " +
                 (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +

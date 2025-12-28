@@ -10,7 +10,7 @@ namespace NetLedger.Database.Mysql.Queries
         /// <summary>
         /// Timestamp format for MySQL DATETIME columns.
         /// </summary>
-        internal const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
+        internal const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.ffffff";
 
         /// <summary>
         /// Get the SQL statements to create all required tables.
@@ -25,7 +25,7 @@ namespace NetLedger.Database.Mysql.Queries
                     `guid` VARCHAR(36) NOT NULL,
                     `name` VARCHAR(256) NOT NULL,
                     `notes` TEXT NULL,
-                    `createdutc` DATETIME(3) NOT NULL,
+                    `createdutc` DATETIME(6) NOT NULL,
                     PRIMARY KEY (`id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
@@ -39,8 +39,8 @@ namespace NetLedger.Database.Mysql.Queries
                     `replaces` VARCHAR(36) NULL,
                     `iscommitted` TINYINT(1) NOT NULL DEFAULT 0,
                     `committedbyguid` VARCHAR(36) NULL,
-                    `committedutc` DATETIME(3) NULL,
-                    `createdutc` DATETIME(3) NOT NULL,
+                    `committedutc` DATETIME(6) NULL,
+                    `createdutc` DATETIME(6) NOT NULL,
                     PRIMARY KEY (`id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
@@ -51,7 +51,7 @@ namespace NetLedger.Database.Mysql.Queries
                     `apikey` VARCHAR(256) NOT NULL,
                     `active` TINYINT(1) NOT NULL DEFAULT 1,
                     `isadmin` TINYINT(1) NOT NULL DEFAULT 0,
-                    `createdutc` DATETIME(3) NOT NULL,
+                    `createdutc` DATETIME(6) NOT NULL,
                     PRIMARY KEY (`id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
             };

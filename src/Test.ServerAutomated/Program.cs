@@ -864,18 +864,17 @@ namespace Test.ServerAutomated
             Account account = await _Client!.Account.CreateAsync("HistoricalTest" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
 
             // Record timestamp before any commits
-            // SDK truncates to second precision, so use timestamps at least 1 second apart
             DateTime timestampBeforeFirstCommit = DateTime.UtcNow;
-            await Task.Delay(1100).ConfigureAwait(false);
+            await Task.Delay(100).ConfigureAwait(false);
 
             // Add and commit first set
             await _Client.Entry.AddCreditAsync(account.GUID, 100.00m).ConfigureAwait(false);
             await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
 
-            // Wait at least 1 second and record timestamp after first commit
-            await Task.Delay(1100).ConfigureAwait(false);
+            // Wait and record timestamp after first commit
+            await Task.Delay(100).ConfigureAwait(false);
             DateTime timestampAfterFirstCommit = DateTime.UtcNow;
-            await Task.Delay(1100).ConfigureAwait(false);
+            await Task.Delay(100).ConfigureAwait(false);
 
             // Add and commit second set
             await _Client.Entry.AddCreditAsync(account.GUID, 50.00m).ConfigureAwait(false);

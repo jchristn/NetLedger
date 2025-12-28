@@ -10,7 +10,7 @@ namespace NetLedger.Database.SqlServer.Queries
         /// <summary>
         /// Timestamp format for SQL Server DATETIME2 columns.
         /// </summary>
-        internal const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
+        internal const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.ffffff";
 
         /// <summary>
         /// Get the SQL statements to create all required tables.

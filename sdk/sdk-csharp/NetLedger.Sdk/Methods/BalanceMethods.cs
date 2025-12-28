@@ -60,7 +60,7 @@ namespace NetLedger.Sdk.Methods
         /// <inheritdoc />
         public async Task<Balance> GetAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken cancellationToken = default)
         {
-            string timestamp = asOfUtc.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ");
+            string timestamp = asOfUtc.ToUniversalTime().ToString("o");
             ApiResponse<HistoricalBalanceResponse> response = await _Client.SendAsync<HistoricalBalanceResponse>(
                 HttpMethod.Get,
                 $"/v1/accounts/{accountGuid}/balance/asof?asOf={timestamp}",

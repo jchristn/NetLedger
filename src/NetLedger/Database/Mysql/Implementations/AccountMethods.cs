@@ -42,7 +42,7 @@ namespace NetLedger.Database.Mysql.Implementations
 
             string query =
                 "INSERT INTO `accounts` (`guid`, `name`, `notes`, `createdutc`) VALUES (" +
-                "'" + Sanitize(account.GUID.ToString()) + "', " +
+                "'" + account.GUID.ToString() + "', " +
                 "'" + Sanitize(account.Name) + "', " +
                 (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + ", " +
                 "'" + account.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'" +
@@ -59,9 +59,9 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Account?> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<Account> ReadByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            string query = "SELECT * FROM `accounts` WHERE `guid` = '" + Sanitize(guid.ToString()) + "' LIMIT 1;";
+            string query = "SELECT * FROM `accounts` WHERE `guid` = '" + guid.ToString() + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -70,7 +70,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Account?> ReadByNameAsync(string name, CancellationToken token = default)
+        public async Task<Account> ReadByNameAsync(string name, CancellationToken token = default)
         {
             if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
 
@@ -180,7 +180,7 @@ namespace NetLedger.Database.Mysql.Implementations
                 "UPDATE `accounts` SET " +
                 "`name` = '" + Sanitize(account.Name) + "', " +
                 "`notes` = " + (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + " " +
-                "WHERE `guid` = '" + Sanitize(account.GUID.ToString()) + "';";
+                "WHERE `guid` = '" + account.GUID.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -190,14 +190,14 @@ namespace NetLedger.Database.Mysql.Implementations
         /// <inheritdoc />
         public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            string query = "DELETE FROM `accounts` WHERE `guid` = '" + Sanitize(guid.ToString()) + "';";
+            string query = "DELETE FROM `accounts` WHERE `guid` = '" + guid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public async Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM `accounts` WHERE `guid` = '" + Sanitize(guid.ToString()) + "';";
+            string query = "SELECT COUNT(*) FROM `accounts` WHERE `guid` = '" + guid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)

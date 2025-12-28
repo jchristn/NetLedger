@@ -10,7 +10,7 @@ namespace NetLedger.Database.Postgresql.Queries
         /// <summary>
         /// Timestamp format for PostgreSQL TIMESTAMP columns.
         /// </summary>
-        internal const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff";
+        internal const string TimestampFormat = "yyyy-MM-dd HH:mm:ss.ffffff";
 
         /// <summary>
         /// Get the SQL statements to create all required tables.
