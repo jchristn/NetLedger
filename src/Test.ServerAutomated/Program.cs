@@ -20,6 +20,8 @@ namespace Test.ServerAutomated
         private static int _PassCount = 0;
         private static int _FailCount = 0;
         private static Stopwatch _TotalStopwatch = new Stopwatch();
+        private static bool _NoCleanup = false;
+        private static List<Guid> _RetainedAccounts = new List<Guid>();
 
         #endregion
 
@@ -114,6 +116,10 @@ namespace Test.ServerAutomated
                         _ApiKey = args[++i];
                     }
                 }
+                else if (arg == "--no-cleanup")
+                {
+                    _NoCleanup = true;
+                }
             }
 
             if (string.IsNullOrWhiteSpace(_Endpoint) || string.IsNullOrWhiteSpace(_ApiKey))
@@ -128,16 +134,18 @@ namespace Test.ServerAutomated
         {
             Console.WriteLine("NetLedger Server Automated Test Suite");
             Console.WriteLine("");
-            Console.WriteLine("Usage: Test.ServerAutomated --endpoint <url> --apikey <key>");
+            Console.WriteLine("Usage: Test.ServerAutomated --endpoint <url> --apikey <key> [options]");
             Console.WriteLine("");
             Console.WriteLine("Options:");
             Console.WriteLine("  --endpoint, -e <url>  The NetLedger server endpoint URL");
             Console.WriteLine("  --apikey, -k <key>    The API key for authentication");
+            Console.WriteLine("  --no-cleanup          Do not delete test accounts after running");
             Console.WriteLine("  --help, -?, -h        Show this help message");
             Console.WriteLine("");
             Console.WriteLine("Examples:");
             Console.WriteLine("  Test.ServerAutomated -e http://localhost:8080 -k your-api-key");
             Console.WriteLine("  Test.ServerAutomated --endpoint https://api.example.com --apikey abc123");
+            Console.WriteLine("  Test.ServerAutomated -e http://localhost:8080 -k your-api-key --no-cleanup");
         }
 
         #endregion
@@ -177,7 +185,7 @@ namespace Test.ServerAutomated
             {
                 Account account = await _Client!.Account.CreateAsync("Test Account " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
                 bool result = account != null && account.GUID != Guid.Empty;
-                if (result) await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                if (result) await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return result;
             }).ConfigureAwait(false);
 
@@ -189,7 +197,7 @@ namespace Test.ServerAutomated
                 };
                 Account account = await _Client!.Account.CreateAsync(input).ConfigureAwait(false);
                 bool result = account != null && account.GUID != Guid.Empty;
-                if (result) await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                if (result) await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return result;
             }).ConfigureAwait(false);
 
@@ -198,7 +206,7 @@ namespace Test.ServerAutomated
                 string expectedName = "NameTest " + Guid.NewGuid().ToString("N").Substring(0, 8);
                 Account account = await _Client!.Account.CreateAsync(expectedName).ConfigureAwait(false);
                 bool result = account != null && account.Name == expectedName;
-                if (account != null) await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                if (account != null) await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return result;
             }).ConfigureAwait(false);
 
@@ -269,7 +277,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(createdAccount.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(createdAccount.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -316,7 +324,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -372,12 +380,12 @@ namespace Test.ServerAutomated
                 };
                 List<Entry> entries = await _Client!.Entry.AddCreditsAsync(account2.GUID, credits).ConfigureAwait(false);
                 bool allCredits = entries.All(e => e.Type == EntryType.Credit);
-                await _Client.Account.DeleteAsync(account2.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account2.GUID).ConfigureAwait(false);
                 return allCredits;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -439,7 +447,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -497,12 +505,12 @@ namespace Test.ServerAutomated
                 // Commit on empty account should not throw
                 CommitResult result = await _Client.Balance.CommitAsync(emptyAccount.GUID).ConfigureAwait(false);
                 Balance balance = await _Client.Balance.GetAsync(emptyAccount.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(emptyAccount.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(emptyAccount.GUID).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -548,7 +556,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -730,7 +738,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -777,7 +785,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -846,7 +854,7 @@ namespace Test.ServerAutomated
             // Cleanup
             foreach (Account acct in createdAccounts)
             {
-                await _Client!.Account.DeleteAsync(acct.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(acct.GUID).ConfigureAwait(false);
             }
 
             Console.WriteLine("");
@@ -899,7 +907,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -938,7 +946,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -1052,7 +1060,7 @@ namespace Test.ServerAutomated
                 await _Client.Entry.AddCreditAsync(account.GUID, 30.00m).ConfigureAwait(false);
                 await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
                 Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return balance.CommittedBalance == 60.00m;
             }).ConfigureAwait(false);
 
@@ -1064,7 +1072,7 @@ namespace Test.ServerAutomated
                     await _Client.Entry.AddCreditAsync(account.GUID, 1.00m).ConfigureAwait(false);
                 }
                 List<Entry> entries = await _Client.Entry.GetPendingAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return entries.Count == 50;
             }).ConfigureAwait(false);
 
@@ -1073,7 +1081,7 @@ namespace Test.ServerAutomated
                 string longName = "LongName_" + new string('A', 200);
                 Account account = await _Client!.Account.CreateAsync(longName).ConfigureAwait(false);
                 Account retrieved = await _Client.Account.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return retrieved.Name == longName;
             }).ConfigureAwait(false);
 
@@ -1082,7 +1090,7 @@ namespace Test.ServerAutomated
                 Account account = await _Client!.Account.CreateAsync("EdgeTest3" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
                 string longDesc = new string('B', 200);
                 Entry entry = await _Client.Entry.AddCreditAsync(account.GUID, 10.00m, longDesc).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return entry.Description == longDesc;
             }).ConfigureAwait(false);
 
@@ -1094,7 +1102,7 @@ namespace Test.ServerAutomated
                 Entry credit3 = await _Client.Entry.AddCreditAsync(account.GUID, 30.00m).ConfigureAwait(false);
                 await _Client.Balance.CommitAsync(account.GUID, new List<Guid> { credit1.GUID, credit3.GUID }).ConfigureAwait(false);
                 Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return balance.CommittedBalance == 40.00m && balance.PendingBalance == 60.00m;
             }).ConfigureAwait(false);
 
@@ -1105,7 +1113,7 @@ namespace Test.ServerAutomated
                 await _Client.Entry.AddDebitAsync(account.GUID, 100.00m).ConfigureAwait(false);
                 await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
                 Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m;
             }).ConfigureAwait(false);
 
@@ -1116,7 +1124,7 @@ namespace Test.ServerAutomated
                 await _Client.Entry.AddDebitAsync(account.GUID, 100.00m).ConfigureAwait(false);
                 await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
                 Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return balance.CommittedBalance == -50.00m;
             }).ConfigureAwait(false);
 
@@ -1126,7 +1134,7 @@ namespace Test.ServerAutomated
                 Account account = await _Client!.Account.CreateAsync("EdgeTest7" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
                 DateTime after = DateTime.UtcNow.AddSeconds(1);
                 Account retrieved = await _Client.Account.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 return retrieved.CreatedUtc >= before && retrieved.CreatedUtc <= after;
             }).ConfigureAwait(false);
 
@@ -1159,7 +1167,7 @@ namespace Test.ServerAutomated
                 // Cleanup
                 foreach (Account acct in accounts)
                 {
-                    await _Client!.Account.DeleteAsync(acct.GUID).ConfigureAwait(false);
+                    await CleanupAccountAsync(acct.GUID).ConfigureAwait(false);
                 }
 
                 return sw.Elapsed.TotalSeconds < 30;
@@ -1176,7 +1184,7 @@ namespace Test.ServerAutomated
                 }
 
                 sw.Stop();
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
                 return sw.Elapsed.TotalSeconds < 30;
             }).ConfigureAwait(false);
@@ -1194,7 +1202,7 @@ namespace Test.ServerAutomated
                 await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
                 sw.Stop();
 
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
                 return sw.Elapsed.TotalSeconds < 10;
             }).ConfigureAwait(false);
@@ -1223,7 +1231,7 @@ namespace Test.ServerAutomated
                 await Task.WhenAll(tasks).ConfigureAwait(false);
 
                 Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
 
                 return balance.PendingBalance == 100.00m;
             }).ConfigureAwait(false);
@@ -1263,7 +1271,7 @@ namespace Test.ServerAutomated
                 // Cleanup
                 foreach (Account account in accounts)
                 {
-                    await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                    await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 }
 
                 return balances.All(b => b.CommittedBalance == 100.00m);
@@ -1286,7 +1294,7 @@ namespace Test.ServerAutomated
                 // Cleanup
                 foreach (Account account in accounts)
                 {
-                    await _Client!.Account.DeleteAsync(account.GUID).ConfigureAwait(false);
+                    await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
                 }
 
                 return allUnique;
@@ -1298,6 +1306,21 @@ namespace Test.ServerAutomated
         #endregion
 
         #region Test-Infrastructure
+
+        static async Task CleanupAccountAsync(Guid accountGuid)
+        {
+            if (_NoCleanup)
+            {
+                if (!_RetainedAccounts.Contains(accountGuid))
+                {
+                    _RetainedAccounts.Add(accountGuid);
+                }
+            }
+            else
+            {
+                await _Client!.Account.DeleteAsync(accountGuid).ConfigureAwait(false);
+            }
+        }
 
         static async Task TestAsync(string testName, Func<Task<bool>> testFunc)
         {
@@ -1382,6 +1405,16 @@ namespace Test.ServerAutomated
                 Console.WriteLine("SOME TESTS FAILED");
             }
             Console.WriteLine("================================================================================");
+
+            if (_NoCleanup && _RetainedAccounts.Count > 0)
+            {
+                Console.WriteLine("");
+                Console.WriteLine($"Cleanup skipped. {_RetainedAccounts.Count} test account(s) retained on server:");
+                foreach (Guid guid in _RetainedAccounts)
+                {
+                    Console.WriteLine($"  - {guid}");
+                }
+            }
         }
 
         #endregion

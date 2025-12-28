@@ -1,6 +1,7 @@
 namespace NetLedger.Server.Authentication
 {
     using System;
+    using NetLedger;
 
     /// <summary>
     /// Authentication result.

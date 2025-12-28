@@ -5,9 +5,8 @@ namespace NetLedger.Server.Authentication
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Durable;
-    using Durable.Sqlite;
     using NetLedger;
+    using NetLedger.Database;
     using NetLedger.Server.Settings;
     using SyslogLogging;
     using WatsonWebserver.Core;
@@ -22,8 +21,7 @@ namespace NetLedger.Server.Authentication
         private readonly string _Header = "[AuthService] ";
         private readonly ServerSettings _Settings;
         private readonly LoggingModule _Logging;
-        private readonly SqliteConnectionFactory _ConnectionFactory;
-        private readonly SqliteRepository<ApiKey> _ApiKeyRepository;
+        private readonly DatabaseDriverBase _Driver;
         private bool _Disposed = false;
 
         #endregion
@@ -35,23 +33,13 @@ namespace NetLedger.Server.Authentication
         /// </summary>
         /// <param name="settings">Server settings.</param>
         /// <param name="logging">Logging module.</param>
+        /// <param name="driver">Database driver.</param>
         /// <exception cref="ArgumentNullException">Thrown when required parameters are null.</exception>
-        public AuthService(ServerSettings settings, LoggingModule logging)
+        public AuthService(ServerSettings settings, LoggingModule logging, DatabaseDriverBase driver)
         {
             _Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _Logging = logging ?? throw new ArgumentNullException(nameof(logging));
-
-            ConnectionPoolOptions poolOptions = new ConnectionPoolOptions
-            {
-                MaxPoolSize = 500,
-                ConnectionTimeout = TimeSpan.FromSeconds(120)
-            };
-
-            _ConnectionFactory = new SqliteConnectionFactory(
-                $"Data Source={_Settings.Database.Filename}",
-                poolOptions);
-
-            _ApiKeyRepository = new SqliteRepository<ApiKey>(_ConnectionFactory);
+            _Driver = driver ?? throw new ArgumentNullException(nameof(driver));
 
             InitializeDefaultApiKeyAsync().Wait();
 
@@ -98,7 +86,7 @@ namespace NetLedger.Server.Authentication
             }
 
             // Look up API key
-            ApiKey? apiKey = await GetApiKeyByValueAsync(apiKeyValue, token).ConfigureAwait(false);
+            ApiKey? apiKey = await _Driver.ApiKeys.ReadByKeyAsync(apiKeyValue, token).ConfigureAwait(false);
             if (apiKey == null)
             {
                 // Check if this matches the default admin key from settings
@@ -136,7 +124,7 @@ namespace NetLedger.Server.Authentication
             if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
 
             ApiKey apiKey = new ApiKey(name, isAdmin);
-            await _ApiKeyRepository.CreateAsync(apiKey, null, token).ConfigureAwait(false);
+            apiKey = await _Driver.ApiKeys.CreateAsync(apiKey, token).ConfigureAwait(false);
 
             _Logging.Info(_Header + "created API key: " + apiKey.GUID + " (" + name + ")");
             return apiKey;
@@ -150,12 +138,7 @@ namespace NetLedger.Server.Authentication
         /// <returns>API key or null if not found.</returns>
         public async Task<ApiKey?> GetApiKeyByGuidAsync(Guid guid, CancellationToken token = default)
         {
-            List<ApiKey> keys = (await _ApiKeyRepository.Query()
-                .Where(k => k.GUID == guid)
-                .ExecuteAsync(token)
-                .ConfigureAwait(false)).ToList();
-
-            return keys.Count > 0 ? keys[0] : null;
+            return await _Driver.ApiKeys.ReadByGuidAsync(guid, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -167,13 +150,7 @@ namespace NetLedger.Server.Authentication
         public async Task<ApiKey?> GetApiKeyByValueAsync(string key, CancellationToken token = default)
         {
             if (string.IsNullOrEmpty(key)) return null;
-
-            List<ApiKey> keys = (await _ApiKeyRepository.Query()
-                .Where(k => k.Key == key)
-                .ExecuteAsync(token)
-                .ConfigureAwait(false)).ToList();
-
-            return keys.Count > 0 ? keys[0] : null;
+            return await _Driver.ApiKeys.ReadByKeyAsync(key, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -183,10 +160,7 @@ namespace NetLedger.Server.Authentication
         /// <returns>List of API keys.</returns>
         public async Task<List<ApiKey>> GetAllApiKeysAsync(CancellationToken token = default)
         {
-            return (await _ApiKeyRepository.Query()
-                .OrderByDescending(k => k.CreatedUtc)
-                .ExecuteAsync(token)
-                .ConfigureAwait(false)).ToList();
+            return await _Driver.ApiKeys.ReadAllAsync(token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -205,96 +179,24 @@ namespace NetLedger.Server.Authentication
             if (query.ContinuationToken != null && query.Skip > 0)
                 throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
 
-            EnumerationResult<ApiKey> result = new EnumerationResult<ApiKey>
+            // Convert to the core EnumerationQuery
+            EnumerationQuery coreQuery = new EnumerationQuery
             {
                 MaxResults = query.MaxResults,
-                Skip = query.Skip
+                Skip = query.Skip,
+                ContinuationToken = query.ContinuationToken,
+                Ordering = query.Ordering,
+                SearchTerm = query.SearchTerm,
+                CreatedAfterUtc = query.CreatedAfterUtc,
+                CreatedBeforeUtc = query.CreatedBeforeUtc
             };
 
-            // Build base query for total count
-            IQueryBuilder<ApiKey> countQuery = _ApiKeyRepository.Query()
-                .Where(k => k.Id > 0);
+            EnumerationResult<ApiKey> result = await _Driver.ApiKeys.EnumerateAsync(coreQuery, token).ConfigureAwait(false);
 
-            // Apply search filter
-            if (!string.IsNullOrEmpty(query.SearchTerm))
-                countQuery = countQuery.Where(k => k.Name.Contains(query.SearchTerm));
-
-            // Apply date filters
-            if (query.CreatedAfterUtc != null)
-                countQuery = countQuery.Where(k => k.CreatedUtc >= query.CreatedAfterUtc.Value);
-
-            if (query.CreatedBeforeUtc != null)
-                countQuery = countQuery.Where(k => k.CreatedUtc <= query.CreatedBeforeUtc.Value);
-
-            List<ApiKey> totalKeys = (await countQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
-            result.TotalRecords = totalKeys.Count;
-
-            // Build query for this page
-            IQueryBuilder<ApiKey> pageQuery = _ApiKeyRepository.Query()
-                .Where(k => k.Id > 0);
-
-            // Apply search filter
-            if (!string.IsNullOrEmpty(query.SearchTerm))
-                pageQuery = pageQuery.Where(k => k.Name.Contains(query.SearchTerm));
-
-            // Apply date filters
-            if (query.CreatedAfterUtc != null)
-                pageQuery = pageQuery.Where(k => k.CreatedUtc >= query.CreatedAfterUtc.Value);
-
-            if (query.CreatedBeforeUtc != null)
-                pageQuery = pageQuery.Where(k => k.CreatedUtc <= query.CreatedBeforeUtc.Value);
-
-            // Handle continuation token
-            if (query.ContinuationToken != null)
+            // Redact keys in the result
+            if (result.Objects != null)
             {
-                ApiKey? continuationKey = await GetApiKeyByGuidAsync(query.ContinuationToken.Value, token).ConfigureAwait(false);
-                if (continuationKey != null)
-                {
-                    if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
-                        pageQuery = pageQuery.Where(k => k.CreatedUtc < continuationKey.CreatedUtc);
-                    else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
-                        pageQuery = pageQuery.Where(k => k.CreatedUtc > continuationKey.CreatedUtc);
-                }
-            }
-
-            // Apply ordering
-            switch (query.Ordering)
-            {
-                case EnumerationOrderEnum.CreatedAscending:
-                    pageQuery = pageQuery.OrderBy(k => k.CreatedUtc);
-                    break;
-                case EnumerationOrderEnum.CreatedDescending:
-                default:
-                    pageQuery = pageQuery.OrderByDescending(k => k.CreatedUtc);
-                    break;
-            }
-
-            // Handle skip
-            if (query.Skip > 0 && query.ContinuationToken == null)
-            {
-                pageQuery = pageQuery.Skip(query.Skip);
-            }
-
-            // Count remaining records
-            List<ApiKey> remainingKeys = (await pageQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
-            result.RecordsRemaining = remainingKeys.Count;
-
-            // Get the actual page
-            pageQuery = pageQuery.Take(query.MaxResults);
-            List<ApiKey> keys = (await pageQuery.ExecuteAsync(token).ConfigureAwait(false)).ToList();
-            result.IterationsRequired = 1;
-
-            // Redact keys
-            result.Objects = keys.Select(k => k.Redact()).ToList();
-
-            result.RecordsRemaining -= result.Objects.Count;
-
-            if (result.Objects != null
-                && result.Objects.Count > 0
-                && result.RecordsRemaining > 0)
-            {
-                result.EndOfResults = false;
-                result.ContinuationToken = result.Objects.Last().GUID;
+                result.Objects = result.Objects.Select(k => k.Redact()).ToList();
             }
 
             return result;
@@ -308,10 +210,10 @@ namespace NetLedger.Server.Authentication
         /// <returns>True if deleted, false if not found.</returns>
         public async Task<bool> RevokeApiKeyAsync(Guid guid, CancellationToken token = default)
         {
-            ApiKey? apiKey = await GetApiKeyByGuidAsync(guid, token).ConfigureAwait(false);
+            ApiKey? apiKey = await _Driver.ApiKeys.ReadByGuidAsync(guid, token).ConfigureAwait(false);
             if (apiKey == null) return false;
 
-            await _ApiKeyRepository.DeleteAsync(apiKey, null, token).ConfigureAwait(false);
+            await _Driver.ApiKeys.DeleteByGuidAsync(guid, token).ConfigureAwait(false);
             _Logging.Info(_Header + "revoked API key: " + guid);
             return true;
         }
@@ -323,12 +225,6 @@ namespace NetLedger.Server.Authentication
         {
             if (_Disposed) return;
             _Disposed = true;
-
-            if (_ConnectionFactory != null)
-            {
-                _ConnectionFactory.Dispose();
-            }
-
             _Logging.Debug(_Header + "disposed");
         }
 
@@ -339,10 +235,7 @@ namespace NetLedger.Server.Authentication
         private async Task InitializeDefaultApiKeyAsync()
         {
             // Check if any API keys exist
-            List<ApiKey> existingKeys = (await _ApiKeyRepository.Query()
-                .Take(1)
-                .ExecuteAsync()
-                .ConfigureAwait(false)).ToList();
+            List<ApiKey> existingKeys = await _Driver.ApiKeys.ReadAllAsync().ConfigureAwait(false);
 
             if (existingKeys.Count == 0)
             {
@@ -353,7 +246,7 @@ namespace NetLedger.Server.Authentication
                     Key = keyValue
                 };
 
-                await _ApiKeyRepository.CreateAsync(defaultKey, null).ConfigureAwait(false);
+                await _Driver.ApiKeys.CreateAsync(defaultKey).ConfigureAwait(false);
 
                 _Logging.Alert(_Header + "created default admin API key: " + keyValue);
                 _Logging.Alert(_Header + "IMPORTANT: save this API key, it will not be shown again!");

@@ -24,7 +24,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Durable.Sqlite" Version="0.1.10" />
 		<PackageReference Include="SyslogLogging" Version="2.0.2" />
 		<PackageReference Include="Timestamps" Version="1.0.11" />
 		<PackageReference Include="Watson" Version="6.5.0" />

@@ -18,6 +18,7 @@ namespace Test.Automated
         private static int _TestCount = 0;
         private static int _PassCount = 0;
         private static int _FailCount = 0;
+        private static bool _NoCleanup = false;
 
         static async Task<int> Main(string[] args)
         {
@@ -65,9 +66,14 @@ namespace Test.Automated
 
                 // Clean up
                 await _Ledger.DisposeAsync().ConfigureAwait(false);
-                if (_DbSettings.Type == DatabaseTypeEnum.Sqlite && File.Exists(_DbSettings.Filename))
+                if (!_NoCleanup && _DbSettings.Type == DatabaseTypeEnum.Sqlite && File.Exists(_DbSettings.Filename))
                 {
                     File.Delete(_DbSettings.Filename);
+                    Console.WriteLine("Database file deleted.");
+                }
+                else if (_NoCleanup)
+                {
+                    Console.WriteLine($"Cleanup skipped. Database file retained: {_DbSettings.Filename}");
                 }
 
                 return _FailCount > 0 ? 1 : 0;
@@ -164,6 +170,10 @@ namespace Test.Automated
                 {
                     _DbSettings.LogQueries = true;
                 }
+                else if (arg == "--no-cleanup")
+                {
+                    _NoCleanup = true;
+                }
             }
 
             Console.WriteLine($"Database Type: {_DbSettings.Type}");
@@ -194,6 +204,7 @@ namespace Test.Automated
             Console.WriteLine("  --password <pass>     Database password");
             Console.WriteLine("  --database, -d <db>   Database name");
             Console.WriteLine("  --log-queries         Enable query logging");
+            Console.WriteLine("  --no-cleanup          Do not delete test data after running");
             Console.WriteLine("  --help, -?            Show this help message");
             Console.WriteLine("");
             Console.WriteLine("Examples:");

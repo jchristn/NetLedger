@@ -142,7 +142,8 @@ namespace NetLedger.Server
                 string json = JsonSerializer.Serialize(_Settings, new JsonSerializerOptions
                 {
                     WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
                 });
 
                 File.WriteAllText(_SettingsFile, json, Encoding.UTF8);
@@ -154,7 +155,8 @@ namespace NetLedger.Server
                 string json = File.ReadAllText(_SettingsFile, Encoding.UTF8);
                 _Settings = JsonSerializer.Deserialize<ServerSettings>(json, new JsonSerializerOptions
                 {
-                    PropertyNameCaseInsensitive = true
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
                 }) ?? new ServerSettings();
 
                 Console.WriteLine("Loaded settings from: " + _SettingsFile);
@@ -169,9 +171,10 @@ namespace NetLedger.Server
 
             // Initialize ledger
             _Ledger = new Ledger(_Settings.Database);
+            LogDatabaseConfiguration();
 
             // Initialize authentication
-            _AuthService = new AuthService(_Settings, _Logging);
+            _AuthService = new AuthService(_Settings, _Logging, _Ledger.Driver);
 
             // Initialize agnostic handlers
             _ServiceHandler = new ServiceHandler(_Settings, _Logging);
@@ -393,6 +396,45 @@ namespace NetLedger.Server
         private static void WebserverException(object? sender, ExceptionEventArgs e)
         {
             _Logging.Alert(_Header + "webserver exception in " + e.Method + " " + e.Url + " from " + e.Ip + ": " + e.Exception.ToString());
+        }
+
+        private static void LogDatabaseConfiguration()
+        {
+            Database.DatabaseSettings db = _Settings.Database;
+
+            if (db.Type == Database.DatabaseTypeEnum.Sqlite)
+            {
+                _Logging.Info(_Header + "database: " + db.Type + " file=" + db.Filename);
+            }
+            else
+            {
+                string connInfo = db.Type.ToString() +
+                    " host=" + db.Hostname +
+                    " port=" + db.GetEffectivePort() +
+                    " database=" + db.DatabaseName;
+
+                if (!string.IsNullOrEmpty(db.Username))
+                {
+                    connInfo += " user=" + db.Username;
+                }
+
+                if (db.Type == Database.DatabaseTypeEnum.Postgresql && !string.IsNullOrEmpty(db.Schema))
+                {
+                    connInfo += " schema=" + db.Schema;
+                }
+
+                if (db.Type == Database.DatabaseTypeEnum.SqlServer && !string.IsNullOrEmpty(db.Instance))
+                {
+                    connInfo += " instance=" + db.Instance;
+                }
+
+                if (db.RequireEncryption)
+                {
+                    connInfo += " encryption=required";
+                }
+
+                _Logging.Info(_Header + "database: " + connInfo);
+            }
         }
 
         private static async Task CleanupAsync()
