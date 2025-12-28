@@ -14,10 +14,10 @@
   },
   "Database": {
     "Type": "Mysql",
-    "Hostname": "mysql-server",
+    "Hostname": "localhost",
     "Port": 3306,
-    "Username": "netledger",
-    "Password": "changeme",
+    "Username": "root",
+    "Password": "password",
     "DatabaseName": "netledger",
     "RequireEncryption": false,
     "ConnectionTimeoutSeconds": 30,

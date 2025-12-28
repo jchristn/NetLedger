@@ -14,7 +14,7 @@
   },
   "Database": {
     "Type": "Sqlite",
-    "Filename": "/app/data/netledger.db",
+    "Filename": "netledger.db",
     "LogQueries": false
   }
 }

@@ -14,11 +14,11 @@
   },
   "Database": {
     "Type": "SqlServer",
-    "Hostname": "sqlserver",
+    "Hostname": "localhost",
     "Port": 1433,
     "Instance": null,
     "Username": "sa",
-    "Password": "changeme",
+    "Password": "password",
     "DatabaseName": "netledger",
     "RequireEncryption": false,
     "ConnectionTimeoutSeconds": 30,

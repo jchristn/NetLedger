@@ -14,10 +14,10 @@
   },
   "Database": {
     "Type": "Postgresql",
-    "Hostname": "postgres-server",
+    "Hostname": "localhost",
     "Port": 5432,
-    "Username": "netledger",
-    "Password": "changeme",
+    "Username": "postgres",
+    "Password": "password",
     "DatabaseName": "netledger",
     "Schema": "public",
     "RequireEncryption": false,
