@@ -1,6 +1,6 @@
 {
   "Webserver": {
-    "Hostname": "*",
+    "Hostname": "+",
     "Port": 8080,
     "Ssl": false
   },
@@ -10,7 +10,7 @@
   },
   "Authentication": {
     "Enabled": true,
-    "AdminApiKey": "netledgeradmin"
+    "DefaultAdminKey": "netledgeradmin"
   },
   "Database": {
     "Type": "Mysql",

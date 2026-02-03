@@ -1,6 +1,6 @@
 services:
   server:
-    image: jchristn/netledger:v2.0.1
+    image: jchristn77/netledger:v2.0.1
     container_name: netledger-server
     restart: unless-stopped
     ports:
@@ -20,7 +20,7 @@ services:
       - netledger
 
   dashboard:
-    image: jchristn/netledger-ui:v2.0.1
+    image: jchristn77/netledger-ui:v2.0.1
     container_name: netledger-dashboard
     restart: unless-stopped
     ports:

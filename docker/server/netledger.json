@@ -1,6 +1,6 @@
 {
   "Webserver": {
-    "Hostname": "*",
+    "Hostname": "+",
     "Port": 8080,
     "Ssl": false
   },
@@ -10,7 +10,11 @@
   },
   "Authentication": {
     "Enabled": true,
-    "AdminApiKey": "netledgeradmin"
+    "DefaultAdminKey": "netledgeradmin"
   },
-  "LedgerDatabase": "/app/data/netledger.db"
+  "Database": {
+    "Type": "Sqlite",
+    "Filename": "/app/data/netledger.db",
+    "LogQueries": false
+  }
 }

@@ -157,7 +157,7 @@ The Docker setup uses configuration files in the `docker/server/` directory:
 ```json
 {
   "Webserver": {
-    "Hostname": "*",
+    "Hostname": "+",
     "Port": 8080,
     "Ssl": false
   },
@@ -166,10 +166,14 @@ The Docker setup uses configuration files in the `docker/server/` directory:
     "LogRequests": true
   },
   "Authentication": {
-    "AdminApiKey": "netledgeradmin",
-    "ApiKeyDatabase": "/app/data/apikeys.db"
+    "Enabled": true,
+    "DefaultAdminKey": "netledgeradmin"
   },
-  "LedgerDatabase": "/app/data/netledger.db"
+  "Database": {
+    "Type": "Sqlite",
+    "Filename": "/app/data/netledger.db",
+    "LogQueries": false
+  }
 }
 ```
 

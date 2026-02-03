@@ -558,16 +558,14 @@ namespace NetLedger.Database.Sqlite.Implementations
             string committedUtcStr = row["committedutc"]?.ToString();
             if (!String.IsNullOrEmpty(committedUtcStr))
             {
-                entry.CommittedUtc = DateTime.ParseExact(
+                entry.CommittedUtc = DateTime.Parse(
                     committedUtcStr,
-                    SetupQueries.TimestampFormat,
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
             }
 
-            entry.CreatedUtc = DateTime.ParseExact(
+            entry.CreatedUtc = DateTime.Parse(
                 row["createdutc"].ToString(),
-                SetupQueries.TimestampFormat,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
 

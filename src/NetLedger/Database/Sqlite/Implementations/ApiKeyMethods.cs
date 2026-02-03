@@ -3,6 +3,7 @@ namespace NetLedger.Database.Sqlite.Implementations
     using System;
     using System.Collections.Generic;
     using System.Data;
+    using System.Globalization;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -225,7 +226,10 @@ namespace NetLedger.Database.Sqlite.Implementations
             apiKey.Key = row["apikey"]?.ToString() ?? String.Empty;
             apiKey.Active = Convert.ToInt32(row["active"]) == 1;
             apiKey.IsAdmin = Convert.ToInt32(row["isadmin"]) == 1;
-            apiKey.CreatedUtc = DateTime.Parse(row["createdutc"].ToString());
+            apiKey.CreatedUtc = DateTime.Parse(
+                row["createdutc"].ToString(),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
             return apiKey;
         }
 

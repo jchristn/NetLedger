@@ -15,7 +15,7 @@ if "%~1"=="" (
     exit /b 1
 )
 
-set IMAGE_NAME=jchristn/netledger-ui
+set IMAGE_NAME=jchristn77/netledger-ui
 set IMAGE_TAG=%~1
 set DOCKERFILE_PATH=src/NetLedger.Dashboard/Dockerfile
 set PLATFORMS=linux/amd64,linux/arm64/v8

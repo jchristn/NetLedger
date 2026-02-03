@@ -349,9 +349,8 @@ namespace NetLedger.Database.Sqlite.Implementations
             account.GUID = Guid.Parse(row["guid"].ToString());
             account.Name = row["name"]?.ToString() ?? String.Empty;
             account.Notes = row["notes"]?.ToString();
-            account.CreatedUtc = DateTime.ParseExact(
+            account.CreatedUtc = DateTime.Parse(
                 row["createdutc"].ToString(),
-                SetupQueries.TimestampFormat,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
             return account;
