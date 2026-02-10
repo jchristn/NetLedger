@@ -6,8 +6,8 @@ namespace NetLedger.Database.Mysql
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AsyncKeyedLock;
     using MySqlConnector;
-    using NetLedger.Database.Interfaces;
     using NetLedger.Database.Mysql.Implementations;
     using NetLedger.Database.Mysql.Queries;
 
@@ -19,7 +19,7 @@ namespace NetLedger.Database.Mysql
         #region Private-Members
 
         private readonly string _ConnectionString;
-        private readonly SemaphoreSlim _Lock = new SemaphoreSlim(1, 1);
+        private readonly AsyncNonKeyedLocker _Lock = new();
         private bool _Disposed = false;
 
         #endregion
@@ -77,76 +77,61 @@ namespace NetLedger.Database.Mysql
                 LogQuery($"[MySQL] {query}");
             }
 
-            await _Lock.WaitAsync(token).ConfigureAwait(false);
-            try
+            using var _ = await _Lock.LockAsync(token).ConfigureAwait(false);
+            using var connection = new MySqlConnection(_ConnectionString);
+            await connection.OpenAsync(token).ConfigureAwait(false);
+
+            using var command = new MySqlCommand(query, connection);
+            command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
+
+            if (isWrite)
             {
-                using (MySqlConnection connection = new MySqlConnection(_ConnectionString))
+                int affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+
+                // Handle INSERT with LAST_INSERT_ID
+                if (query.Contains("LAST_INSERT_ID()"))
                 {
-                    await connection.OpenAsync(token).ConfigureAwait(false);
-
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
-                    {
-                        command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
-
-                        if (isWrite)
-                        {
-                            int affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
-
-                            // Handle INSERT with LAST_INSERT_ID
-                            if (query.Contains("LAST_INSERT_ID()"))
-                            {
-                                using (MySqlCommand idCommand = new MySqlCommand("SELECT LAST_INSERT_ID();", connection))
-                                {
-                                    object result = await idCommand.ExecuteScalarAsync(token).ConfigureAwait(false);
-                                    DataTable idTable = new DataTable();
-                                    idTable.Columns.Add("id", typeof(long));
-                                    DataRow row = idTable.NewRow();
-                                    row["id"] = result;
-                                    idTable.Rows.Add(row);
-                                    return idTable;
-                                }
-                            }
-
-                            DataTable resultTable = new DataTable();
-                            resultTable.Columns.Add("affected", typeof(int));
-                            DataRow affectedRow = resultTable.NewRow();
-                            affectedRow["affected"] = affected;
-                            resultTable.Rows.Add(affectedRow);
-                            return resultTable;
-                        }
-                        else
-                        {
-                            using (MySqlDataReader reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
-                            {
-                                DataTable table = new DataTable();
-
-                                for (int i = 0; i < reader.FieldCount; i++)
-                                {
-                                    table.Columns.Add(reader.GetName(i), typeof(string));
-                                }
-
-                                while (await reader.ReadAsync(token).ConfigureAwait(false))
-                                {
-                                    DataRow row = table.NewRow();
-                                    for (int i = 0; i < reader.FieldCount; i++)
-                                    {
-                                        if (reader.IsDBNull(i))
-                                            row[i] = DBNull.Value;
-                                        else
-                                            row[i] = reader.GetValue(i)?.ToString() ?? String.Empty;
-                                    }
-                                    table.Rows.Add(row);
-                                }
-
-                                return table;
-                            }
-                        }
-                    }
+                    using var idCommand = new MySqlCommand("SELECT LAST_INSERT_ID();", connection);
+                    object result = await idCommand.ExecuteScalarAsync(token).ConfigureAwait(false);
+                    DataTable idTable = new();
+                    idTable.Columns.Add("id", typeof(long));
+                    DataRow row = idTable.NewRow();
+                    row["id"] = result;
+                    idTable.Rows.Add(row);
+                    return idTable;
                 }
+
+                DataTable resultTable = new();
+                resultTable.Columns.Add("affected", typeof(int));
+                DataRow affectedRow = resultTable.NewRow();
+                affectedRow["affected"] = affected;
+                resultTable.Rows.Add(affectedRow);
+                return resultTable;
             }
-            finally
+            else
             {
-                _Lock.Release();
+                using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+                DataTable table = new();
+
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    table.Columns.Add(reader.GetName(i), typeof(string));
+                }
+
+                while (await reader.ReadAsync(token).ConfigureAwait(false))
+                {
+                    DataRow row = table.NewRow();
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        if (reader.IsDBNull(i))
+                            row[i] = DBNull.Value;
+                        else
+                            row[i] = reader.GetValue(i)?.ToString() ?? String.Empty;
+                    }
+                    table.Rows.Add(row);
+                }
+
+                return table;
             }
         }
 
@@ -156,38 +141,27 @@ namespace NetLedger.Database.Mysql
             if (_Disposed) throw new ObjectDisposedException(nameof(MysqlDatabaseDriver));
             if (queries == null || !queries.Any()) return new DataTable();
 
-            await _Lock.WaitAsync(token).ConfigureAwait(false);
-            try
+            using var _ = await _Lock.LockAsync(token).ConfigureAwait(false);
+            using var connection = new MySqlConnection(_ConnectionString);
+            await connection.OpenAsync(token).ConfigureAwait(false);
+
+            DataTable lastResult = new();
+
+            foreach (string query in queries)
             {
-                using (MySqlConnection connection = new MySqlConnection(_ConnectionString))
+                if (String.IsNullOrEmpty(query)) continue;
+
+                if (Settings.LogQueries)
                 {
-                    await connection.OpenAsync(token).ConfigureAwait(false);
-
-                    DataTable lastResult = new DataTable();
-
-                    foreach (string query in queries)
-                    {
-                        if (String.IsNullOrEmpty(query)) continue;
-
-                        if (Settings.LogQueries)
-                        {
-                            LogQuery($"[MySQL] {query}");
-                        }
-
-                        using (MySqlCommand command = new MySqlCommand(query, connection))
-                        {
-                            command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
-                            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
-                        }
-                    }
-
-                    return lastResult;
+                    LogQuery($"[MySQL] {query}");
                 }
+
+                using var command = new MySqlCommand(query, connection);
+                command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
+                await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
             }
-            finally
-            {
-                _Lock.Release();
-            }
+
+            return lastResult;
         }
 
         /// <inheritdoc />
