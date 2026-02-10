@@ -66,6 +66,13 @@ namespace Test.Automated
 
                 // Clean up
                 await _Ledger.DisposeAsync().ConfigureAwait(false);
+
+                // Clear SQLite connection pool to release file handles
+                if (_DbSettings.Type == DatabaseTypeEnum.Sqlite)
+                {
+                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                }
+
                 if (!_NoCleanup && _DbSettings.Type == DatabaseTypeEnum.Sqlite && File.Exists(_DbSettings.Filename))
                 {
                     File.Delete(_DbSettings.Filename);

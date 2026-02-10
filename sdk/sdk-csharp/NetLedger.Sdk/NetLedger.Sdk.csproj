@@ -6,12 +6,12 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>NetLedger.Sdk.xml</DocumentationFile>
-    <Version>2.0.2</Version>
+    <Version>2.0.3</Version>
     <Authors>Joel Christner</Authors>
     <Company>Joel Christner</Company>
     <Product>NetLedger SDK</Product>
     <Description>SDK for interacting with NetLedger Server REST API</Description>
-    <Copyright>(c)2025 Joel Christner</Copyright>
+    <Copyright>(c)2026 Joel Christner</Copyright>
     <PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
     <PackageTags>ledger;accounting;sdk;api</PackageTags>

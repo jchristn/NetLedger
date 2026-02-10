@@ -63,7 +63,7 @@ namespace NetLedger
 
         private DatabaseDriverBase _Driver = null;
         private DatabaseSettings _Settings = null;
-        private AsyncKeyedLocker<Guid> _AccountLocks = new();
+        private AsyncKeyedLocker<Guid> _AccountLocks = new AsyncKeyedLocker<Guid>();
         private bool _Disposed = false;
 
         #endregion
@@ -135,17 +135,20 @@ namespace NetLedger
 
             try
             {
-                using var _ = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
-                Entry balance = new Entry();
-                balance.GUID = Guid.NewGuid();
-                balance.AccountGUID = a.GUID;
-                balance.Type = EntryType.Balance;
-                balance.Amount = initialBalance ?? 0m;
-                balance.Description = "Initial balance";
-                balance.IsCommitted = true;
-                balance.CommittedUtc = DateTime.Now.ToUniversalTime();
+                IDisposable lockReleaser = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
+                using (lockReleaser)
+                {
+                    Entry balance = new Entry();
+                    balance.GUID = Guid.NewGuid();
+                    balance.AccountGUID = a.GUID;
+                    balance.Type = EntryType.Balance;
+                    balance.Amount = initialBalance ?? 0m;
+                    balance.Description = "Initial balance";
+                    balance.IsCommitted = true;
+                    balance.CommittedUtc = DateTime.Now.ToUniversalTime();
 
-                await _Driver.Entries.CreateAsync(balance, token).ConfigureAwait(false);
+                    await _Driver.Entries.CreateAsync(balance, token).ConfigureAwait(false);
+                }
             }
             finally
             {
@@ -170,9 +173,12 @@ namespace NetLedger
             {
                 try
                 {
-                    using var _ = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
-                    await _Driver.Entries.DeleteByAccountGuidAsync(a.GUID, token).ConfigureAwait(false);
-                    await _Driver.Accounts.DeleteByGuidAsync(a.GUID, token).ConfigureAwait(false);
+                    IDisposable lockReleaser = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
+                    using (lockReleaser)
+                    {
+                        await _Driver.Entries.DeleteByAccountGuidAsync(a.GUID, token).ConfigureAwait(false);
+                        await _Driver.Accounts.DeleteByGuidAsync(a.GUID, token).ConfigureAwait(false);
+                    }
                 }
                 finally
                 {
@@ -196,9 +202,12 @@ namespace NetLedger
             {
                 try
                 {
-                    using var _ = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
-                    await _Driver.Entries.DeleteByAccountGuidAsync(a.GUID, token).ConfigureAwait(false);
-                    await _Driver.Accounts.DeleteByGuidAsync(a.GUID, token).ConfigureAwait(false);
+                    IDisposable lockReleaser = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
+                    using (lockReleaser)
+                    {
+                        await _Driver.Entries.DeleteByAccountGuidAsync(a.GUID, token).ConfigureAwait(false);
+                        await _Driver.Accounts.DeleteByGuidAsync(a.GUID, token).ConfigureAwait(false);
+                    }
                 }
                 finally
                 {
@@ -317,19 +326,22 @@ namespace NetLedger
 
             try
             {
-                using var _ = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
-                entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
-                entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
-
-                Guid entryGuid = entry.GUID;
-
-                if (isCommitted)
+                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
+                using (lockReleaser)
                 {
-                    List<Guid> guidsToCommit = new List<Guid> { entryGuid };
-                    await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
-                }
+                    entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
+                    entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
 
-                return entryGuid;
+                    Guid entryGuid = entry.GUID;
+
+                    if (isCommitted)
+                    {
+                        List<Guid> guidsToCommit = new List<Guid> { entryGuid };
+                        await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
+                    }
+
+                    return entryGuid;
+                }
             }
             finally
             {
@@ -362,19 +374,22 @@ namespace NetLedger
 
             try
             {
-                using var _ = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
-                entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
-                entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
-
-                Guid entryGuid = entry.GUID;
-
-                if (isCommitted)
+                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
+                using (lockReleaser)
                 {
-                    List<Guid> guidsToCommit = new List<Guid> { entryGuid };
-                    await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
-                }
+                    entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
+                    entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
 
-                return entryGuid;
+                    Guid entryGuid = entry.GUID;
+
+                    if (isCommitted)
+                    {
+                        List<Guid> guidsToCommit = new List<Guid> { entryGuid };
+                        await CommitEntriesAsync(accountGuid, guidsToCommit, false, token).ConfigureAwait(false);
+                    }
+
+                    return entryGuid;
+                }
             }
             finally
             {
@@ -451,13 +466,16 @@ namespace NetLedger
 
             try
             {
-                using var _ = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
-                entry = await _Driver.Entries.ReadByGuidAsync(entryGuid, token).ConfigureAwait(false);
-                if (entry == null) throw new KeyNotFoundException("Unable to find entry with GUID " + entryGuid + ".");
-                if (entry.IsCommitted) throw new InvalidOperationException("Entry has already been committed.");
-                if (entry.AccountGUID != accountGuid) throw new InvalidOperationException("Entry does not belong to this account.");
+                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
+                using (lockReleaser)
+                {
+                    entry = await _Driver.Entries.ReadByGuidAsync(entryGuid, token).ConfigureAwait(false);
+                    if (entry == null) throw new KeyNotFoundException("Unable to find entry with GUID " + entryGuid + ".");
+                    if (entry.IsCommitted) throw new InvalidOperationException("Entry has already been committed.");
+                    if (entry.AccountGUID != accountGuid) throw new InvalidOperationException("Entry does not belong to this account.");
 
-                await _Driver.Entries.DeleteByGuidAsync(entryGuid, token).ConfigureAwait(false);
+                    await _Driver.Entries.DeleteByGuidAsync(entryGuid, token).ConfigureAwait(false);
+                }
             }
             finally
             {
@@ -690,11 +708,14 @@ namespace NetLedger
             Account a = await _Driver.Accounts.ReadByGuidAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
-            using var _ = await _AccountLocks.ConditionalLockAsync(accountGuid, acquireLock, token).ConfigureAwait(false);
-            Balance balanceBefore = await GetBalanceAsync(accountGuid, true, token).ConfigureAwait(false);
-            Entry balanceOld = await _Driver.Entries.ReadLatestBalanceAsync(accountGuid, token).ConfigureAwait(false);
+            IDisposable lockReleaser = await _AccountLocks.ConditionalLockAsync(accountGuid, acquireLock, token).ConfigureAwait(false);
+            using (lockReleaser)
+            {
+                Balance balanceBefore = await GetBalanceAsync(accountGuid, true, token).ConfigureAwait(false);
+                Entry balanceOld = await _Driver.Entries.ReadLatestBalanceAsync(accountGuid, token).ConfigureAwait(false);
 
-            return await CommitEntriesInternalAsync(accountGuid, guids, balanceBefore, balanceOld, a, token).ConfigureAwait(false);
+                return await CommitEntriesInternalAsync(accountGuid, guids, balanceBefore, balanceOld, a, token).ConfigureAwait(false);
+            }
         }
 
         /// <summary>
