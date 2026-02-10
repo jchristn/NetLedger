@@ -6,8 +6,8 @@ namespace NetLedger.Database.SqlServer
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AsyncKeyedLock;
     using Microsoft.Data.SqlClient;
-    using NetLedger.Database.Interfaces;
     using NetLedger.Database.SqlServer.Implementations;
     using NetLedger.Database.SqlServer.Queries;
 
@@ -19,7 +19,7 @@ namespace NetLedger.Database.SqlServer
         #region Private-Members
 
         private readonly string _ConnectionString;
-        private readonly SemaphoreSlim _Lock = new SemaphoreSlim(1, 1);
+        private readonly AsyncNonKeyedLocker _Lock = new();
         private bool _Disposed = false;
 
         #endregion
@@ -85,62 +85,49 @@ namespace NetLedger.Database.SqlServer
                 LogQuery($"[SQL Server] {query}");
             }
 
-            await _Lock.WaitAsync(token).ConfigureAwait(false);
-            try
+            using var _ = await _Lock.LockAsync(token).ConfigureAwait(false);
+            using var connection = new SqlConnection(_ConnectionString);
+            await connection.OpenAsync(token).ConfigureAwait(false);
+
+            using var command = new SqlCommand(query, connection);
+            command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
+
+            bool isWrite = !query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
+
+            if (isWrite && !query.Contains("OUTPUT INSERTED"))
             {
-                using (SqlConnection connection = new SqlConnection(_ConnectionString))
-                {
-                    await connection.OpenAsync(token).ConfigureAwait(false);
-
-                    using (SqlCommand command = new SqlCommand(query, connection))
-                    {
-                        command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
-
-                        bool isWrite = !query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
-
-                        if (isWrite && !query.Contains("OUTPUT INSERTED"))
-                        {
-                            int affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
-                            DataTable resultTable = new DataTable();
-                            resultTable.Columns.Add("affected", typeof(int));
-                            DataRow affectedRow = resultTable.NewRow();
-                            affectedRow["affected"] = affected;
-                            resultTable.Rows.Add(affectedRow);
-                            return resultTable;
-                        }
-                        else
-                        {
-                            using (SqlDataReader reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
-                            {
-                                DataTable table = new DataTable();
-
-                                for (int i = 0; i < reader.FieldCount; i++)
-                                {
-                                    table.Columns.Add(reader.GetName(i), typeof(string));
-                                }
-
-                                while (await reader.ReadAsync(token).ConfigureAwait(false))
-                                {
-                                    DataRow row = table.NewRow();
-                                    for (int i = 0; i < reader.FieldCount; i++)
-                                    {
-                                        if (reader.IsDBNull(i))
-                                            row[i] = DBNull.Value;
-                                        else
-                                            row[i] = reader.GetValue(i)?.ToString() ?? String.Empty;
-                                    }
-                                    table.Rows.Add(row);
-                                }
-
-                                return table;
-                            }
-                        }
-                    }
-                }
+                int affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                DataTable resultTable = new DataTable();
+                resultTable.Columns.Add("affected", typeof(int));
+                DataRow affectedRow = resultTable.NewRow();
+                affectedRow["affected"] = affected;
+                resultTable.Rows.Add(affectedRow);
+                return resultTable;
             }
-            finally
+            else
             {
-                _Lock.Release();
+                using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+                DataTable table = new();
+
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    table.Columns.Add(reader.GetName(i), typeof(string));
+                }
+
+                while (await reader.ReadAsync(token).ConfigureAwait(false))
+                {
+                    DataRow row = table.NewRow();
+                    for (int i = 0; i < reader.FieldCount; i++)
+                    {
+                        if (reader.IsDBNull(i))
+                            row[i] = DBNull.Value;
+                        else
+                            row[i] = reader.GetValue(i)?.ToString() ?? String.Empty;
+                    }
+                    table.Rows.Add(row);
+                }
+
+                return table;
             }
         }
 
@@ -150,38 +137,27 @@ namespace NetLedger.Database.SqlServer
             if (_Disposed) throw new ObjectDisposedException(nameof(SqlServerDatabaseDriver));
             if (queries == null || !queries.Any()) return new DataTable();
 
-            await _Lock.WaitAsync(token).ConfigureAwait(false);
-            try
+            using var _ = await _Lock.LockAsync(token).ConfigureAwait(false);
+            using var connection = new SqlConnection(_ConnectionString);
+            await connection.OpenAsync(token).ConfigureAwait(false);
+
+            DataTable lastResult = new();
+
+            foreach (string query in queries)
             {
-                using (SqlConnection connection = new SqlConnection(_ConnectionString))
+                if (String.IsNullOrEmpty(query)) continue;
+
+                if (Settings.LogQueries)
                 {
-                    await connection.OpenAsync(token).ConfigureAwait(false);
-
-                    DataTable lastResult = new DataTable();
-
-                    foreach (string query in queries)
-                    {
-                        if (String.IsNullOrEmpty(query)) continue;
-
-                        if (Settings.LogQueries)
-                        {
-                            LogQuery($"[SQL Server] {query}");
-                        }
-
-                        using (SqlCommand command = new SqlCommand(query, connection))
-                        {
-                            command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
-                            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
-                        }
-                    }
-
-                    return lastResult;
+                    LogQuery($"[SQL Server] {query}");
                 }
+
+                using var command = new SqlCommand(query, connection);
+                command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
+                await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
             }
-            finally
-            {
-                _Lock.Release();
-            }
+
+            return lastResult;
         }
 
         /// <inheritdoc />

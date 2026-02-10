@@ -1,11 +1,11 @@
 namespace NetLedger
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AsyncKeyedLock;
     using NetLedger.Database;
     using NetLedger.Database.Mysql;
     using NetLedger.Database.Postgresql;
@@ -63,7 +63,7 @@ namespace NetLedger
 
         private DatabaseDriverBase _Driver = null;
         private DatabaseSettings _Settings = null;
-        private ConcurrentDictionary<Guid, SemaphoreSlim> _AccountLocks = new ConcurrentDictionary<Guid, SemaphoreSlim>();
+        private AsyncKeyedLocker<Guid> _AccountLocks = new();
         private bool _Disposed = false;
 
         #endregion
@@ -133,10 +133,9 @@ namespace NetLedger
             a = await _Driver.Accounts.CreateAsync(a, token).ConfigureAwait(false);
             Guid accountGuid = a.GUID;
 
-            SemaphoreSlim accountLock = await LockAccountAsync(a.GUID, token).ConfigureAwait(false);
-
             try
             {
+                using var _ = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
                 Entry balance = new Entry();
                 balance.GUID = Guid.NewGuid();
                 balance.AccountGUID = a.GUID;
@@ -150,7 +149,6 @@ namespace NetLedger
             }
             finally
             {
-                UnlockAccount(a.GUID, accountLock);
                 Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(a)));
             }
 
@@ -170,16 +168,14 @@ namespace NetLedger
             Account a = await _Driver.Accounts.ReadByNameAsync(name, token).ConfigureAwait(false);
             if (a != null)
             {
-                SemaphoreSlim accountLock = await LockAccountAsync(a.GUID, token).ConfigureAwait(false);
-
                 try
                 {
+                    using var _ = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
                     await _Driver.Entries.DeleteByAccountGuidAsync(a.GUID, token).ConfigureAwait(false);
                     await _Driver.Accounts.DeleteByGuidAsync(a.GUID, token).ConfigureAwait(false);
                 }
                 finally
                 {
-                    UnlockAccount(a.GUID, accountLock);
                     Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)), token);
                 }
             }
@@ -198,16 +194,14 @@ namespace NetLedger
             Account a = await _Driver.Accounts.ReadByGuidAsync(guid, token).ConfigureAwait(false);
             if (a != null)
             {
-                SemaphoreSlim accountLock = await LockAccountAsync(a.GUID, token).ConfigureAwait(false);
-
                 try
                 {
+                    using var _ = await _AccountLocks.LockAsync(a.GUID, token).ConfigureAwait(false);
                     await _Driver.Entries.DeleteByAccountGuidAsync(a.GUID, token).ConfigureAwait(false);
                     await _Driver.Accounts.DeleteByGuidAsync(a.GUID, token).ConfigureAwait(false);
                 }
                 finally
                 {
-                    UnlockAccount(a.GUID, accountLock);
                     Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)));
                 }
             }
@@ -320,10 +314,10 @@ namespace NetLedger
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
-            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
+                using var _ = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
                 entry = new Entry(accountGuid, EntryType.Credit, amount, notes, summarizedBy, false);
                 entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
 
@@ -339,7 +333,6 @@ namespace NetLedger
             }
             finally
             {
-                UnlockAccount(accountGuid, accountLock);
                 if (entry != null) Task.Run(() => CreditAdded?.Invoke(this, new EntryEventArgs(a, entry)));
             }
         }
@@ -366,10 +359,10 @@ namespace NetLedger
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
-            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
+                using var _ = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
                 entry = new Entry(accountGuid, EntryType.Debit, amount, notes, summarizedBy, false);
                 entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
 
@@ -385,7 +378,6 @@ namespace NetLedger
             }
             finally
             {
-                UnlockAccount(accountGuid, accountLock);
                 if (entry != null) Task.Run(() => DebitAdded?.Invoke(this, new EntryEventArgs(a, entry)));
             }
         }
@@ -456,10 +448,10 @@ namespace NetLedger
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
             Entry entry = null;
-            SemaphoreSlim accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
 
             try
             {
+                using var _ = await _AccountLocks.LockAsync(accountGuid, token).ConfigureAwait(false);
                 entry = await _Driver.Entries.ReadByGuidAsync(entryGuid, token).ConfigureAwait(false);
                 if (entry == null) throw new KeyNotFoundException("Unable to find entry with GUID " + entryGuid + ".");
                 if (entry.IsCommitted) throw new InvalidOperationException("Entry has already been committed.");
@@ -469,7 +461,6 @@ namespace NetLedger
             }
             finally
             {
-                UnlockAccount(accountGuid, accountLock);
                 if (entry != null) Task.Run(() => EntryCanceled?.Invoke(this, new EntryEventArgs(a, entry)));
             }
         }
@@ -699,26 +690,11 @@ namespace NetLedger
             Account a = await _Driver.Accounts.ReadByGuidAsync(accountGuid, token).ConfigureAwait(false);
             if (a == null) throw new KeyNotFoundException("Unable to find account with GUID " + accountGuid + ".");
 
-            SemaphoreSlim accountLock = null;
-            if (acquireLock)
-            {
-                accountLock = await LockAccountAsync(accountGuid, token).ConfigureAwait(false);
-            }
+            using var _ = await _AccountLocks.ConditionalLockAsync(accountGuid, acquireLock, token).ConfigureAwait(false);
+            Balance balanceBefore = await GetBalanceAsync(accountGuid, true, token).ConfigureAwait(false);
+            Entry balanceOld = await _Driver.Entries.ReadLatestBalanceAsync(accountGuid, token).ConfigureAwait(false);
 
-            try
-            {
-                Balance balanceBefore = await GetBalanceAsync(accountGuid, true, token).ConfigureAwait(false);
-                Entry balanceOld = await _Driver.Entries.ReadLatestBalanceAsync(accountGuid, token).ConfigureAwait(false);
-
-                return await CommitEntriesInternalAsync(accountGuid, guids, balanceBefore, balanceOld, a, token).ConfigureAwait(false);
-            }
-            finally
-            {
-                if (acquireLock && accountLock != null)
-                {
-                    UnlockAccount(accountGuid, accountLock);
-                }
-            }
+            return await CommitEntriesInternalAsync(accountGuid, guids, balanceBefore, balanceOld, a, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -864,12 +840,7 @@ namespace NetLedger
         {
             if (_Disposed) return;
 
-            foreach (SemaphoreSlim semaphore in _AccountLocks.Values)
-            {
-                semaphore?.Dispose();
-            }
-
-            _AccountLocks.Clear();
+            _AccountLocks?.Dispose();
 
             if (_Driver != null)
             {
@@ -877,22 +848,6 @@ namespace NetLedger
             }
 
             _Disposed = true;
-        }
-
-        #endregion
-
-        #region Private-Account-Lock-Methods
-
-        private async Task<SemaphoreSlim> LockAccountAsync(Guid accountGuid, CancellationToken token = default)
-        {
-            SemaphoreSlim accountLock = _AccountLocks.GetOrAdd(accountGuid, _ => new SemaphoreSlim(1, 1));
-            await accountLock.WaitAsync(token).ConfigureAwait(false);
-            return accountLock;
-        }
-
-        private void UnlockAccount(Guid accountGuid, SemaphoreSlim accountLock)
-        {
-            accountLock?.Release();
         }
 
         #endregion

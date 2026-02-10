@@ -7,6 +7,7 @@ namespace NetLedger.Database.Sqlite
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
+    using AsyncKeyedLock;
     using Microsoft.Data.Sqlite;
     using NetLedger.Database.Sqlite.Implementations;
     using NetLedger.Database.Sqlite.Queries;
@@ -18,7 +19,7 @@ namespace NetLedger.Database.Sqlite
     {
         #region Private-Members
 
-        private readonly SemaphoreSlim _DatabaseSemaphore = new SemaphoreSlim(1, 1);
+        private readonly AsyncNonKeyedLocker _Lock = new();
         private readonly string _ConnectionString;
         private readonly int _MaxStatementLength = 1024 * 1024;
         private bool _Disposed = false;
@@ -70,83 +71,73 @@ namespace NetLedger.Database.Sqlite
             token.ThrowIfCancellationRequested();
             LogQuery(query);
 
-            DataTable result = new DataTable();
+            DataTable result = new();
 
-            await _DatabaseSemaphore.WaitAsync(token).ConfigureAwait(false);
+            using var _ = await _Lock.LockAsync(token).ConfigureAwait(false);
+            using var conn = new SqliteConnection(_ConnectionString);
+            await conn.OpenAsync(token).ConfigureAwait(false);
+
+            DbTransaction transaction = null;
 
             try
             {
-                using (SqliteConnection conn = new SqliteConnection(_ConnectionString))
+                if (isTransaction)
                 {
-                    await conn.OpenAsync(token).ConfigureAwait(false);
+                    transaction = await conn.BeginTransactionAsync(token).ConfigureAwait(false);
+                }
 
-                    DbTransaction transaction = null;
-
-                    try
+                using (SqliteCommand cmd = new(query, conn))
+                {
+                    if (transaction != null)
                     {
-                        if (isTransaction)
+                        cmd.Transaction = (SqliteTransaction)transaction;
+                    }
+
+                    using (SqliteDataReader rdr = await cmd.ExecuteReaderAsync(token).ConfigureAwait(false))
+                    {
+                        if (result.Columns.Count == 0)
                         {
-                            transaction = await conn.BeginTransactionAsync(token).ConfigureAwait(false);
-                        }
-
-                        using (SqliteCommand cmd = new SqliteCommand(query, conn))
-                        {
-                            if (transaction != null)
+                            for (int i = 0; i < rdr.FieldCount; i++)
                             {
-                                cmd.Transaction = (SqliteTransaction)transaction;
-                            }
-
-                            using (SqliteDataReader rdr = await cmd.ExecuteReaderAsync(token).ConfigureAwait(false))
-                            {
-                                if (result.Columns.Count == 0)
-                                {
-                                    for (int i = 0; i < rdr.FieldCount; i++)
-                                    {
-                                        result.Columns.Add(rdr.GetName(i), typeof(string));
-                                    }
-                                }
-
-                                while (await rdr.ReadAsync(token).ConfigureAwait(false))
-                                {
-                                    DataRow row = result.NewRow();
-                                    for (int i = 0; i < rdr.FieldCount; i++)
-                                    {
-                                        if (!rdr.IsDBNull(i))
-                                        {
-                                            row[i] = rdr.GetValue(i)?.ToString() ?? String.Empty;
-                                        }
-                                    }
-                                    result.Rows.Add(row);
-                                }
+                                result.Columns.Add(rdr.GetName(i), typeof(string));
                             }
                         }
 
-                        if (transaction != null)
+                        while (await rdr.ReadAsync(token).ConfigureAwait(false))
                         {
-                            await transaction.CommitAsync(token).ConfigureAwait(false);
+                            DataRow row = result.NewRow();
+                            for (int i = 0; i < rdr.FieldCount; i++)
+                            {
+                                if (!rdr.IsDBNull(i))
+                                {
+                                    row[i] = rdr.GetValue(i)?.ToString() ?? String.Empty;
+                                }
+                            }
+                            result.Rows.Add(row);
                         }
-                    }
-                    catch (Exception e)
-                    {
-                        if (transaction != null)
-                        {
-                            await transaction.RollbackAsync(token).ConfigureAwait(false);
-                        }
-
-                        e.Data["IsTransaction"] = isTransaction;
-                        e.Data["Query"] = query;
-                        throw;
-                    }
-                    finally
-                    {
-                        transaction?.Dispose();
-                        await conn.CloseAsync().ConfigureAwait(false);
                     }
                 }
+
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync(token).ConfigureAwait(false);
+                }
+            }
+            catch (Exception e)
+            {
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                }
+
+                e.Data["IsTransaction"] = isTransaction;
+                e.Data["Query"] = query;
+                throw;
             }
             finally
             {
-                _DatabaseSemaphore.Release();
+                transaction?.Dispose();
+                await conn.CloseAsync().ConfigureAwait(false);
             }
 
             return result;
@@ -171,85 +162,71 @@ namespace NetLedger.Database.Sqlite
 
             token.ThrowIfCancellationRequested();
 
-            DataTable result = new DataTable();
+            DataTable result = new();
 
-            await _DatabaseSemaphore.WaitAsync(token).ConfigureAwait(false);
+            using var _ = await _Lock.LockAsync(token).ConfigureAwait(false);
+            using var conn = new SqliteConnection(_ConnectionString);
+            await conn.OpenAsync(token).ConfigureAwait(false);
+
+            DbTransaction transaction = null;
 
             try
             {
-                using (SqliteConnection conn = new SqliteConnection(_ConnectionString))
+                // Always use transaction for multiple queries
+                transaction = await conn.BeginTransactionAsync(token).ConfigureAwait(false);
+
+                foreach (string query in queryList)
                 {
-                    await conn.OpenAsync(token).ConfigureAwait(false);
+                    if (String.IsNullOrEmpty(query)) continue;
 
-                    DbTransaction transaction = null;
+                    token.ThrowIfCancellationRequested();
+                    LogQuery(query);
 
-                    try
+                    using var cmd = new SqliteCommand(query, conn);
+                    cmd.Transaction = (SqliteTransaction)transaction;
+
+                    using var rdr = await cmd.ExecuteReaderAsync(token).ConfigureAwait(false);
+                    // Only capture results from last query
+                    result = new DataTable();
+
+                    if (result.Columns.Count == 0)
                     {
-                        // Always use transaction for multiple queries
-                        transaction = await conn.BeginTransactionAsync(token).ConfigureAwait(false);
-
-                        foreach (string query in queryList)
+                        for (int i = 0; i < rdr.FieldCount; i++)
                         {
-                            if (String.IsNullOrEmpty(query)) continue;
+                            result.Columns.Add(rdr.GetName(i), typeof(string));
+                        }
+                    }
 
-                            token.ThrowIfCancellationRequested();
-                            LogQuery(query);
-
-                            using (SqliteCommand cmd = new SqliteCommand(query, conn))
+                    while (await rdr.ReadAsync(token).ConfigureAwait(false))
+                    {
+                        DataRow row = result.NewRow();
+                        for (int i = 0; i < rdr.FieldCount; i++)
+                        {
+                            if (!rdr.IsDBNull(i))
                             {
-                                cmd.Transaction = (SqliteTransaction)transaction;
-
-                                using (SqliteDataReader rdr = await cmd.ExecuteReaderAsync(token).ConfigureAwait(false))
-                                {
-                                    // Only capture results from last query
-                                    result = new DataTable();
-
-                                    if (result.Columns.Count == 0)
-                                    {
-                                        for (int i = 0; i < rdr.FieldCount; i++)
-                                        {
-                                            result.Columns.Add(rdr.GetName(i), typeof(string));
-                                        }
-                                    }
-
-                                    while (await rdr.ReadAsync(token).ConfigureAwait(false))
-                                    {
-                                        DataRow row = result.NewRow();
-                                        for (int i = 0; i < rdr.FieldCount; i++)
-                                        {
-                                            if (!rdr.IsDBNull(i))
-                                            {
-                                                row[i] = rdr.GetValue(i)?.ToString() ?? String.Empty;
-                                            }
-                                        }
-                                        result.Rows.Add(row);
-                                    }
-                                }
+                                row[i] = rdr.GetValue(i)?.ToString() ?? String.Empty;
                             }
                         }
-
-                        await transaction.CommitAsync(token).ConfigureAwait(false);
-                    }
-                    catch (Exception e)
-                    {
-                        if (transaction != null)
-                        {
-                            await transaction.RollbackAsync(token).ConfigureAwait(false);
-                        }
-
-                        e.Data["IsTransaction"] = isTransaction;
-                        throw;
-                    }
-                    finally
-                    {
-                        transaction?.Dispose();
-                        await conn.CloseAsync().ConfigureAwait(false);
+                        result.Rows.Add(row);
                     }
                 }
+
+                await transaction.CommitAsync(token).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
+                }
+
+                e.Data["IsTransaction"] = isTransaction;
+                throw;
             }
             finally
             {
-                _DatabaseSemaphore.Release();
+                transaction?.Dispose();
+                await conn.CloseAsync().ConfigureAwait(false);
             }
 
             return result;
@@ -279,7 +256,7 @@ namespace NetLedger.Database.Sqlite
             {
                 if (disposing)
                 {
-                    _DatabaseSemaphore?.Dispose();
+                    _Lock?.Dispose();
                 }
                 _Disposed = true;
             }
