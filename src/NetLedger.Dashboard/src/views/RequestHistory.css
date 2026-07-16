@@ -96,7 +96,7 @@
 .summary-chart svg {
   display: block;
   width: 100%;
-  min-height: 240px;
+  min-height: 320px;
 }
 
 .history-axis {

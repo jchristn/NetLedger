@@ -431,7 +431,7 @@ function SummaryChart({ buckets }) {
   const yLabels = buildYAxisLabels(highestCount)
   const yMax = yLabels[yLabels.length - 1] || 1
   const chartWidth = 900
-  const chartHeight = 260
+  const chartHeight = 346
   const padding = { top: 18, right: 18, bottom: 44, left: 46 }
   const innerWidth = chartWidth - padding.left - padding.right
   const innerHeight = chartHeight - padding.top - padding.bottom
