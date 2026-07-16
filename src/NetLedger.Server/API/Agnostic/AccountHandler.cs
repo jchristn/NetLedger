@@ -53,15 +53,15 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context.</returns>
         internal async Task<ResponseContext> ExistsAsync(RequestContext req, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(req.AccountGuid))
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
-            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Read", req.AccountGuid, token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Read", req.AccountId, token).ConfigureAwait(false);
             if (authz != null) return authz;
 
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
@@ -88,7 +88,7 @@ namespace NetLedger.Server.API.Agnostic
                 ContinuationToken = req.ContinuationToken,
                 Ordering = req.Ordering,
                 SearchTerm = req.SearchTerm,
-                TenantId = req.TenantId,
+                TenantId = ResolveEnumerationTenant(req),
                 MappedUserId = ShouldRestrictToMappedAccounts(req) ? req.Auth?.PrincipalId : null,
                 Labels = req.Labels,
                 Tags = req.Tags,
@@ -104,22 +104,22 @@ namespace NetLedger.Server.API.Agnostic
         }
 
         /// <summary>
-        /// Get an account by GUID.
+        /// Get an account by identifier.
         /// </summary>
         /// <param name="req">Request context.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Response context with account.</returns>
         internal async Task<ResponseContext> ReadAsync(RequestContext req, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(req.AccountGuid))
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
-            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Read", req.AccountGuid, token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Read", req.AccountId, token).ConfigureAwait(false);
             if (authz != null) return authz;
 
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
@@ -158,7 +158,7 @@ namespace NetLedger.Server.API.Agnostic
         /// </summary>
         /// <param name="req">Request context.</param>
         /// <param name="token">Cancellation token.</param>
-        /// <returns>Response context with created account GUID.</returns>
+        /// <returns>Response context with created account identifier.</returns>
         internal async Task<ResponseContext> CreateAsync(RequestContext req, CancellationToken token = default)
         {
             ResponseContext? authz = await AuthorizeAsync(req, "Account", "Create", null, token).ConfigureAwait(false);
@@ -170,7 +170,7 @@ namespace NetLedger.Server.API.Agnostic
                 return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account name is required");
             }
 
-            string accountGuid = await _Ledger.CreateAccountAsync(
+            string accountId = await _Ledger.CreateAccountAsync(
                 createReq.Name,
                 createReq.InitialBalance,
                 createReq.Labels,
@@ -178,7 +178,7 @@ namespace NetLedger.Server.API.Agnostic
                 req.TenantId,
                 token).ConfigureAwait(false);
 
-            Account? account = await _Ledger.GetAccountByGuidAsync(accountGuid, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
 
             ResponseContext resp = new ResponseContext(req, account);
             resp.StatusCode = 201;
@@ -193,21 +193,21 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context.</returns>
         internal async Task<ResponseContext> DeleteAsync(RequestContext req, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(req.AccountGuid))
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
-            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Delete", req.AccountGuid, token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Delete", req.AccountId, token).ConfigureAwait(false);
             if (authz != null) return authz;
 
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
 
-            await _Ledger.DeleteAccountByGuidAsync(req.AccountGuid, token).ConfigureAwait(false);
+            await _Ledger.DeleteAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
 
             return new ResponseContext(req);
         }
@@ -220,7 +220,10 @@ namespace NetLedger.Server.API.Agnostic
         {
             AuthorizationDecision decision = await _AuthorizationService.AuthorizeAsync(req, resourceType, operationType, resourceId, token).ConfigureAwait(false);
             if (decision.Permitted) return null;
-            return ResponseContext.FromError(req, ApiErrorEnum.Forbidden, null, decision.Reason);
+            ApiErrorEnum error = String.Equals(decision.Reason, "Authentication required", StringComparison.Ordinal)
+                ? ApiErrorEnum.Unauthorized
+                : ApiErrorEnum.Forbidden;
+            return ResponseContext.FromError(req, error, null, decision.Reason);
         }
 
         private bool ShouldRestrictToMappedAccounts(RequestContext req)
@@ -228,6 +231,13 @@ namespace NetLedger.Server.API.Agnostic
             if (req.Auth == null) return false;
             if (req.Auth.IsAdmin || req.Auth.IsTenantAdmin) return false;
             return !String.IsNullOrEmpty(req.Auth.PrincipalId);
+        }
+
+        private string? ResolveEnumerationTenant(RequestContext req)
+        {
+            if (req.Auth?.IsAdmin == true) return req.TenantId;
+            if (req.Auth?.IsAuthenticated == true) return req.TenantId ?? req.Auth.TenantId;
+            return req.TenantId;
         }
 
         #endregion

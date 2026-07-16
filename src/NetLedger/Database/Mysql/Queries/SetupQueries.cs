@@ -29,6 +29,14 @@ namespace NetLedger.Database.Mysql.Queries
                     PRIMARY KEY (`id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
+                @"CREATE TABLE IF NOT EXISTS `accountlocks` (
+                    `accountid` VARCHAR(64) NOT NULL,
+                    `ownerid` VARCHAR(64) NOT NULL,
+                    `expiresutc` DATETIME(6) NOT NULL,
+                    `createdutc` DATETIME(6) NOT NULL,
+                    PRIMARY KEY (`accountid`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+
                 @"CREATE TABLE IF NOT EXISTS `accounts` (
                     `id` INT NOT NULL AUTO_INCREMENT,
                     `guid` VARCHAR(64) NOT NULL,
@@ -264,8 +272,12 @@ namespace NetLedger.Database.Mysql.Queries
                 "CREATE INDEX `idx_entries_type` ON `entries` (`type`);",
                 "CREATE INDEX `idx_entries_iscommitted` ON `entries` (`iscommitted`);",
                 "CREATE INDEX `idx_entries_createdutc` ON `entries` (`createdutc`);",
+                "CREATE INDEX `idx_entries_accountguid_createdutc` ON `entries` (`accountguid`, `createdutc`);",
+                "CREATE INDEX `idx_entries_accountguid_id` ON `entries` (`accountguid`, `id`);",
                 "CREATE INDEX `idx_entries_accountguid_type` ON `entries` (`accountguid`, `type`);",
                 "CREATE INDEX `idx_entries_accountguid_iscommitted` ON `entries` (`accountguid`, `iscommitted`);",
+                "CREATE INDEX `idx_entries_accountguid_type_iscommitted_createdutc` ON `entries` (`accountguid`, `type`, `iscommitted`, `createdutc`);",
+                "CREATE INDEX `idx_entries_tenantid_accountguid_createdutc` ON `entries` (`tenantid`, `accountguid`, `createdutc`);",
 
                 // API keys indices
                 "CREATE INDEX `idx_apikeys_guid` ON `apikeys` (`guid`);",

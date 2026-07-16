@@ -33,26 +33,6 @@ namespace NetLedger
         public string AccountId { get; set; } = String.Empty;
 
         /// <summary>
-        /// Legacy entry identifier alias.
-        /// </summary>
-        [JsonIgnore]
-        public string GUID
-        {
-            get { return Id; }
-            set { Id = value; }
-        }
-
-        /// <summary>
-        /// Legacy account identifier alias.
-        /// </summary>
-        [JsonIgnore]
-        public string AccountGUID
-        {
-            get { return AccountId; }
-            set { AccountId = value; }
-        }
-
-        /// <summary>
         /// The type of entry.
         /// </summary>
         public EntryType Type { get; set; } = EntryType.Balance;
@@ -68,7 +48,7 @@ namespace NetLedger
         public string? Description { get; set; } = null;
 
         /// <summary>
-        /// Specifies the GUID of the entry that this entry is replacing.  Used only by balance entries.
+        /// Specifies the identifier of the entry that this entry is replacing. Used only by balance entries.
         /// </summary>
         public string? Replaces { get; set; } = null;
 
@@ -78,19 +58,9 @@ namespace NetLedger
         public bool IsCommitted { get; set; } = false;
 
         /// <summary>
-        /// GUID of the entry that committed this entry.
+        /// Identifier of the entry that committed this entry.
         /// </summary>
         public string? CommittedById { get; set; } = null;
-
-        /// <summary>
-        /// Legacy committed-by identifier alias.
-        /// </summary>
-        [JsonIgnore]
-        public string? CommittedByGUID
-        {
-            get { return CommittedById; }
-            set { CommittedById = value; }
-        }
 
         /// <summary>
         /// Entry labels.
@@ -146,24 +116,24 @@ namespace NetLedger
         /// <summary>
         /// Instantiate an entry.
         /// </summary>
-        /// <param name="accountGuid">Account GUID.</param>
+        /// <param name="accountId">Account identifier.</param>
         /// <param name="entryType">Type of entry.</param>
         /// <param name="amount">Amount/value.</param>
         /// <param name="notes">Notes for the entry.</param>
-        /// <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
+        /// <param name="summarizedBy">Identifier of the entry that summarized this entry.</param>
         /// <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
-        /// <exception cref="ArgumentNullException">Thrown when accountGuid is empty.</exception>
+        /// <exception cref="ArgumentNullException">Thrown when accountId is empty.</exception>
         /// <exception cref="ArgumentException">Thrown when amount is negative.</exception>
-        public Entry(string accountGuid, EntryType entryType, decimal amount, string? notes = null, string? summarizedBy = null, bool isCommitted = false)
+        public Entry(string accountId, EntryType entryType, decimal amount, string? notes = null, string? summarizedBy = null, bool isCommitted = false)
         {
-            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
+            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
 
-            AccountGUID = accountGuid;
+            AccountId = accountId;
             Type = entryType;
             Amount = amount;
             Description = notes;
-            CommittedByGUID = summarizedBy;
+            CommittedById = summarizedBy;
 
             if (isCommitted)
             {

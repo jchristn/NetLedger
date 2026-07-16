@@ -30,12 +30,12 @@ export class AccountMethods {
     }
 
     /**
-     * Get an account by GUID.
-     * @param accountGuid The account GUID.
+     * Get an account by identifier.
+     * @param accountId The account identifier.
      * @returns The account.
      */
-    async get(accountGuid: string): Promise<Account> {
-        const response = await this.client.get<Account>(`/v1/accounts/${accountGuid}`);
+    async get(accountId: string): Promise<Account> {
+        const response = await this.client.get<Account>(`/v1/accounts/${accountId}`);
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -61,19 +61,19 @@ export class AccountMethods {
 
     /**
      * Check if an account exists.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the account exists.
      */
-    async exists(accountGuid: string): Promise<boolean> {
-        return await this.client.head(`/v1/accounts/${accountGuid}`);
+    async exists(accountId: string): Promise<boolean> {
+        return await this.client.head(`/v1/accounts/${accountId}`);
     }
 
     /**
      * Delete an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      */
-    async delete(accountGuid: string): Promise<void> {
-        await this.client.delete(`/v1/accounts/${accountGuid}`);
+    async delete(accountId: string): Promise<void> {
+        await this.client.delete(`/v1/accounts/${accountId}`);
     }
 
     /**

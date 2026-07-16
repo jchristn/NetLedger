@@ -39,6 +39,13 @@ CREATE TABLE IF NOT EXISTS schemamigrations (
     success INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS accountlocks (
+    accountid TEXT PRIMARY KEY,
+    ownerid TEXT NOT NULL,
+    expiresutc TEXT NOT NULL,
+    createdutc TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     guid TEXT NOT NULL,
@@ -285,9 +292,12 @@ CREATE INDEX IF NOT EXISTS idx_entries_committed ON entries(committed);
 CREATE INDEX IF NOT EXISTS idx_entries_createdutc ON entries(createdutc);
 CREATE INDEX IF NOT EXISTS idx_entries_committedbyguid ON entries(committedbyguid);
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid_createdutc ON entries(accountguid, createdutc);
+CREATE INDEX IF NOT EXISTS idx_entries_accountguid_id ON entries(accountguid, id);
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type ON entries(accountguid, type);
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid_committed ON entries(accountguid, committed);
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type_committed ON entries(accountguid, type, committed);
+CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type_committed_createdutc ON entries(accountguid, type, committed, createdutc);
+CREATE INDEX IF NOT EXISTS idx_entries_tenantid_accountguid_createdutc ON entries(tenantid, accountguid, createdutc);
 
 CREATE INDEX IF NOT EXISTS idx_apikeys_guid ON apikeys(guid);
 CREATE INDEX IF NOT EXISTS idx_apikeys_apikey ON apikeys(apikey);

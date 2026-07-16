@@ -59,7 +59,7 @@ namespace NetLedger.Server.API.REST
         #region Internal-Methods
 
         /// <summary>
-        /// Handle enumerate entries (GET /v1/accounts/{guid}/entries).
+        /// Handle enumerate entries (GET /v1/accounts/{accountId}/entries).
         /// Querystring parameters: maxResults, skip, continuationToken, ordering, search, startTime, endTime, amountMin, amountMax, creditMin, creditMax, debitMin, debitMax, labels, tags.
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
@@ -73,7 +73,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle get pending entries (GET /v1/accounts/{guid}/entries/pending).
+        /// Handle get pending entries (GET /v1/accounts/{accountId}/entries/pending).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -86,7 +86,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle get pending credits (GET /v1/accounts/{guid}/entries/pending/credits).
+        /// Handle get pending credits (GET /v1/accounts/{accountId}/entries/pending/credits).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -99,7 +99,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle get pending debits (GET /v1/accounts/{guid}/entries/pending/debits).
+        /// Handle get pending debits (GET /v1/accounts/{accountId}/entries/pending/debits).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -112,7 +112,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle enumerate entries (POST /v1/accounts/{guid}/entries/enumerate).
+        /// Handle enumerate entries (POST /v1/accounts/{accountId}/entries/enumerate).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -125,7 +125,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle add credits (PUT /v1/accounts/{guid}/credits).
+        /// Handle add credits (PUT /v1/accounts/{accountId}/credits).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -138,7 +138,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle add debits (PUT /v1/accounts/{guid}/debits).
+        /// Handle add debits (PUT /v1/accounts/{accountId}/debits).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -151,7 +151,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle cancel entry (DELETE /v1/accounts/{guid}/entries/{entryGuid}).
+        /// Handle cancel entry (DELETE /v1/accounts/{accountId}/entries/{entryId}).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -171,7 +171,7 @@ namespace NetLedger.Server.API.REST
         {
             ctx.Response.StatusCode = resp.StatusCode;
             ctx.Response.ContentType = Constants.JsonContentType;
-            ctx.Response.Headers.Add(Constants.RequestGuidHeader, resp.RequestGuid.ToString());
+            ctx.Response.Headers.Add(Constants.RequestIdHeader, resp.RequestId.ToString());
 
             object? body = resp.Success ? resp.Data : (object?)resp.Error;
             string json = JsonSerializer.Serialize(body, Constants.JsonOptions);

@@ -29,6 +29,14 @@ namespace NetLedger.Database.SqlServer.Queries
                     [success] BIT NOT NULL DEFAULT 1
                 );",
 
+                @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'accountlocks')
+                CREATE TABLE [accountlocks] (
+                    [accountid] NVARCHAR(64) NOT NULL PRIMARY KEY,
+                    [ownerid] NVARCHAR(64) NOT NULL,
+                    [expiresutc] DATETIME2 NOT NULL,
+                    [createdutc] DATETIME2 NOT NULL
+                );",
+
                 @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'accounts')
                 CREATE TABLE [accounts] (
                     [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
@@ -263,8 +271,12 @@ namespace NetLedger.Database.SqlServer.Queries
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_type') CREATE INDEX [idx_entries_type] ON [entries] ([type]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_iscommitted') CREATE INDEX [idx_entries_iscommitted] ON [entries] ([iscommitted]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_createdutc') CREATE INDEX [idx_entries_createdutc] ON [entries] ([createdutc]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_accountguid_createdutc') CREATE INDEX [idx_entries_accountguid_createdutc] ON [entries] ([accountguid], [createdutc]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_accountguid_id') CREATE INDEX [idx_entries_accountguid_id] ON [entries] ([accountguid], [id]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_accountguid_type') CREATE INDEX [idx_entries_accountguid_type] ON [entries] ([accountguid], [type]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_accountguid_iscommitted') CREATE INDEX [idx_entries_accountguid_iscommitted] ON [entries] ([accountguid], [iscommitted]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_accountguid_type_iscommitted_createdutc') CREATE INDEX [idx_entries_accountguid_type_iscommitted_createdutc] ON [entries] ([accountguid], [type], [iscommitted], [createdutc]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_tenantid_accountguid_createdutc') CREATE INDEX [idx_entries_tenantid_accountguid_createdutc] ON [entries] ([tenantid], [accountguid], [createdutc]);",
 
                 // API keys indices
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_apikeys_guid') CREATE INDEX [idx_apikeys_guid] ON [apikeys] ([guid]);",

@@ -1,6 +1,8 @@
 namespace NetLedger.Sdk
 {
     using System;
+    using System.IO;
+    using System.Net;
     using System.Net.Http;
     using System.Net.Http.Headers;
     using System.Text;
@@ -127,6 +129,7 @@ namespace NetLedger.Sdk
         private readonly string _ApiKey;
         private readonly string? _TenantId;
         private readonly HttpClient _HttpClient;
+        private readonly bool _OwnsHttpClient;
         private readonly JsonSerializerOptions _SerializeOptions;
         private readonly JsonSerializerOptions _DeserializeOptions;
         private int _TimeoutMs = 30000;
@@ -163,17 +166,38 @@ namespace NetLedger.Sdk
         /// <param name="tenantId">Tenant identifier for x-tenant-id.</param>
         /// <exception cref="ArgumentNullException">Thrown when baseUrl or apiKey is null or empty.</exception>
         public NetLedgerClient(string baseUrl, string apiKey, string? tenantId)
+            : this(baseUrl, apiKey, tenantId, new HttpClient(), true)
+        {
+        }
+
+        /// <summary>
+        /// Instantiate a new tenant-scoped NetLedger client using an externally-managed HTTP client.
+        /// </summary>
+        /// <param name="baseUrl">The base URL of the NetLedger server.</param>
+        /// <param name="apiKey">The API key or credential access key for authentication.</param>
+        /// <param name="tenantId">Tenant identifier for x-tenant-id.</param>
+        /// <param name="httpClient">Externally-managed HTTP client.</param>
+        /// <exception cref="ArgumentNullException">Thrown when baseUrl, apiKey, or httpClient is null or empty.</exception>
+        public NetLedgerClient(string baseUrl, string apiKey, string? tenantId, HttpClient httpClient)
+            : this(baseUrl, apiKey, tenantId, httpClient, false)
+        {
+        }
+
+        private NetLedgerClient(string baseUrl, string apiKey, string? tenantId, HttpClient httpClient, bool ownsHttpClient)
         {
             if (string.IsNullOrWhiteSpace(baseUrl))
                 throw new ArgumentNullException(nameof(baseUrl), "Base URL cannot be null or empty.");
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty.");
+            if (httpClient == null)
+                throw new ArgumentNullException(nameof(httpClient));
 
             _BaseUrl = baseUrl.TrimEnd('/');
             _ApiKey = apiKey;
             _TenantId = tenantId;
 
-            _HttpClient = new HttpClient();
+            _HttpClient = httpClient;
+            _OwnsHttpClient = ownsHttpClient;
             _HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _ApiKey);
             if (!String.IsNullOrEmpty(_TenantId))
             {
@@ -248,12 +272,11 @@ namespace NetLedger.Sdk
 
             try
             {
-                using HttpResponseMessage response = await _HttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
-
-                string responseBody = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                using HttpResponseMessage response = await _HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    string responseBody = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
                     ErrorResponse? error = null;
                     try
                     {
@@ -270,12 +293,13 @@ namespace NetLedger.Sdk
                         error?.Description);
                 }
 
-                if (string.IsNullOrWhiteSpace(responseBody))
+                if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)
                 {
                     return new ApiResponse<T>(default, (int)response.StatusCode);
                 }
 
-                T? data = JsonSerializer.Deserialize<T>(responseBody, _DeserializeOptions);
+                await using Stream responseStream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                T? data = await JsonSerializer.DeserializeAsync<T>(responseStream, _DeserializeOptions, cts.Token).ConfigureAwait(false);
                 return new ApiResponse<T>(data, (int)response.StatusCode);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -378,7 +402,10 @@ namespace NetLedger.Sdk
             {
                 if (disposing)
                 {
-                    _HttpClient?.Dispose();
+                    if (_OwnsHttpClient)
+                    {
+                        _HttpClient?.Dispose();
+                    }
                 }
 
                 _Disposed = true;

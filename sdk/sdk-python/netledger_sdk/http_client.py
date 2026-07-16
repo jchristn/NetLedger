@@ -1,6 +1,7 @@
 """HTTP client for making API requests."""
 
 import requests
+from requests.adapters import HTTPAdapter
 from typing import Any, Dict, Optional, TypeVar, Generic
 from .exceptions import NetLedgerConnectionError, NetLedgerApiError
 
@@ -11,16 +12,24 @@ T = TypeVar('T')
 class ApiResponse(Generic[T]):
     """Represents an API response."""
 
-    def __init__(self, data: Optional[T], status_code: int, request_guid: Optional[str] = None):
+    def __init__(self, data: Optional[T], status_code: int, request_id: Optional[str] = None):
         self.data = data
         self.status_code = status_code
-        self.request_guid = request_guid
+        self.request_id = request_id
 
 
 class HttpClient:
     """HTTP client for making API requests."""
 
-    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0, tenant_id: Optional[str] = None):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float = 30.0,
+        tenant_id: Optional[str] = None,
+        pool_connections: int = 10,
+        pool_maxsize: int = 20
+    ):
         """
         Initialize the HTTP client.
 
@@ -34,6 +43,9 @@ class HttpClient:
         self.tenant_id = tenant_id
         self.timeout = timeout_seconds
         self.session = requests.Session()
+        adapter = HTTPAdapter(pool_connections=pool_connections, pool_maxsize=pool_maxsize)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
         headers = {
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
@@ -98,18 +110,18 @@ class HttpClient:
 
                 raise NetLedgerApiError(response.status_code, error_message, error_details)
 
-            # Get request GUID from header
-            request_guid = response.headers.get('x-request-guid')
+            # Get request identifier from header
+            request_id = response.headers.get('x-request-id')
 
             if not response.text or response.text.strip() == '':
-                return ApiResponse(None, response.status_code, request_guid)
+                return ApiResponse(None, response.status_code, request_id)
 
             try:
                 data = response.json()
                 return ApiResponse(
                     data=data,
                     status_code=response.status_code,
-                    request_guid=request_guid
+                    request_id=request_id
                 )
             except ValueError:
                 raise NetLedgerApiError(response.status_code, 'Failed to parse response')

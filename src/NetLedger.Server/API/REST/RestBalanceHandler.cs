@@ -59,7 +59,7 @@ namespace NetLedger.Server.API.REST
         #region Internal-Methods
 
         /// <summary>
-        /// Handle get balance (GET /v1/accounts/{guid}/balance).
+        /// Handle get balance (GET /v1/accounts/{accountId}/balance).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -72,7 +72,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle get historical balance (GET /v1/accounts/{guid}/balance/asof).
+        /// Handle get historical balance (GET /v1/accounts/{accountId}/balance/asof).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -98,7 +98,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle commit entries (POST /v1/accounts/{guid}/commit).
+        /// Handle commit entries (POST /v1/accounts/{accountId}/commit).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -111,7 +111,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle verify balance chain (GET /v1/accounts/{guid}/verify).
+        /// Handle verify balance chain (GET /v1/accounts/{accountId}/verify).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -131,7 +131,7 @@ namespace NetLedger.Server.API.REST
         {
             ctx.Response.StatusCode = resp.StatusCode;
             ctx.Response.ContentType = Constants.JsonContentType;
-            ctx.Response.Headers.Add(Constants.RequestGuidHeader, resp.RequestGuid.ToString());
+            ctx.Response.Headers.Add(Constants.RequestIdHeader, resp.RequestId.ToString());
 
             object? body = resp.Success ? resp.Data : (object?)resp.Error;
             string json = JsonSerializer.Serialize(body, Constants.JsonOptions);

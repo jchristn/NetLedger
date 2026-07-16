@@ -38,7 +38,7 @@ class Account:
     def from_dict(cls, data: Dict[str, Any]) -> "Account":
         """Create an Account from a dictionary."""
         return cls(
-            id=data.get("Id") or data.get("GUID", ""),
+            id=data.get("Id", ""),
             name=data.get("Name", ""),
             tenant_id=data.get("TenantId", ""),
             notes=data.get("Notes"),
@@ -79,15 +79,15 @@ class Entry:
         else:
             entry_type = EntryType(entry_type_raw)
         return cls(
-            id=data.get("Id") or data.get("GUID", ""),
-            account_id=data.get("AccountId") or data.get("AccountGUID", ""),
+            id=data.get("Id", ""),
+            account_id=data.get("AccountId", ""),
             type=entry_type,
             amount=float(data.get("Amount", 0)),
             tenant_id=data.get("TenantId", ""),
             description=data.get("Description"),
             replaces=data.get("Replaces"),
             is_committed=data.get("IsCommitted", False),
-            committed_by_id=data.get("CommittedById") or data.get("CommittedByGUID"),
+            committed_by_id=data.get("CommittedById") or data.get("CommittedById"),
             labels=data.get("Labels") or [],
             tags=data.get("Tags") or {},
             committed_utc=data.get("CommittedUtc"),
@@ -155,7 +155,7 @@ class Balance:
         if data.get("PendingDebits"):
             pending_debits = PendingTransactionSummary.from_dict(data["PendingDebits"])
         return cls(
-            account_id=data.get("AccountId") or data.get("AccountGUID", ""),
+            account_id=data.get("AccountId", ""),
             committed_balance=float(data.get("CommittedBalance", 0)),
             pending_balance=float(data.get("PendingBalance", 0)),
             pending_credits=pending_credits,
@@ -203,7 +203,7 @@ class ApiKeyInfo:
     def from_dict(cls, data: Dict[str, Any]) -> "ApiKeyInfo":
         """Create from a dictionary."""
         return cls(
-            id=data.get("Id") or data.get("GUID", ""),
+            id=data.get("Id", ""),
             name=data.get("Name", ""),
             tenant_id=data.get("TenantId", ""),
             user_id=data.get("UserId", ""),

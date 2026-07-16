@@ -48,9 +48,9 @@ namespace NetLedger.Database.Portable
             return account;
         }
 
-        public async Task<Account> ReadByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<Account> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = SelectOne("accounts", "guid = '" + Sanitize(guid) + "'");
+            string query = SelectOne("accounts", "guid = '" + Sanitize(id) + "'");
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
             return result == null || result.Rows.Count == 0 ? null : DataRowToAccount(result.Rows[0]);
         }
@@ -111,7 +111,7 @@ namespace NetLedger.Database.Portable
                 List<Account> filteredAccounts = new List<Account>();
                 foreach (Account account in allAccounts)
                 {
-                    decimal balance = await GetAccountCommittedBalanceAsync(account.GUID, token).ConfigureAwait(false);
+                    decimal balance = await GetAccountCommittedBalanceAsync(account.Id, token).ConfigureAwait(false);
                     if ((!query.BalanceMinimum.HasValue || balance >= query.BalanceMinimum.Value)
                         && (!query.BalanceMaximum.HasValue || balance <= query.BalanceMaximum.Value))
                     {
@@ -154,7 +154,7 @@ namespace NetLedger.Database.Portable
             result.EndOfResults = result.RecordsRemaining == 0;
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
@@ -173,20 +173,20 @@ namespace NetLedger.Database.Portable
                 Column("tags") + " = '" + Sanitize(MetadataSerializer.SerializeTags(account.Tags)) + "', " +
                 Column("active") + " = " + Bool(account.Active) + ", " +
                 Column("lastupdateutc") + " = '" + FormatTimestamp(DateTime.UtcNow) + "' " +
-                "WHERE " + Column("guid") + " = '" + Sanitize(account.GUID) + "';";
+                "WHERE " + Column("guid") + " = '" + Sanitize(account.Id) + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return account;
         }
 
-        public Task DeleteByGuidAsync(string guid, CancellationToken token = default)
+        public Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("accounts") + " WHERE " + Column("guid") + " = '" + Sanitize(guid) + "';", true, token);
+            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("accounts") + " WHERE " + Column("guid") + " = '" + Sanitize(id) + "';", true, token);
         }
 
-        public async Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
-            return await CountAsync("accounts", "guid = '" + Sanitize(guid) + "'", token).ConfigureAwait(false) > 0;
+            return await CountAsync("accounts", "guid = '" + Sanitize(id) + "'", token).ConfigureAwait(false) > 0;
         }
 
         public async Task<bool> ExistsByNameAsync(string name, CancellationToken token = default)
@@ -203,7 +203,7 @@ namespace NetLedger.Database.Portable
         private string Values(Account account)
         {
             return
-                "'" + Sanitize(account.GUID) + "', " +
+                "'" + Sanitize(account.Id) + "', " +
                 "'" + Sanitize(account.TenantId) + "', " +
                 "'" + Sanitize(account.Name) + "', " +
                 Nullable(account.Notes) + ", " +
@@ -214,9 +214,9 @@ namespace NetLedger.Database.Portable
                 "'" + FormatTimestamp(account.LastUpdateUtc == default ? account.CreatedUtc : account.LastUpdateUtc) + "'";
         }
 
-        private async Task<decimal> GetAccountCommittedBalanceAsync(string accountGuid, CancellationToken token)
+        private async Task<decimal> GetAccountCommittedBalanceAsync(string accountId, CancellationToken token)
         {
-            string query = SelectOne("entries", "accountguid = '" + Sanitize(accountGuid) + "' AND type = '" + EntryType.Balance + "'", "createdutc DESC");
+            string query = SelectOne("entries", "accountguid = '" + Sanitize(accountId) + "' AND type = '" + EntryType.Balance + "'", "createdutc DESC");
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
             return result != null && result.Rows.Count > 0 ? Convert.ToDecimal(result.Rows[0]["amount"], CultureInfo.InvariantCulture) : 0m;
         }
@@ -234,7 +234,7 @@ namespace NetLedger.Database.Portable
             Account account = new Account
             {
                 RowId = Convert.ToInt32(row["id"], CultureInfo.InvariantCulture),
-                GUID = GetString(row, "guid"),
+                Id = GetString(row, "guid"),
                 TenantId = GetString(row, "tenantid"),
                 Name = GetString(row, "name"),
                 Notes = GetNullableString(row, "notes"),
@@ -314,29 +314,29 @@ namespace NetLedger.Database.Portable
             return entries;
         }
 
-        public async Task<Entry> ReadByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<Entry> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("entries", "guid = '" + Sanitize(guid) + "'"), false, token).ConfigureAwait(false);
+            DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("entries", "guid = '" + Sanitize(id) + "'"), false, token).ConfigureAwait(false);
             return result == null || result.Rows.Count == 0 ? null : DataRowToEntry(result.Rows[0]);
         }
 
-        public async Task<List<Entry>> ReadByGuidsAsync(List<string> guids, CancellationToken token = default)
+        public async Task<List<Entry>> ReadByIdsAsync(List<string> ids, CancellationToken token = default)
         {
-            if (guids == null || guids.Count == 0) return new List<Entry>();
-            string guidList = String.Join(", ", guids.Select(guid => "'" + Sanitize(guid) + "'"));
-            DataTable result = await _Driver.ExecuteQueryAsync("SELECT * FROM " + Table("entries") + " WHERE " + Column("guid") + " IN (" + guidList + ");", false, token).ConfigureAwait(false);
+            if (ids == null || ids.Count == 0) return new List<Entry>();
+            string idList = String.Join(", ", ids.Select(entryId => "'" + Sanitize(entryId) + "'"));
+            DataTable result = await _Driver.ExecuteQueryAsync("SELECT * FROM " + Table("entries") + " WHERE " + Column("guid") + " IN (" + idList + ");", false, token).ConfigureAwait(false);
             return RowsToEntries(result);
         }
 
-        public async Task<List<Entry>> ReadByAccountGuidAsync(string accountGuid, CancellationToken token = default)
+        public async Task<List<Entry>> ReadByAccountIdAsync(string accountId, CancellationToken token = default)
         {
-            DataTable result = await _Driver.ExecuteQueryAsync("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "' ORDER BY " + Column("createdutc") + " DESC;", false, token).ConfigureAwait(false);
+            DataTable result = await _Driver.ExecuteQueryAsync("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "' ORDER BY " + Column("createdutc") + " DESC;", false, token).ConfigureAwait(false);
             return RowsToEntries(result);
         }
 
-        public async Task<List<Entry>> ReadPendingByAccountGuidAsync(string accountGuid, EntryType? entryType = null, CancellationToken token = default)
+        public async Task<List<Entry>> ReadPendingByAccountIdAsync(string accountId, EntryType? entryType = null, CancellationToken token = default)
         {
-            StringBuilder query = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "' AND " + Column("iscommitted") + " = " + Bool(false) + " AND " + Column("type") + " != '" + EntryType.Balance + "'");
+            StringBuilder query = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "' AND " + Column("iscommitted") + " = " + Bool(false) + " AND " + Column("type") + " != '" + EntryType.Balance + "'");
             if (entryType.HasValue)
             {
                 query.Append(" AND " + Column("type") + " = '" + entryType.Value + "'");
@@ -347,22 +347,22 @@ namespace NetLedger.Database.Portable
             return RowsToEntries(result);
         }
 
-        public async Task<Entry> ReadLatestBalanceAsync(string accountGuid, CancellationToken token = default)
+        public async Task<Entry> ReadLatestBalanceAsync(string accountId, CancellationToken token = default)
         {
-            DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("entries", "accountguid = '" + Sanitize(accountGuid) + "' AND type = '" + EntryType.Balance + "'", "createdutc DESC"), false, token).ConfigureAwait(false);
+            DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("entries", "accountguid = '" + Sanitize(accountId) + "' AND type = '" + EntryType.Balance + "'", "createdutc DESC"), false, token).ConfigureAwait(false);
             return result == null || result.Rows.Count == 0 ? null : DataRowToEntry(result.Rows[0]);
         }
 
-        public async Task<Entry> ReadBalanceAsOfAsync(string accountGuid, DateTime asOfUtc, CancellationToken token = default)
+        public async Task<Entry> ReadBalanceAsOfAsync(string accountId, DateTime asOfUtc, CancellationToken token = default)
         {
-            string where = "accountguid = '" + Sanitize(accountGuid) + "' AND type = '" + EntryType.Balance + "' AND createdutc <= '" + FormatTimestamp(asOfUtc) + "'";
+            string where = "accountguid = '" + Sanitize(accountId) + "' AND type = '" + EntryType.Balance + "' AND createdutc <= '" + FormatTimestamp(asOfUtc) + "'";
             DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("entries", where, "createdutc DESC"), false, token).ConfigureAwait(false);
             return result == null || result.Rows.Count == 0 ? null : DataRowToEntry(result.Rows[0]);
         }
 
-        public async Task<List<Entry>> ReadWithFilterAsync(string accountGuid, FilterBuilder filter, CancellationToken token = default)
+        public async Task<List<Entry>> ReadWithFilterAsync(string accountId, FilterBuilder filter, CancellationToken token = default)
         {
-            StringBuilder query = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "'");
+            StringBuilder query = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "'");
             if (filter != null)
             {
                 string conditions = filter.BuildEntryConditions(_DatabaseType);
@@ -384,7 +384,7 @@ namespace NetLedger.Database.Portable
             return RowsToEntries(result);
         }
 
-        public async Task<EnumerationResult<Entry>> EnumerateAsync(string accountGuid, EnumerationQuery query, CancellationToken token = default)
+        public async Task<EnumerationResult<Entry>> EnumerateAsync(string accountId, EnumerationQuery query, CancellationToken token = default)
         {
             if (query == null) throw new ArgumentNullException(nameof(query));
 
@@ -398,7 +398,7 @@ namespace NetLedger.Database.Portable
             string conditions = filter.BuildEntryConditions(_DatabaseType);
             string continuationCondition = await BuildContinuationConditionAsync(query, token).ConfigureAwait(false);
 
-            StringBuilder countQuery = new StringBuilder("SELECT COUNT(*) FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "'");
+            StringBuilder countQuery = new StringBuilder("SELECT COUNT(*) FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "'");
             if (!String.IsNullOrEmpty(conditions)) countQuery.Append(" AND " + conditions);
             countQuery.Append(";");
             DataTable countResult = await _Driver.ExecuteQueryAsync(countQuery.ToString(), false, token).ConfigureAwait(false);
@@ -407,7 +407,7 @@ namespace NetLedger.Database.Portable
                 result.TotalRecords = Convert.ToInt64(countResult.Rows[0][0], CultureInfo.InvariantCulture);
             }
 
-            StringBuilder mainQuery = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "'");
+            StringBuilder mainQuery = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "'");
             if (!String.IsNullOrEmpty(conditions)) mainQuery.Append(" AND " + conditions);
             if (!String.IsNullOrEmpty(continuationCondition)) mainQuery.Append(" AND " + continuationCondition);
 
@@ -425,7 +425,7 @@ namespace NetLedger.Database.Portable
             result.EndOfResults = result.RecordsRemaining == 0;
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
@@ -443,12 +443,12 @@ namespace NetLedger.Database.Portable
                 Column("description") + " = " + Nullable(entry.Description) + ", " +
                 Column("replaces") + " = " + Nullable(entry.Replaces) + ", " +
                 Column("iscommitted") + " = " + Bool(entry.IsCommitted) + ", " +
-                Column("committedbyguid") + " = " + Nullable(entry.CommittedByGUID) + ", " +
+                Column("committedbyguid") + " = " + Nullable(entry.CommittedById) + ", " +
                 Column("committedutc") + " = " + (entry.CommittedUtc.HasValue ? "'" + FormatTimestamp(entry.CommittedUtc.Value) + "'" : "NULL") + ", " +
                 Column("labels") + " = '" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
                 Column("tags") + " = '" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
                 Column("lastupdateutc") + " = '" + FormatTimestamp(DateTime.UtcNow) + "' " +
-                "WHERE " + Column("guid") + " = '" + Sanitize(entry.GUID) + "';";
+                "WHERE " + Column("guid") + " = '" + Sanitize(entry.Id) + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return entry;
@@ -457,37 +457,47 @@ namespace NetLedger.Database.Portable
         public async Task UpdateManyAsync(List<Entry> entries, CancellationToken token = default)
         {
             if (entries == null) throw new ArgumentNullException(nameof(entries));
-            foreach (Entry entry in entries) await UpdateAsync(entry, token).ConfigureAwait(false);
+            await _Driver.ExecuteQueriesAsync(entries.Select(BuildUpdateQuery), true, token).ConfigureAwait(false);
         }
 
-        public Task DeleteByGuidAsync(string guid, CancellationToken token = default)
+        public async Task ApplyCommitAsync(List<Entry> committedEntries, Entry balanceEntry, CancellationToken token = default)
         {
-            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("entries") + " WHERE " + Column("guid") + " = '" + Sanitize(guid) + "';", true, token);
+            if (committedEntries == null) throw new ArgumentNullException(nameof(committedEntries));
+            if (balanceEntry == null) throw new ArgumentNullException(nameof(balanceEntry));
+
+            List<string> queries = new List<string> { BuildInsertQuery(balanceEntry, false) };
+            queries.AddRange(committedEntries.Select(BuildUpdateQuery));
+            await _Driver.ExecuteQueriesAsync(queries, true, token).ConfigureAwait(false);
         }
 
-        public Task DeleteByAccountGuidAsync(string accountGuid, CancellationToken token = default)
+        public Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "';", true, token);
+            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("entries") + " WHERE " + Column("guid") + " = '" + Sanitize(id) + "';", true, token);
         }
 
-        public async Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default)
+        public Task DeleteByAccountIdAsync(string accountId, CancellationToken token = default)
         {
-            return await CountAsync("guid = '" + Sanitize(guid) + "'", token).ConfigureAwait(false) > 0;
+            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "';", true, token);
         }
 
-        public async Task<int> GetCountByAccountGuidAsync(string accountGuid, CancellationToken token = default)
+        public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
-            return (int)await CountAsync("accountguid = '" + Sanitize(accountGuid) + "'", token).ConfigureAwait(false);
+            return await CountAsync("guid = '" + Sanitize(id) + "'", token).ConfigureAwait(false) > 0;
         }
 
-        public async Task<decimal> SumPendingCreditsAsync(string accountGuid, CancellationToken token = default)
+        public async Task<int> GetCountByAccountIdAsync(string accountId, CancellationToken token = default)
         {
-            return await SumPendingAsync(accountGuid, EntryType.Credit, token).ConfigureAwait(false);
+            return (int)await CountAsync("accountguid = '" + Sanitize(accountId) + "'", token).ConfigureAwait(false);
         }
 
-        public async Task<decimal> SumPendingDebitsAsync(string accountGuid, CancellationToken token = default)
+        public async Task<decimal> SumPendingCreditsAsync(string accountId, CancellationToken token = default)
         {
-            return await SumPendingAsync(accountGuid, EntryType.Debit, token).ConfigureAwait(false);
+            return await SumPendingAsync(accountId, EntryType.Credit, token).ConfigureAwait(false);
+        }
+
+        public async Task<decimal> SumPendingDebitsAsync(string accountId, CancellationToken token = default)
+        {
+            return await SumPendingAsync(accountId, EntryType.Debit, token).ConfigureAwait(false);
         }
 
         private string BuildInsertQuery(Entry entry, bool returnId)
@@ -503,15 +513,15 @@ namespace NetLedger.Database.Portable
             string returning = returnId && _DatabaseType == DatabaseTypeEnum.Postgresql ? " RETURNING id" : String.Empty;
             return
                 "INSERT INTO " + Table("entries") + " " + columnList + output + " VALUES (" +
-                "'" + Sanitize(entry.GUID) + "', " +
+                "'" + Sanitize(entry.Id) + "', " +
                 "'" + Sanitize(entry.TenantId) + "', " +
-                "'" + Sanitize(entry.AccountGUID) + "', " +
+                "'" + Sanitize(entry.AccountId) + "', " +
                 "'" + entry.Type + "', " +
                 entry.Amount.ToString(CultureInfo.InvariantCulture) + ", " +
                 Nullable(entry.Description) + ", " +
                 Nullable(entry.Replaces) + ", " +
                 Bool(entry.IsCommitted) + ", " +
-                Nullable(entry.CommittedByGUID) + ", " +
+                Nullable(entry.CommittedById) + ", " +
                 (entry.CommittedUtc.HasValue ? "'" + FormatTimestamp(entry.CommittedUtc.Value) + "'" : "NULL") + ", " +
                 "'" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
                 "'" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
@@ -520,10 +530,28 @@ namespace NetLedger.Database.Portable
                 ")" + returning + ";";
         }
 
+        private string BuildUpdateQuery(Entry entry)
+        {
+            return
+                "UPDATE " + Table("entries") + " SET " +
+                Column("tenantid") + " = '" + Sanitize(entry.TenantId) + "', " +
+                Column("type") + " = '" + entry.Type + "', " +
+                Column("amount") + " = " + entry.Amount.ToString(CultureInfo.InvariantCulture) + ", " +
+                Column("description") + " = " + Nullable(entry.Description) + ", " +
+                Column("replaces") + " = " + Nullable(entry.Replaces) + ", " +
+                Column("iscommitted") + " = " + Bool(entry.IsCommitted) + ", " +
+                Column("committedbyguid") + " = " + Nullable(entry.CommittedById) + ", " +
+                Column("committedutc") + " = " + (entry.CommittedUtc.HasValue ? "'" + FormatTimestamp(entry.CommittedUtc.Value) + "'" : "NULL") + ", " +
+                Column("labels") + " = '" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
+                Column("tags") + " = '" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
+                Column("lastupdateutc") + " = '" + FormatTimestamp(DateTime.UtcNow) + "' " +
+                "WHERE " + Column("guid") + " = '" + Sanitize(entry.Id) + "';";
+        }
+
         private async Task<string> BuildContinuationConditionAsync(EnumerationQuery query, CancellationToken token)
         {
             if (String.IsNullOrEmpty(query.ContinuationToken)) return String.Empty;
-            Entry continuation = await ReadByGuidAsync(query.ContinuationToken, token).ConfigureAwait(false);
+            Entry continuation = await ReadByIdAsync(query.ContinuationToken, token).ConfigureAwait(false);
             if (continuation == null) return String.Empty;
 
             if (query.Ordering == EnumerationOrderEnum.CreatedDescending) return Column("id") + " < " + continuation.RowId;
@@ -539,10 +567,10 @@ namespace NetLedger.Database.Portable
             return result != null && result.Rows.Count > 0 ? Convert.ToInt64(result.Rows[0][0], CultureInfo.InvariantCulture) : 0L;
         }
 
-        private async Task<decimal> SumPendingAsync(string accountGuid, EntryType type, CancellationToken token)
+        private async Task<decimal> SumPendingAsync(string accountId, EntryType type, CancellationToken token)
         {
             string query = "SELECT COALESCE(SUM(" + Column("amount") + "), 0) FROM " + Table("entries") +
-                " WHERE " + Column("accountguid") + " = '" + Sanitize(accountGuid) + "' AND " + Column("type") + " = '" + type + "' AND " + Column("iscommitted") + " = " + Bool(false) + ";";
+                " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "' AND " + Column("type") + " = '" + type + "' AND " + Column("iscommitted") + " = " + Bool(false) + ";";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
             return result != null && result.Rows.Count > 0 ? Convert.ToDecimal(result.Rows[0][0], CultureInfo.InvariantCulture) : 0m;
         }
@@ -560,15 +588,15 @@ namespace NetLedger.Database.Portable
             Entry entry = new Entry
             {
                 RowId = Convert.ToInt32(row["id"], CultureInfo.InvariantCulture),
-                GUID = GetString(row, "guid"),
+                Id = GetString(row, "guid"),
                 TenantId = GetString(row, "tenantid"),
-                AccountGUID = GetString(row, "accountguid"),
+                AccountId = GetString(row, "accountguid"),
                 Type = Enum.Parse<EntryType>(GetString(row, "type")),
                 Amount = Convert.ToDecimal(row["amount"], CultureInfo.InvariantCulture),
                 Description = GetNullableString(row, "description"),
                 Replaces = GetNullableString(row, "replaces"),
                 IsCommitted = ToBool(GetString(row, "iscommitted")),
-                CommittedByGUID = GetNullableString(row, "committedbyguid"),
+                CommittedById = GetNullableString(row, "committedbyguid"),
                 Labels = MetadataSerializer.DeserializeLabels(GetString(row, "labels")),
                 Tags = MetadataSerializer.DeserializeTags(GetString(row, "tags")),
                 CreatedUtc = ParseDate(GetString(row, "createdutc"))
@@ -632,9 +660,9 @@ namespace NetLedger.Database.Portable
             return apiKey;
         }
 
-        public async Task<ApiKey> ReadByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<ApiKey> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("guid = '" + Sanitize(guid) + "'"), false, token).ConfigureAwait(false);
+            DataTable result = await _Driver.ExecuteQueryAsync(SelectOne("guid = '" + Sanitize(id) + "'"), false, token).ConfigureAwait(false);
             return result == null || result.Rows.Count == 0 ? null : DataRowToApiKey(result.Rows[0]);
         }
 
@@ -671,7 +699,7 @@ namespace NetLedger.Database.Portable
             result.EndOfResults = result.RecordsRemaining == 0;
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
@@ -691,15 +719,15 @@ namespace NetLedger.Database.Portable
                 Column("secretkeylast4") + " = '" + Sanitize(apiKey.SecretKeyLast4) + "', " +
                 Column("active") + " = " + Bool(apiKey.Active) + ", " +
                 Column("isadmin") + " = " + Bool(apiKey.IsAdmin) + " " +
-                "WHERE " + Column("guid") + " = '" + Sanitize(apiKey.GUID) + "';";
+                "WHERE " + Column("guid") + " = '" + Sanitize(apiKey.Id) + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return apiKey;
         }
 
-        public Task DeleteByGuidAsync(string guid, CancellationToken token = default)
+        public Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("apikeys") + " WHERE " + Column("guid") + " = '" + Sanitize(guid) + "';", true, token);
+            return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("apikeys") + " WHERE " + Column("guid") + " = '" + Sanitize(id) + "';", true, token);
         }
 
         public async Task<bool> ExistsActiveKeyAsync(string key, CancellationToken token = default)
@@ -728,7 +756,7 @@ namespace NetLedger.Database.Portable
             string returning = returnId && _DatabaseType == DatabaseTypeEnum.Postgresql ? " RETURNING id" : String.Empty;
             return
                 "INSERT INTO " + Table("apikeys") + " " + columnList + output + " VALUES (" +
-                "'" + Sanitize(apiKey.GUID) + "', " +
+                "'" + Sanitize(apiKey.Id) + "', " +
                 "'" + Sanitize(apiKey.TenantId) + "', " +
                 "'" + Sanitize(apiKey.UserId) + "', " +
                 "'" + Sanitize(apiKey.Name) + "', " +
@@ -754,7 +782,7 @@ namespace NetLedger.Database.Portable
             return new ApiKey
             {
                 RowId = Convert.ToInt32(row["id"], CultureInfo.InvariantCulture),
-                GUID = GetString(row, "guid"),
+                Id = GetString(row, "guid"),
                 TenantId = GetString(row, "tenantid"),
                 UserId = GetString(row, "userid"),
                 Name = GetString(row, "name"),

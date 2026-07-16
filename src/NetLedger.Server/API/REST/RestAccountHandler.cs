@@ -61,7 +61,7 @@ namespace NetLedger.Server.API.REST
         #region Internal-Methods
 
         /// <summary>
-        /// Handle account exists check (HEAD /v1/accounts/{guid}).
+        /// Handle account exists check (HEAD /v1/accounts/{accountId}).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -87,7 +87,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle read account (GET /v1/accounts/{guid}).
+        /// Handle read account (GET /v1/accounts/{accountId}).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -126,7 +126,7 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
-        /// Handle delete account (DELETE /v1/accounts/{guid}).
+        /// Handle delete account (DELETE /v1/accounts/{accountId}).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>
         /// <returns>Task.</returns>
@@ -146,7 +146,7 @@ namespace NetLedger.Server.API.REST
         {
             ctx.Response.StatusCode = resp.StatusCode;
             ctx.Response.ContentType = Constants.JsonContentType;
-            ctx.Response.Headers.Add(Constants.RequestGuidHeader, resp.RequestGuid.ToString());
+            ctx.Response.Headers.Add(Constants.RequestIdHeader, resp.RequestId.ToString());
 
             if (ctx.Request.Method == HttpMethod.HEAD)
             {

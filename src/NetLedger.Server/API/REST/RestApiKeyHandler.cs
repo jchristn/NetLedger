@@ -107,7 +107,7 @@ namespace NetLedger.Server.API.REST
         {
             ctx.Response.StatusCode = resp.StatusCode;
             ctx.Response.ContentType = Constants.JsonContentType;
-            ctx.Response.Headers.Add(Constants.RequestGuidHeader, resp.RequestGuid.ToString());
+            ctx.Response.Headers.Add(Constants.RequestIdHeader, resp.RequestId.ToString());
 
             object? body = resp.Success ? resp.Data : (object?)resp.Error;
             string json = JsonSerializer.Serialize(body, Constants.JsonOptions);

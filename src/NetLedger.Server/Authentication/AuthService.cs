@@ -226,12 +226,6 @@ namespace NetLedger.Server.Authentication
                 return AuthContext.Failed(AuthResult.InactiveSession, "Session is inactive or expired");
             }
 
-            string? tenantHint = GetTenantHint(ctx);
-            if (!String.IsNullOrEmpty(tenantHint) && !String.Equals(tenantHint, session.TenantId, StringComparison.Ordinal))
-            {
-                return AuthContext.Failed(AuthResult.InvalidApiKey, "Session tenant and request tenant disagree");
-            }
-
             if (String.IsNullOrEmpty(session.UserId))
             {
                 return AuthContext.Failed(AuthResult.InvalidApiKey, "Session does not contain a user principal");
@@ -241,6 +235,12 @@ namespace NetLedger.Server.Authentication
             if (user == null || !user.Active)
             {
                 return AuthContext.Failed(AuthResult.InvalidApiKey, "Session user is not active");
+            }
+
+            string? tenantHint = GetTenantHint(ctx);
+            if (!user.IsAdmin && !String.IsNullOrEmpty(tenantHint) && !String.Equals(tenantHint, session.TenantId, StringComparison.Ordinal))
+            {
+                return AuthContext.Failed(AuthResult.InvalidApiKey, "Session tenant and request tenant disagree");
             }
 
             return AuthContext.Success(user, session);
@@ -263,12 +263,6 @@ namespace NetLedger.Server.Authentication
                 return AuthContext.Failed(AuthResult.InactiveApiKey, "API key is inactive");
             }
 
-            string? tenantHint = GetTenantHint(ctx);
-            if (!String.IsNullOrEmpty(tenantHint) && !String.IsNullOrEmpty(apiKey.TenantId) && !String.Equals(tenantHint, apiKey.TenantId, StringComparison.Ordinal))
-            {
-                return AuthContext.Failed(AuthResult.InvalidApiKey, "Credential tenant and request tenant disagree");
-            }
-
             if (!String.IsNullOrEmpty(secretKey) && !String.IsNullOrEmpty(apiKey.SecretKeySha256))
             {
                 if (!ConstantTimeEquals(apiKey.SecretKeySha256, Credential.HashSecret(secretKey)))
@@ -285,6 +279,13 @@ namespace NetLedger.Server.Authentication
                 {
                     return AuthContext.Failed(AuthResult.InvalidApiKey, "Credential user is not active");
                 }
+            }
+
+            string? tenantHint = GetTenantHint(ctx);
+            bool credentialIsSystemAdmin = apiKey.IsAdmin || (user?.IsAdmin ?? false);
+            if (!credentialIsSystemAdmin && !String.IsNullOrEmpty(tenantHint) && !String.IsNullOrEmpty(apiKey.TenantId) && !String.Equals(tenantHint, apiKey.TenantId, StringComparison.Ordinal))
+            {
+                return AuthContext.Failed(AuthResult.InvalidApiKey, "Credential tenant and request tenant disagree");
             }
 
             return AuthContext.Success(apiKey, user);
@@ -318,19 +319,19 @@ namespace NetLedger.Server.Authentication
             apiKey = await _Driver.ApiKeys.CreateAsync(apiKey, token).ConfigureAwait(false);
             apiKey.RawSecretKey = secretKey;
 
-            _Logging.Info(_Header + "created credential: " + apiKey.GUID + " (" + name + ")");
+            _Logging.Info(_Header + "created credential: " + apiKey.Id + " (" + name + ")");
             return apiKey;
         }
 
         /// <summary>
-        /// Get an API key by its GUID.
+        /// Get an API key by its identifier.
         /// </summary>
-        /// <param name="guid">API key GUID.</param>
+        /// <param name="id">API key identifier.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>API key or null if not found.</returns>
-        public async Task<ApiKey?> GetApiKeyByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<ApiKey?> GetApiKeyByIdAsync(string id, CancellationToken token = default)
         {
-            return await _Driver.ApiKeys.ReadByGuidAsync(guid, token).ConfigureAwait(false);
+            return await _Driver.ApiKeys.ReadByIdAsync(id, token).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -399,16 +400,16 @@ namespace NetLedger.Server.Authentication
         /// <summary>
         /// Revoke (delete) an API key.
         /// </summary>
-        /// <param name="guid">API key GUID.</param>
+        /// <param name="id">API key identifier.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>True if deleted, false if not found.</returns>
-        public async Task<bool> RevokeApiKeyAsync(string guid, CancellationToken token = default)
+        public async Task<bool> RevokeApiKeyAsync(string id, CancellationToken token = default)
         {
-            ApiKey? apiKey = await _Driver.ApiKeys.ReadByGuidAsync(guid, token).ConfigureAwait(false);
+            ApiKey? apiKey = await _Driver.ApiKeys.ReadByIdAsync(id, token).ConfigureAwait(false);
             if (apiKey == null) return false;
 
-            await _Driver.ApiKeys.DeleteByGuidAsync(guid, token).ConfigureAwait(false);
-            _Logging.Info(_Header + "revoked API key: " + guid);
+            await _Driver.ApiKeys.DeleteByIdAsync(id, token).ConfigureAwait(false);
+            _Logging.Info(_Header + "revoked API key: " + id);
             return true;
         }
 
@@ -429,7 +430,6 @@ namespace NetLedger.Server.Authentication
         private string? GetTenantHint(HttpContextBase ctx)
         {
             string? tenantHeader = ctx.Request.Headers.Get("x-tenant-id");
-            string? tenantGuidHeader = ctx.Request.Headers.Get("x-tenant-guid");
             string? tenantRoute = null;
 
             if (ctx.Request.Url.Parameters != null)
@@ -438,14 +438,8 @@ namespace NetLedger.Server.Authentication
             }
 
             string? first = !String.IsNullOrEmpty(tenantRoute) ? tenantRoute : tenantHeader;
-            if (String.IsNullOrEmpty(first)) first = tenantGuidHeader;
 
             if (!String.IsNullOrEmpty(first) && !String.IsNullOrEmpty(tenantHeader) && !String.Equals(first, tenantHeader, StringComparison.Ordinal))
-            {
-                return "__conflict__";
-            }
-
-            if (!String.IsNullOrEmpty(first) && !String.IsNullOrEmpty(tenantGuidHeader) && !String.Equals(first, tenantGuidHeader, StringComparison.Ordinal))
             {
                 return "__conflict__";
             }
@@ -590,7 +584,7 @@ namespace NetLedger.Server.Authentication
 
             if (seedFullFactoryDefaults && admin != null)
             {
-                Account? defaultAccount = await _Driver.Accounts.ReadByGuidAsync(defaultAccountId).ConfigureAwait(false);
+                Account? defaultAccount = await _Driver.Accounts.ReadByIdAsync(defaultAccountId).ConfigureAwait(false);
                 if (defaultAccount == null)
                 {
                     defaultAccount = new Account

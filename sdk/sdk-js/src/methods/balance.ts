@@ -14,12 +14,12 @@ export class BalanceMethods {
 
     /**
      * Get the current balance for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns The account balance.
      */
-    async get(accountGuid: string): Promise<Balance> {
+    async get(accountId: string): Promise<Balance> {
         const response = await this.client.get<Balance>(
-            `/v1/accounts/${accountGuid}/balance`
+            `/v1/accounts/${accountId}/balance`
         );
         if (!response.Data) {
             throw new Error('No data returned from server');
@@ -29,14 +29,14 @@ export class BalanceMethods {
 
     /**
      * Get the historical balance as of a specific time.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param asOfUtc The UTC timestamp.
      * @returns The balance as of that time.
      */
-    async getAsOf(accountGuid: string, asOfUtc: Date): Promise<HistoricalBalance> {
+    async getAsOf(accountId: string, asOfUtc: Date): Promise<HistoricalBalance> {
         const asOf = asOfUtc.toISOString();
         const response = await this.client.get<HistoricalBalance>(
-            `/v1/accounts/${accountGuid}/balance/asof?asOf=${asOf}`
+            `/v1/accounts/${accountId}/balance/asof?asOf=${asOf}`
         );
         if (!response.Data) {
             throw new Error('No data returned from server');
@@ -55,21 +55,21 @@ export class BalanceMethods {
 
     /**
      * Commit all pending entries for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns The commit result.
      */
-    async commit(accountGuid: string): Promise<CommitResult>;
+    async commit(accountId: string): Promise<CommitResult>;
     /**
      * Commit specific entries for an account.
-     * @param accountGuid The account GUID.
-     * @param entryGuids The GUIDs of entries to commit.
+     * @param accountId The account identifier.
+     * @param entryIds The identifiers of entries to commit.
      * @returns The commit result.
      */
-    async commit(accountGuid: string, entryGuids: string[]): Promise<CommitResult>;
-    async commit(accountGuid: string, entryGuids?: string[]): Promise<CommitResult> {
-        const body: CommitRequest | null = entryGuids ? { EntryGuids: entryGuids } : null;
+    async commit(accountId: string, entryIds: string[]): Promise<CommitResult>;
+    async commit(accountId: string, entryIds?: string[]): Promise<CommitResult> {
+        const body: CommitRequest | null = entryIds ? { EntryIds: entryIds } : null;
         const response = await this.client.post<CommitResult>(
-            `/v1/accounts/${accountGuid}/commit`,
+            `/v1/accounts/${accountId}/commit`,
             body
         );
         return response.Data || { EntriesCommitted: 0 };
@@ -77,13 +77,13 @@ export class BalanceMethods {
 
     /**
      * Verify the balance chain integrity.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the balance chain is valid.
      */
-    async verify(accountGuid: string): Promise<boolean> {
+    async verify(accountId: string): Promise<boolean> {
         try {
             const response = await this.client.get<unknown>(
-                `/v1/accounts/${accountGuid}/verify`
+                `/v1/accounts/${accountId}/verify`
             );
             return response.StatusCode === 200;
         } catch (err) {

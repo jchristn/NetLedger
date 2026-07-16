@@ -43,7 +43,7 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             string query =
                 "INSERT INTO apikeys (guid, tenantid, userid, name, apikey, secretkeysha256, secretkeylast4, active, isadmin, createdutc) VALUES (" +
-                "'" + apiKey.GUID.ToString() + "', " +
+                "'" + apiKey.Id.ToString() + "', " +
                 "'" + Sanitize(apiKey.TenantId) + "', " +
                 "'" + Sanitize(apiKey.UserId) + "', " +
                 "'" + Sanitize(apiKey.Name) + "', " +
@@ -66,9 +66,9 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<ApiKey> ReadByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<ApiKey> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT * FROM apikeys WHERE guid = '" + Sanitize(guid) + "' LIMIT 1;";
+            string query = "SELECT * FROM apikeys WHERE guid = '" + Sanitize(id) + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -153,7 +153,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             // Set continuation token if there are more records
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
@@ -174,7 +174,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "secretkeylast4 = '" + Sanitize(apiKey.SecretKeyLast4) + "', " +
                 "active = " + (apiKey.Active ? "1" : "0") + ", " +
                 "isadmin = " + (apiKey.IsAdmin ? "1" : "0") + " " +
-                "WHERE guid = '" + Sanitize(apiKey.GUID) + "';";
+                "WHERE guid = '" + Sanitize(apiKey.Id) + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -182,9 +182,9 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
+        public async Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "DELETE FROM apikeys WHERE guid = '" + Sanitize(guid) + "';";
+            string query = "DELETE FROM apikeys WHERE guid = '" + Sanitize(id) + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
@@ -231,7 +231,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             ApiKey apiKey = new ApiKey();
             apiKey.RowId = Convert.ToInt32(row["id"]);
-            apiKey.GUID = row["guid"].ToString();
+            apiKey.Id = row["guid"].ToString();
             apiKey.TenantId = HasColumn(row, "tenantid") ? row["tenantid"]?.ToString() ?? String.Empty : String.Empty;
             apiKey.UserId = HasColumn(row, "userid") ? row["userid"]?.ToString() ?? String.Empty : String.Empty;
             apiKey.Name = row["name"]?.ToString() ?? String.Empty;

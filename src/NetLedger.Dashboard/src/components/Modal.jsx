@@ -132,9 +132,7 @@ export function ConfirmModal({
 }
 
 const FIELD_LABELS = {
-  GUID: 'ID',
-  Guid: 'ID',
-  guid: 'ID',
+  ID: 'ID',
   Id: 'ID',
   id: 'ID',
   TenantId: 'Tenant ID',
@@ -143,8 +141,8 @@ const FIELD_LABELS = {
   userId: 'User ID',
   AccountId: 'Account ID',
   accountId: 'Account ID',
-  ApiKeyGuid: 'Credential ID',
-  apiKeyGuid: 'Credential ID',
+  CredentialId: 'Credential ID',
+  credentialId: 'Credential ID',
   IsAdmin: 'System Administrator',
   isAdmin: 'System Administrator',
   IsTenantAdmin: 'Tenant Administrator',
@@ -174,9 +172,7 @@ const FIELD_LABELS = {
 }
 
 const ID_FIELD_NAMES = new Set([
-  'GUID',
-  'Guid',
-  'guid',
+  'ID',
   'Id',
   'id',
   'TenantId',
@@ -186,9 +182,7 @@ const ID_FIELD_NAMES = new Set([
   'AccountId',
   'accountId',
   'CredentialId',
-  'credentialId',
-  'ApiKeyGuid',
-  'apiKeyGuid'
+  'credentialId'
 ])
 
 const TIMESTAMP_FIELD_NAMES = new Set([

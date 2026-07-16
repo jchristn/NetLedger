@@ -19,12 +19,12 @@ namespace NetLedger.Database.Interfaces
         Task<Account> CreateAsync(Account account, CancellationToken token = default);
 
         /// <summary>
-        /// Read an account by GUID.
+        /// Read an account by identifier.
         /// </summary>
-        /// <param name="guid">Account GUID.</param>
+        /// <param name="id">Account identifier.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Account if found, null otherwise.</returns>
-        Task<Account> ReadByGuidAsync(string guid, CancellationToken token = default);
+        Task<Account> ReadByIdAsync(string id, CancellationToken token = default);
 
         /// <summary>
         /// Read an account by name.
@@ -66,20 +66,20 @@ namespace NetLedger.Database.Interfaces
         Task<Account> UpdateAsync(Account account, CancellationToken token = default);
 
         /// <summary>
-        /// Delete an account by GUID.
+        /// Delete an account by identifier.
         /// </summary>
-        /// <param name="guid">Account GUID.</param>
+        /// <param name="id">Account identifier.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task DeleteByGuidAsync(string guid, CancellationToken token = default);
+        Task DeleteByIdAsync(string id, CancellationToken token = default);
 
         /// <summary>
-        /// Check if an account exists by GUID.
+        /// Check if an account exists by identifier.
         /// </summary>
-        /// <param name="guid">Account GUID.</param>
+        /// <param name="id">Account identifier.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>True if account exists.</returns>
-        Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default);
+        Task<bool> ExistsByIdAsync(string id, CancellationToken token = default);
 
         /// <summary>
         /// Check if an account exists by name.

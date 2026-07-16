@@ -28,10 +28,27 @@ export class NetLedgerApi {
     }
   }
 
+  extractRouteTenantId(path) {
+    const match = path.match(/^\/v1(?:\.0\/api)?\/tenants\/([^/?#]+)/i)
+    return match ? decodeURIComponent(match[1]) : ''
+  }
+
+  resolveTenantHeader(path, requestOptions = {}) {
+    if (requestOptions.suppressTenantHeader) return ''
+
+    if (this.extractRouteTenantId(path)) return ''
+
+    if (Object.prototype.hasOwnProperty.call(requestOptions, 'tenantId')) {
+      return requestOptions.tenantId || ''
+    }
+
+    return this.tenantId || ''
+  }
+
   /**
    * Make an authenticated request to the API
    */
-  async request(method, path, body = null, queryParams = null) {
+  async request(method, path, body = null, queryParams = null, requestOptions = {}) {
     let url = `${this.baseUrl}${path}`
 
     if (queryParams) {
@@ -54,20 +71,21 @@ export class NetLedgerApi {
     if (this.apiKey) {
       headers['Authorization'] = `Bearer ${this.apiKey}`
     }
-    if (this.tenantId) {
-      headers['x-tenant-id'] = this.tenantId
+    const tenantHeader = this.resolveTenantHeader(path, requestOptions)
+    if (tenantHeader) {
+      headers['x-tenant-id'] = tenantHeader
     }
 
-    const options = {
+    const fetchOptions = {
       method,
       headers
     }
 
     if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-      options.body = JSON.stringify(body)
+      fetchOptions.body = JSON.stringify(body)
     }
 
-    const response = await fetch(url, options)
+    const response = await fetch(url, fetchOptions)
 
     // Handle no content responses
     if (response.status === 204) {
@@ -118,20 +136,20 @@ export class NetLedgerApi {
   }
 
   // Convenience methods
-  async get(path, queryParams = null) {
-    return this.request('GET', path, null, queryParams)
+  async get(path, queryParams = null, requestOptions = {}) {
+    return this.request('GET', path, null, queryParams, requestOptions)
   }
 
-  async post(path, body = null, queryParams = null) {
-    return this.request('POST', path, body, queryParams)
+  async post(path, body = null, queryParams = null, requestOptions = {}) {
+    return this.request('POST', path, body, queryParams, requestOptions)
   }
 
-  async put(path, body = null, queryParams = null) {
-    return this.request('PUT', path, body, queryParams)
+  async put(path, body = null, queryParams = null, requestOptions = {}) {
+    return this.request('PUT', path, body, queryParams, requestOptions)
   }
 
-  async delete(path, queryParams = null) {
-    return this.request('DELETE', path, null, queryParams)
+  async delete(path, queryParams = null, requestOptions = {}) {
+    return this.request('DELETE', path, null, queryParams, requestOptions)
   }
 
   async requestRaw(method, path, options = {}) {
@@ -163,8 +181,9 @@ export class NetLedgerApi {
     if (this.apiKey && !headers.Authorization && !headers.authorization) {
       headers.Authorization = `Bearer ${this.apiKey}`
     }
-    if (this.tenantId && !headers['x-tenant-id'] && !headers['X-Tenant-Id']) {
-      headers['x-tenant-id'] = this.tenantId
+    const tenantHeader = this.resolveTenantHeader(path, options)
+    if (tenantHeader && !headers['x-tenant-id'] && !headers['X-Tenant-Id']) {
+      headers['x-tenant-id'] = tenantHeader
     }
 
     const started = performance.now()
@@ -283,7 +302,8 @@ export class NetLedgerApi {
       endTime = null,
       labels = null,
       tags = null,
-      tenantId = null
+      tenantId = null,
+      suppressTenantHeader = false
     } = options
 
     const path = tenantId ? `/v1/tenants/${tenantId}/accounts` : '/v1/accounts'
@@ -296,14 +316,16 @@ export class NetLedgerApi {
       endTime,
       labels: Array.isArray(labels) ? labels.join(',') : labels,
       tags: tags && typeof tags === 'object' ? Object.entries(tags).map(([key, value]) => `${key}=${value}`).join(',') : tags
+    }, {
+      suppressTenantHeader
     })
   }
 
   /**
-   * Get a specific account by GUID
+   * Get a specific account by ID
    */
-  async getAccount(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}`)
+  async getAccount(accountId) {
+    return this.get(`/v1/accounts/${accountId}`)
   }
 
   /**
@@ -316,16 +338,16 @@ export class NetLedgerApi {
   /**
    * Delete an account
    */
-  async deleteAccount(accountGuid) {
-    return this.delete(`/v1/accounts/${accountGuid}`)
+  async deleteAccount(accountId) {
+    return this.delete(`/v1/accounts/${accountId}`)
   }
 
-  async mapAccountUser(tenantId, accountGuid, userId) {
-    return this.put(`/v1/tenants/${tenantId}/accounts/${accountGuid}/users/${userId}`)
+  async mapAccountUser(tenantId, accountId, userId) {
+    return this.put(`/v1/tenants/${tenantId}/accounts/${accountId}/users/${userId}`)
   }
 
-  async listAccountUsers(tenantId, accountGuid, options = {}) {
-    return this.get(`/v1/tenants/${tenantId}/accounts/${accountGuid}/users`, options)
+  async listAccountUsers(tenantId, accountId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/accounts/${accountId}/users`, options)
   }
 
   // ==================== Balance Endpoints ====================
@@ -333,31 +355,38 @@ export class NetLedgerApi {
   /**
    * Get balance for an account
    */
-  async getBalance(accountGuid, tenantId = null) {
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/balance` : `/v1/accounts/${accountGuid}/balance`
+  async getBalance(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/balance` : `/v1/accounts/${accountId}/balance`
     return this.get(path)
   }
 
   /**
    * Get historical balance as of a specific time
    */
-  async getBalanceAsOf(accountGuid, asOf, tenantId = null) {
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/balance/asof` : `/v1/accounts/${accountGuid}/balance/asof`
+  async getBalanceAsOf(accountId, asOf, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/balance/asof` : `/v1/accounts/${accountId}/balance/asof`
     return this.get(path, { asOf })
   }
 
   /**
    * Get all account balances
    */
-  async getAllBalances() {
-    return this.get('/v1/balances')
+  async getAllBalances(options = {}) {
+    const {
+      tenantId = null,
+      suppressTenantHeader = false
+    } = options
+
+    return this.get('/v1/balances', tenantId ? { tenantId } : null, {
+      suppressTenantHeader: suppressTenantHeader || Boolean(tenantId)
+    })
   }
 
   /**
    * Verify balance chain integrity
    */
-  async verifyBalance(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}/verify`)
+  async verifyBalance(accountId) {
+    return this.get(`/v1/accounts/${accountId}/verify`)
   }
 
   // ==================== Entry Endpoints ====================
@@ -365,7 +394,7 @@ export class NetLedgerApi {
   /**
    * Add credits to an account
    */
-  async addCredits(accountGuid, entries, isCommitted = false, tenantId = null) {
+  async addCredits(accountId, entries, isCommitted = false, tenantId = null) {
     // Server expects AddEntriesRequest with Entries array of { Amount, Notes }
     const body = {
       Entries: entries.map(e => ({
@@ -376,14 +405,14 @@ export class NetLedgerApi {
       })),
       IsCommitted: isCommitted
     }
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/credits` : `/v1/accounts/${accountGuid}/credits`
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/credits` : `/v1/accounts/${accountId}/credits`
     return this.put(path, body)
   }
 
   /**
    * Add debits to an account
    */
-  async addDebits(accountGuid, entries, isCommitted = false, tenantId = null) {
+  async addDebits(accountId, entries, isCommitted = false, tenantId = null) {
     // Server expects AddEntriesRequest with Entries array of { Amount, Notes }
     const body = {
       Entries: entries.map(e => ({
@@ -394,14 +423,14 @@ export class NetLedgerApi {
       })),
       IsCommitted: isCommitted
     }
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/debits` : `/v1/accounts/${accountGuid}/debits`
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/debits` : `/v1/accounts/${accountId}/debits`
     return this.put(path, body)
   }
 
   /**
    * List entries for an account with pagination
    */
-  async listEntries(accountGuid, options = {}) {
+  async listEntries(accountId, options = {}) {
     const {
       maxResults = 50,
       skip = 0,
@@ -420,7 +449,7 @@ export class NetLedgerApi {
       tenantId = null
     } = options
 
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/entries` : `/v1/accounts/${accountGuid}/entries`
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries` : `/v1/accounts/${accountId}/entries`
     return this.get(path, {
       maxResults,
       skip,
@@ -442,46 +471,46 @@ export class NetLedgerApi {
   /**
    * Get pending entries for an account
    */
-  async getPendingEntries(accountGuid, tenantId = null) {
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/entries/pending` : `/v1/accounts/${accountGuid}/entries/pending`
+  async getPendingEntries(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/pending` : `/v1/accounts/${accountId}/entries/pending`
     return this.get(path)
   }
 
   /**
    * Get pending credits for an account
    */
-  async getPendingCredits(accountGuid, tenantId = null) {
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/entries/pending/credits` : `/v1/accounts/${accountGuid}/entries/pending/credits`
+  async getPendingCredits(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/pending/credits` : `/v1/accounts/${accountId}/entries/pending/credits`
     return this.get(path)
   }
 
   /**
    * Get pending debits for an account
    */
-  async getPendingDebits(accountGuid, tenantId = null) {
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/entries/pending/debits` : `/v1/accounts/${accountGuid}/entries/pending/debits`
+  async getPendingDebits(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/pending/debits` : `/v1/accounts/${accountId}/entries/pending/debits`
     return this.get(path)
   }
 
   /**
    * Cancel a pending entry
    */
-  async cancelEntry(accountGuid, entryGuid, tenantId = null) {
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/entries/${entryGuid}` : `/v1/accounts/${accountGuid}/entries/${entryGuid}`
+  async cancelEntry(accountId, entryId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/${entryId}` : `/v1/accounts/${accountId}/entries/${entryId}`
     return this.delete(path)
   }
 
   /**
    * Commit pending entries
    */
-  async commitEntries(accountGuid, options = {}) {
+  async commitEntries(accountId, options = {}) {
     const {
       maxResults = 1000,
       startTime = null,
       endTime = null,
       amountMin = null,
       amountMax = null,
-      entryGuids = null,
+      entryIds = null,
       tenantId = null
     } = options
 
@@ -493,12 +522,12 @@ export class NetLedgerApi {
       MaximumAmount: amountMax
     }
 
-    // If specific entry GUIDs are provided, use them
-    if (entryGuids && entryGuids.length > 0) {
-      body.EntryGuids = entryGuids
+    // If specific entry IDs are provided, use them
+    if (entryIds && entryIds.length > 0) {
+      body.EntryIds = entryIds
     }
 
-    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/commit` : `/v1/accounts/${accountGuid}/commit`
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/commit` : `/v1/accounts/${accountId}/commit`
     return this.post(path, body)
   }
 
@@ -539,8 +568,8 @@ export class NetLedgerApi {
   /**
    * Revoke an API key (admin only)
    */
-  async revokeApiKey(apiKeyGuid) {
-    return this.delete(`/v1/credentials/${apiKeyGuid}`)
+  async revokeApiKey(credentialId) {
+    return this.delete(`/v1/credentials/${credentialId}`)
   }
 
   async listTenants(options = {}) {
@@ -638,7 +667,7 @@ export function normalizeEnumerationResult(result) {
 
 /**
  * Normalize balances from the API (dictionary format)
- * Converts { "guid1": Balance, "guid2": Balance } to array format
+ * Converts { "id1": Balance, "id2": Balance } to array format
  */
 export function normalizeBalances(balancesDict) {
   if (!balancesDict) {
@@ -650,11 +679,11 @@ export function normalizeBalances(balancesDict) {
     return balancesDict
   }
 
-  // Convert dictionary to array with accountGuid attached
-  return Object.entries(balancesDict).map(([guid, balance]) => ({
+  // Convert dictionary to array with accountId attached
+  return Object.entries(balancesDict).map(([id, balance]) => ({
     ...balance,
-    accountGuid: guid,
-    AccountGuid: guid
+    accountId: id,
+    AccountId: id
   }))
 }
 
@@ -718,10 +747,10 @@ export function formatDateForApi(date) {
 }
 
 /**
- * Truncate a GUID for display
+ * Truncate an ID for display
  */
-export function truncateGuid(guid) {
-  if (!guid) return '-'
-  if (guid.length <= 13) return guid
-  return `${guid.substring(0, 8)}...${guid.substring(guid.length - 4)}`
+export function truncateId(id) {
+  if (!id) return '-'
+  if (id.length <= 13) return id
+  return `${id.substring(0, 8)}...${id.substring(id.length - 4)}`
 }

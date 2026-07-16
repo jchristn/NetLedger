@@ -24,11 +24,10 @@ namespace NetLedger.Sdk.Methods
         private class AddEntriesResponse
         {
             public List<string>? EntryIds { get; set; }
-            public List<string>? EntryGuids { get; set; }
 
             public List<string> GetIds()
             {
-                return EntryIds ?? EntryGuids ?? new List<string>();
+                return EntryIds ?? new List<string>();
             }
         }
 

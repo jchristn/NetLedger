@@ -99,7 +99,7 @@ namespace NetLedger.Server.Authentication
         {
             get
             {
-                return User?.IsAdmin ?? false;
+                return (ApiKey?.IsAdmin ?? false) || (User?.IsAdmin ?? false);
             }
         }
 

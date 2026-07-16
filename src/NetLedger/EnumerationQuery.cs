@@ -5,15 +5,15 @@ namespace NetLedger
 
     /// <summary>
     /// Object used to request enumeration of accounts or entries.
-    /// When enumerating accounts, AccountGUID should be null.
-    /// When enumerating entries, AccountGUID must be specified.
+    /// When enumerating accounts, AccountId should be null.
+    /// When enumerating entries, AccountId must be specified.
     /// </summary>
     public class EnumerationQuery
     {
         #region Public-Members
 
         /// <summary>
-        /// Account GUID.
+        /// Account identifier.
         /// Required when enumerating entries within an account.
         /// Should be null when enumerating accounts.
         /// </summary>
@@ -34,15 +34,6 @@ namespace NetLedger
         /// User identifier used to restrict user-owned resources.
         /// </summary>
         public string? UserId { get; set; } = null;
-
-        /// <summary>
-        /// Legacy account identifier alias.
-        /// </summary>
-        public string? AccountGUID
-        {
-            get { return AccountId; }
-            set { AccountId = value; }
-        }
 
         /// <summary>
         /// Maximum number of results to retrieve.

@@ -64,7 +64,6 @@ export default function ApiExplorer() {
   const [requestBody, setRequestBody] = useState('')
   const [responseTab, setResponseTab] = useState('body')
   const [codeLanguage, setCodeLanguage] = useState('curl')
-  const [operationTag, setOperationTag] = useState('all')
   const [response, setResponse] = useState(null)
   const [sendError, setSendError] = useState('')
   const [history, setHistory] = useState(() => loadJsonStorage(HISTORY_KEY, []))
@@ -74,18 +73,6 @@ export default function ApiExplorer() {
   const restoringRef = useRef(false)
 
   const operations = useMemo(() => flattenOpenApiSpec(spec || {}), [spec])
-  const operationTags = useMemo(() => ['all', ...new Set(operations.map((operation) => operation.tag).filter(Boolean))], [operations])
-  const visibleOperations = useMemo(() => {
-    if (operationTag === 'all') return operations
-    return operations.filter((operation) => operation.tag === operationTag)
-  }, [operationTag, operations])
-  const groupedOperations = useMemo(() => {
-    return visibleOperations.reduce((result, operation) => {
-      if (!result[operation.tag]) result[operation.tag] = []
-      result[operation.tag].push(operation)
-      return result
-    }, {})
-  }, [visibleOperations])
   const selectedOperation = useMemo(
     () => operations.find((operation) => operation.key === selectedOperationKey) || null,
     [operations, selectedOperationKey]
@@ -136,12 +123,6 @@ export default function ApiExplorer() {
       setSelectedOperationKey(operations[0].key)
     }
   }, [operations, selectedOperationKey])
-
-  useEffect(() => {
-    if (visibleOperations.length > 0 && !visibleOperations.some((operation) => operation.key === selectedOperationKey)) {
-      setSelectedOperationKey(visibleOperations[0].key)
-    }
-  }, [selectedOperationKey, visibleOperations])
 
   useEffect(() => {
     if (!selectedOperation || !spec) return
@@ -271,42 +252,26 @@ export default function ApiExplorer() {
       </div>
 
       <div className="api-explorer-grid">
-        <section className="api-explorer-panel">
+        <section className="api-explorer-panel api-operation-selector-panel">
           <div className="section-header">
             <div>
               <h3>Operations</h3>
-              <p>Filter by OpenAPI tag and select the route to execute.</p>
+              <p>Select the route to execute.</p>
             </div>
           </div>
           {loading ? (
             <div className="page-loading"><span className="spinner"></span><span>Loading...</span></div>
           ) : (
-            <div className="operation-list">
-              <label className="operation-filter">
-                <span>Endpoint Group</span>
-                <select value={operationTag} onChange={(event) => setOperationTag(event.target.value)}>
-                  {operationTags.map((tag) => (
-                    <option key={tag} value={tag}>{tag === 'all' ? 'All endpoints' : tag}</option>
-                  ))}
-                </select>
-              </label>
-              {Object.entries(groupedOperations).map(([tag, tagOperations]) => (
-                <div key={tag} className="operation-group">
-                  <div className="operation-group-title">{tag}</div>
-                  {tagOperations.map((operation) => (
-                    <button
-                      key={operation.key}
-                      className={`operation-item ${operation.key === selectedOperationKey ? 'active' : ''}`}
-                      onClick={() => setSelectedOperationKey(operation.key)}
-                    >
-                      <span className={`method-pill method-${operation.method.toLowerCase()}`}>{operation.method}</span>
-                      <span className="operation-summary">{operation.summary}</span>
-                      <span className="operation-path">{operation.path}</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
-            </div>
+            <label className="operation-select">
+              <span>Operation</span>
+              <select value={selectedOperationKey} onChange={(event) => setSelectedOperationKey(event.target.value)}>
+                {operations.map((operation) => (
+                  <option key={operation.key} value={operation.key}>
+                    {operation.method} {operation.path} - {operation.summary}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
         </section>
 

@@ -52,9 +52,9 @@ export class ApiKeyMethods {
 
     /**
      * Revoke (delete) an API key.
-     * @param apiKeyGuid The API key GUID.
+     * @param apiKeyId The API key identifier.
      */
-    async revoke(apiKeyGuid: string): Promise<void> {
-        await this.client.delete(`/v1/credentials/${apiKeyGuid}`);
+    async revoke(apiKeyId: string): Promise<void> {
+        await this.client.delete(`/v1/credentials/${apiKeyId}`);
     }
 }

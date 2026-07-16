@@ -26,12 +26,12 @@ class AccountMethods {
         return response.Data;
     }
     /**
-     * Get an account by GUID.
-     * @param accountGuid The account GUID.
+     * Get an account by identifier.
+     * @param accountId The account identifier.
      * @returns The account.
      */
-    async get(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}`);
+    async get(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}`);
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -55,18 +55,18 @@ class AccountMethods {
     }
     /**
      * Check if an account exists.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the account exists.
      */
-    async exists(accountGuid) {
-        return await this.client.head(`/v1/accounts/${accountGuid}`);
+    async exists(accountId) {
+        return await this.client.head(`/v1/accounts/${accountId}`);
     }
     /**
      * Delete an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      */
-    async delete(accountGuid) {
-        await this.client.delete(`/v1/accounts/${accountGuid}`);
+    async delete(accountId) {
+        await this.client.delete(`/v1/accounts/${accountId}`);
     }
     /**
      * Enumerate accounts with optional filtering and pagination.

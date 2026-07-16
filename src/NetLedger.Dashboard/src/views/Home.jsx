@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/useApp'
 import Pagination from '../components/Pagination'
 import { formatCurrency, formatDate, normalizeEnumerationResult, normalizeBalances } from '../api/api'
@@ -12,8 +12,27 @@ const TIME_RANGES = {
   month: { label: 'Last Month', durationMs: 30 * 24 * 60 * 60 * 1000, buckets: 90 }
 }
 
+const CUSTOM_RANGE_KEY = 'custom'
+const MAX_CHART_REQUESTS = 6
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await mapper(items[index], index)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker))
+  return results
+}
+
 function getObjectId(obj) {
-  return valueOf(obj, 'Id') || valueOf(obj, 'GUID') || valueOf(obj, 'Guid') || valueOf(obj, 'AccountGuid') || ''
+  return valueOf(obj, 'Id') || valueOf(obj, 'ID') || valueOf(obj, 'Id') || valueOf(obj, 'AccountId') || ''
 }
 
 function getAccountTenantId(account) {
@@ -53,7 +72,45 @@ function getUserLabel(user) {
   return name ? `${name} (${email})` : email
 }
 
-function buildRange(rangeKey) {
+function toDateTimeLocalValue(date) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function parseDateTimeLocal(value) {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function inferBucketCount(durationMs) {
+  if (durationMs <= TIME_RANGES.hour.durationMs) return TIME_RANGES.hour.buckets
+  if (durationMs <= TIME_RANGES.day.durationMs) return TIME_RANGES.day.buckets
+  if (durationMs <= TIME_RANGES.week.durationMs) return TIME_RANGES.week.buckets
+  if (durationMs <= TIME_RANGES.month.durationMs) return TIME_RANGES.month.buckets
+  if (durationMs <= 90 * 24 * 60 * 60 * 1000) return 90
+  return 120
+}
+
+function buildRange(rangeKey, customStartValue = '', customEndValue = '') {
+  if (rangeKey === CUSTOM_RANGE_KEY) {
+    const fallbackEnd = new Date()
+    const end = parseDateTimeLocal(customEndValue) || fallbackEnd
+    let start = parseDateTimeLocal(customStartValue) || new Date(end.getTime() - TIME_RANGES.day.durationMs)
+    if (start >= end) {
+      start = new Date(end.getTime() - TIME_RANGES.hour.durationMs)
+    }
+    const durationMs = Math.max(TIME_RANGES.hour.durationMs / TIME_RANGES.hour.buckets, end.getTime() - start.getTime())
+    return {
+      key: CUSTOM_RANGE_KEY,
+      label: 'Custom',
+      durationMs,
+      buckets: inferBucketCount(durationMs),
+      start,
+      end
+    }
+  }
+
   const definition = TIME_RANGES[rangeKey] || TIME_RANGES.day
   const end = new Date()
   const start = new Date(end.getTime() - definition.durationMs)
@@ -183,16 +240,29 @@ function formatAxisCurrency(value) {
   return formatter.format(value)
 }
 
-function shouldShowXAxisLabel(index, totalCount, maxLabels = 8) {
+function shouldShowXAxisLabel(index, totalCount, maxLabels = 5) {
   if (totalCount <= maxLabels) return true
   if (index === 0 || index === totalCount - 1) return true
   return index % Math.ceil(totalCount / maxLabels) === 0
 }
 
-function formatChartLabel(timestamp) {
+function xAxisLabelClass(index, totalCount) {
+  if (index === 0) return 'chart-x-label chart-label-start'
+  if (index === totalCount - 1) return 'chart-x-label chart-label-end'
+  return 'chart-x-label'
+}
+
+function formatChartLabel(timestamp, range) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const durationMs = range?.durationMs || TIME_RANGES.day.durationMs
+  if (durationMs <= TIME_RANGES.day.durationMs) {
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+  if (durationMs <= TIME_RANGES.month.durationMs) {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  }
+  return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
 }
 
 function formatBucketTimestamp(bucket) {
@@ -230,10 +300,13 @@ export default function Home() {
   const [users, setUsers] = useState([])
   const [accountUserMaps, setAccountUserMaps] = useState({})
   const [rangeKey, setRangeKey] = useState('day')
+  const [customStart, setCustomStart] = useState(() => toDateTimeLocalValue(new Date(Date.now() - TIME_RANGES.day.durationMs)))
+  const [customEnd, setCustomEnd] = useState(() => toDateTimeLocalValue(new Date()))
   const [selectedTenantId, setSelectedTenantId] = useState('')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [entries, setEntries] = useState([])
+  const chartRequestId = useRef(0)
   const [stats, setStats] = useState({
     totalAccounts: 0,
     totalCommittedBalance: 0,
@@ -267,7 +340,7 @@ export default function Home() {
     return accounts
   }, [accountUserMaps, isRegularUser, isSystemAdmin, isTenantAdmin, selectedAccountId, selectedTenantId, selectedUserId, stats.accounts])
 
-  const range = useMemo(() => buildRange(rangeKey), [rangeKey])
+  const range = useMemo(() => buildRange(rangeKey, customStart, customEnd), [customEnd, customStart, rangeKey])
   const chartBuckets = useMemo(() => buildBuckets(entries, range), [entries, range])
   const visibleCommittedBalance = useMemo(
     () => visibleAccounts.reduce((sum, account) => sum + Number(account.committedBalance || 0), 0),
@@ -291,9 +364,10 @@ export default function Home() {
       setTenants(tenantList)
 
       const tenantForScopedLists = isSystemAdmin ? selectedTenantId : resolvedTenantId
+      const suppressTenantHeader = isSystemAdmin && !tenantForScopedLists
       const [accountsResult, balancesResult, usersResult] = await Promise.all([
-        api.listAccounts({ maxResults: 1000, tenantId: tenantForScopedLists || null }),
-        api.getAllBalances(),
+        api.listAccounts({ maxResults: 1000, tenantId: tenantForScopedLists || null, suppressTenantHeader }),
+        api.getAllBalances({ tenantId: tenantForScopedLists || null, suppressTenantHeader }),
         tenantForScopedLists && (isTenantAdmin || isRegularUser)
           ? api.listUsers(tenantForScopedLists, { maxResults: 1000, ordering: 'CreatedDescending' }).catch(() => null)
           : Promise.resolve(null)
@@ -312,7 +386,7 @@ export default function Home() {
       const accountsWithBalances = accounts.map(account => {
         const accountId = getObjectId(account)
         const balance = balanceList.find(balanceItem =>
-          balanceItem.accountGuid === accountId || balanceItem.AccountGuid === accountId
+          balanceItem.accountId === accountId || balanceItem.AccountId === accountId
         )
 
         const committedBalance = balance?.committedBalance ?? balance?.CommittedBalance ?? 0
@@ -365,11 +439,14 @@ export default function Home() {
   }, [api, currentTenant, isRegularUser, isSystemAdmin, isTenantAdmin, resolvedTenantId, selectedTenantId, setError])
 
   const loadChart = useCallback(async () => {
+    const requestId = chartRequestId.current + 1
+    chartRequestId.current = requestId
+
     try {
       setChartLoading(true)
       const accountList = visibleAccounts
-      const rangeForQuery = buildRange(rangeKey)
-      const entryGroups = await Promise.all(accountList.map(async (account) => {
+      const rangeForQuery = buildRange(rangeKey, customStart, customEnd)
+      const entryGroups = await mapWithConcurrency(accountList, MAX_CHART_REQUESTS, async (account) => {
         const accountId = getObjectId(account)
         const accountTenantId = getAccountTenantId(account) || selectedTenantId || resolvedTenantId
         try {
@@ -384,14 +461,20 @@ export default function Home() {
         } catch {
           return []
         }
-      }))
-      setEntries(entryGroups.flat())
+      })
+      if (requestId === chartRequestId.current) {
+        setEntries(entryGroups.flat())
+      }
     } catch (err) {
-      setError(err.message || 'Failed to load transaction chart')
+      if (requestId === chartRequestId.current) {
+        setError(err.message || 'Failed to load transaction chart')
+      }
     } finally {
-      setChartLoading(false)
+      if (requestId === chartRequestId.current) {
+        setChartLoading(false)
+      }
     }
-  }, [api, rangeKey, resolvedTenantId, selectedTenantId, setError, visibleAccounts])
+  }, [api, customEnd, customStart, rangeKey, resolvedTenantId, selectedTenantId, setError, visibleAccounts])
 
   useEffect(() => {
     loadStats()
@@ -465,9 +548,35 @@ export default function Home() {
                 {item.label}
               </button>
             ))}
+            <button className={rangeKey === CUSTOM_RANGE_KEY ? 'active' : ''} onClick={() => setRangeKey(CUSTOM_RANGE_KEY)}>
+              Custom
+            </button>
           </div>
 
           <div className="drilldown-controls">
+            <label>
+              <span>From</span>
+              <input
+                type="datetime-local"
+                value={customStart}
+                onChange={(event) => {
+                  setCustomStart(event.target.value)
+                  setRangeKey(CUSTOM_RANGE_KEY)
+                }}
+              />
+            </label>
+            <label>
+              <span>To</span>
+              <input
+                type="datetime-local"
+                value={customEnd}
+                onChange={(event) => {
+                  setCustomEnd(event.target.value)
+                  setRangeKey(CUSTOM_RANGE_KEY)
+                }}
+              />
+            </label>
+
             {isSystemAdmin && (
               <label>
                 <span>Tenant</span>
@@ -512,7 +621,7 @@ export default function Home() {
         summary={`${formatCurrency(visibleCommittedBalance)} current committed value`}
         loading={chartLoading}
       >
-        <ValueRecordedChart buckets={valueBuckets} />
+        <ValueRecordedChart buckets={valueBuckets} range={range} />
       </ChartPanel>
 
       <ChartPanel
@@ -520,7 +629,7 @@ export default function Home() {
         summary={`${transactionTotal} transactions, ${formatCurrency(transactionAmount)} total amount`}
         loading={chartLoading}
       >
-        <TransactionsChart buckets={chartBuckets} />
+        <TransactionsChart buckets={chartBuckets} range={range} />
       </ChartPanel>
 
       <ChartPanel
@@ -528,7 +637,7 @@ export default function Home() {
         summary={`${formatCurrency(totalCreditAmount)} credits, ${formatCurrency(totalDebitAmount)} debits`}
         loading={chartLoading}
       >
-        <AmountsChart buckets={chartBuckets} />
+        <AmountsChart buckets={chartBuckets} range={range} />
       </ChartPanel>
 
       {stats.accounts.length > 0 && (
@@ -680,7 +789,7 @@ function StatIcon({ icon }) {
   )
 }
 
-function ValueRecordedChart({ buckets }) {
+function ValueRecordedChart({ buckets, range }) {
   const [tooltip, setTooltip] = useState(null)
   const yLabels = buildLinearYAxisLabels(buckets.map((bucket) => bucket.value))
   const yMin = yLabels[0] || 0
@@ -721,7 +830,7 @@ function ValueRecordedChart({ buckets }) {
           <g key={bucket.startUtc}>
             <circle className="chart-point-value" cx={x} cy={y} r="2.5" />
             {shouldShowXAxisLabel(index, buckets.length) && (
-              <text x={x} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
+              <text x={x} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{formatChartLabel(bucket.startUtc, range)}</text>
             )}
             <title>{`${formatDate(bucket.endUtc)}: ${formatCurrency(bucket.value)}`}</title>
           </g>
@@ -761,7 +870,7 @@ function ValueRecordedChart({ buckets }) {
   )
 }
 
-function TransactionsChart({ buckets }) {
+function TransactionsChart({ buckets, range }) {
   const [tooltip, setTooltip] = useState(null)
   const highestCount = Math.max(0, ...buckets.map((bucket) => bucket.count))
   const yLabels = buildYAxisLabels(highestCount)
@@ -801,7 +910,7 @@ function TransactionsChart({ buckets }) {
                 </>
               )}
               {shouldShowXAxisLabel(index, buckets.length) && (
-                <text x={x + barWidth / 2} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
+                <text x={x + barWidth / 2} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{formatChartLabel(bucket.startUtc, range)}</text>
               )}
               <title>{`${formatDate(bucket.startUtc)}: ${bucket.count} transactions`}</title>
               <rect
@@ -840,7 +949,7 @@ function TransactionsChart({ buckets }) {
   )
 }
 
-function AmountsChart({ buckets }) {
+function AmountsChart({ buckets, range }) {
   const [tooltip, setTooltip] = useState(null)
   const highestAmount = Math.max(0, ...buckets.map((bucket) => bucket.creditAmount + bucket.debitAmount))
   const yLabels = buildYAxisLabels(Math.ceil(highestAmount))
@@ -883,7 +992,7 @@ function AmountsChart({ buckets }) {
                 </>
               )}
               {shouldShowXAxisLabel(index, buckets.length) && (
-                <text x={x + barWidth / 2} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
+                <text x={x + barWidth / 2} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{formatChartLabel(bucket.startUtc, range)}</text>
               )}
               <title>{`${formatDate(bucket.startUtc)}: ${formatCurrency(bucket.creditAmount)} credits, ${formatCurrency(bucket.debitAmount)} debits`}</title>
               <rect

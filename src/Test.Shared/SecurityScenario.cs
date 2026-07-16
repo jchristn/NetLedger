@@ -15,6 +15,10 @@ namespace Test.Shared
         /// <param name="authorization">Authorization service.</param>
         /// <param name="authService">Authentication service.</param>
         /// <param name="credentialHandler">Credential handler.</param>
+        /// <param name="accountHandler">Account handler.</param>
+        /// <param name="entryHandler">Entry handler.</param>
+        /// <param name="balanceHandler">Balance handler.</param>
+        /// <param name="identityHandler">Identity handler.</param>
         /// <param name="tenantA">First tenant.</param>
         /// <param name="tenantB">Second tenant.</param>
         /// <param name="systemAdmin">System administrator.</param>
@@ -34,6 +38,10 @@ namespace Test.Shared
             AuthorizationService authorization,
             AuthService authService,
             ApiKeyHandler credentialHandler,
+            AccountHandler accountHandler,
+            EntryHandler entryHandler,
+            BalanceHandler balanceHandler,
+            IdentityHandler identityHandler,
             Tenant tenantA,
             Tenant tenantB,
             User systemAdmin,
@@ -53,6 +61,10 @@ namespace Test.Shared
             Authorization = authorization;
             AuthService = authService;
             CredentialHandler = credentialHandler;
+            AccountHandler = accountHandler;
+            EntryHandler = entryHandler;
+            BalanceHandler = balanceHandler;
+            IdentityHandler = identityHandler;
             TenantA = tenantA;
             TenantB = tenantB;
             SystemAdmin = systemAdmin;
@@ -88,6 +100,26 @@ namespace Test.Shared
         /// Credential handler.
         /// </summary>
         public ApiKeyHandler CredentialHandler { get; }
+
+        /// <summary>
+        /// Account handler.
+        /// </summary>
+        public AccountHandler AccountHandler { get; }
+
+        /// <summary>
+        /// Entry handler.
+        /// </summary>
+        public EntryHandler EntryHandler { get; }
+
+        /// <summary>
+        /// Balance handler.
+        /// </summary>
+        public BalanceHandler BalanceHandler { get; }
+
+        /// <summary>
+        /// Identity handler.
+        /// </summary>
+        public IdentityHandler IdentityHandler { get; }
 
         /// <summary>
         /// First tenant.

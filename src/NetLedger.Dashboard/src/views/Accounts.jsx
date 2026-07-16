@@ -32,6 +32,7 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState([])
   const [balances, setBalances] = useState({})
   const [tenants, setTenants] = useState([])
+  const [selectedTenantId, setSelectedTenantId] = useState('')
   const [users, setUsers] = useState([])
   const [identityLoading, setIdentityLoading] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -53,7 +54,7 @@ export default function Accounts() {
   const [formData, setFormData] = useState(createEmptyFormData())
   const [formLoading, setFormLoading] = useState(false)
 
-  const getObjectId = (obj) => valueOf(obj, 'Id') || valueOf(obj, 'GUID') || valueOf(obj, 'Guid') || ''
+  const getObjectId = (obj) => valueOf(obj, 'Id') || valueOf(obj, 'id') || valueOf(obj, 'ID') || ''
   const getUserLabel = (user) => {
     const email = valueOf(user, 'Email') || getObjectId(user)
     const name = [valueOf(user, 'FirstName'), valueOf(user, 'LastName')].filter(Boolean).join(' ')
@@ -64,6 +65,8 @@ export default function Accounts() {
     const name = valueOf(tenant, 'Name') || id
     return id && name !== id ? `${name} (${id})` : name
   }
+  const requestTenantId = isSystemAdmin ? selectedTenantId || null : null
+  const suppressTenantHeader = isSystemAdmin && !selectedTenantId
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -73,22 +76,27 @@ export default function Accounts() {
         api.listAccounts({
           maxResults: pageSize,
           skip: currentPage * pageSize,
-          ordering: 'CreatedDescending'
+          ordering: 'CreatedDescending',
+          tenantId: requestTenantId,
+          suppressTenantHeader
         }),
-        api.getAllBalances()
+        api.getAllBalances({
+          tenantId: requestTenantId,
+          suppressTenantHeader
+        })
       ])
 
       const { objects: accountsList, totalRecords } = normalizeEnumerationResult(accountsResult)
       setAccounts(accountsList)
       setTotalRecords(totalRecords)
 
-      // Create a map of balances by account GUID
+      // Create a map of balances by account ID
       const balanceMap = {}
       const balanceList = normalizeBalances(balancesResult)
       balanceList.forEach(b => {
-        const guid = b.accountGuid || b.AccountGuid
-        if (guid) {
-          balanceMap[guid] = b
+        const id = b.accountId || b.AccountId
+        if (id) {
+          balanceMap[id] = b
         }
       })
       setBalances(balanceMap)
@@ -97,11 +105,29 @@ export default function Accounts() {
     } finally {
       setLoading(false)
     }
-  }, [api, currentPage, pageSize, setError])
+  }, [api, currentPage, pageSize, requestTenantId, setError, suppressTenantHeader])
+
+  const loadTenants = useCallback(async () => {
+    if (!isSystemAdmin) {
+      setTenants([])
+      return
+    }
+
+    try {
+      const tenantResult = await api.listTenants({ maxResults: 1000, ordering: 'CreatedDescending' })
+      setTenants(normalizeEnumerationResult(tenantResult).objects)
+    } catch (err) {
+      setError(err.message || 'Failed to load tenants')
+    }
+  }, [api, isSystemAdmin, setError])
 
   useEffect(() => {
     loadAccounts()
   }, [loadAccounts])
+
+  useEffect(() => {
+    loadTenants()
+  }, [loadTenants])
 
   const loadUsersForTenant = useCallback(async (selectedTenantId, selectedUserId = '') => {
     if (!selectedTenantId) {
@@ -169,6 +195,11 @@ export default function Accounts() {
     }
   }
 
+  const handleAccountTenantFilterChange = (e) => {
+    setSelectedTenantId(e.target.value)
+    setCurrentPage(0)
+  }
+
   const handlePageChange = (page) => {
     setCurrentPage(page)
   }
@@ -211,12 +242,12 @@ export default function Accounts() {
         formData.tenantId
       )
 
-      const accountGuid = getAccountGuid(createdAccount)
-      if (!accountGuid) {
+      const accountId = getAccountId(createdAccount)
+      if (!accountId) {
         throw new Error('Created account did not include an identifier')
       }
 
-      await api.mapAccountUser(formData.tenantId, accountGuid, formData.userId)
+      await api.mapAccountUser(formData.tenantId, accountId, formData.userId)
 
       setShowCreateModal(false)
       setFormData(createEmptyFormData(formData.tenantId, formData.userId))
@@ -228,15 +259,15 @@ export default function Accounts() {
     }
   }
 
-  // Helper to get GUID from account object with various casing
-  const getAccountGuid = (account) => account?.id || account?.Id || account?.guid || account?.Guid || account?.GUID || null
+  // Helper to get ID from account object with various casing
+  const getAccountId = (account) => account?.id || account?.Id || account?.id || account?.Id || account?.ID || null
 
   const handleDelete = async () => {
     if (!selectedAccount) return
 
     try {
       setFormLoading(true)
-      await api.deleteAccount(getAccountGuid(selectedAccount))
+      await api.deleteAccount(getAccountId(selectedAccount))
       setShowDeleteModal(false)
       setSelectedAccount(null)
       loadAccounts()
@@ -253,8 +284,8 @@ export default function Accounts() {
   }
 
   const openMetadataModal = (account) => {
-    const guid = getAccountGuid(account)
-    const balance = balances[guid]
+    const id = getAccountId(account)
+    const balance = balances[id]
     setSelectedAccount({ ...account, balance })
     setShowMetadataModal(true)
   }
@@ -265,21 +296,25 @@ export default function Accounts() {
   }
 
   const openViewModal = (account) => {
-    const guid = getAccountGuid(account)
-    const balance = balances[guid]
+    const id = getAccountId(account)
+    const balance = balances[id]
     setSelectedAccount({ ...account, balance })
     setShowViewModal(true)
   }
 
   const viewEntries = (account) => {
-    const guid = getAccountGuid(account)
-    navigate(`/entries?account=${guid}`)
+    const id = getAccountId(account)
+    const accountTenantId = valueOf(account, 'TenantId') || ''
+    const params = new URLSearchParams()
+    if (accountTenantId) params.set('tenant', accountTenantId)
+    if (id) params.set('account', id)
+    navigate(`/entries?${params.toString()}`)
   }
 
   const totalPages = Math.ceil(totalRecords / pageSize)
 
-  // Helper to get GUID from row with various casing
-  const getRowGuid = (row) => row.id || row.Id || row.guid || row.Guid || row.GUID || ''
+  // Helper to get ID from row with various casing
+  const getRowId = (row) => row.id || row.Id || row.id || row.Id || row.ID || ''
 
   const parseLabels = (value) => {
     return labelsToPayload(value)
@@ -308,20 +343,20 @@ export default function Accounts() {
       filterValue: (row) => `${row.name || row.Name} ${row.notes || row.Notes || ''}`
     },
     {
-      key: 'guid',
+      key: 'id',
       label: 'ID',
-      className: 'col-guid',
+      className: 'col-id',
       sortable: true,
       filterable: true,
       render: (row) => (
-        <span className="guid-cell-wrapper">
-          <span className="guid-cell">
-            {getRowGuid(row)}
+        <span className="id-cell-wrapper">
+          <span className="id-cell">
+            {getRowId(row)}
           </span>
-          <CopyButton text={getRowGuid(row)} title="Copy ID" />
+          <CopyButton text={getRowId(row)} title="Copy ID" />
         </span>
       ),
-      filterValue: (row) => getRowGuid(row)
+      filterValue: (row) => getRowId(row)
     },
     {
       key: 'labels',
@@ -339,8 +374,8 @@ export default function Accounts() {
       className: 'col-amount',
       sortable: true,
       render: (row) => {
-        const guid = getRowGuid(row)
-        const balance = balances[guid]
+        const id = getRowId(row)
+        const balance = balances[id]
         const amount = balance?.committedBalance ?? balance?.CommittedBalance ?? 0
         return (
           <span className={`amount ${amount >= 0 ? 'amount-positive' : 'amount-negative'}`}>
@@ -349,8 +384,8 @@ export default function Accounts() {
         )
       },
       sortValue: (row) => {
-        const guid = getRowGuid(row)
-        const balance = balances[guid]
+        const id = getRowId(row)
+        const balance = balances[id]
         return balance?.committedBalance ?? balance?.CommittedBalance ?? 0
       }
     },
@@ -360,8 +395,8 @@ export default function Accounts() {
       className: 'col-amount',
       sortable: true,
       render: (row) => {
-        const guid = getRowGuid(row)
-        const balance = balances[guid]
+        const id = getRowId(row)
+        const balance = balances[id]
         const amount = balance?.pendingBalance ?? balance?.PendingBalance ?? 0
         return (
           <span className={`amount ${amount >= 0 ? 'amount-positive' : 'amount-negative'}`}>
@@ -370,8 +405,8 @@ export default function Accounts() {
         )
       },
       sortValue: (row) => {
-        const guid = getRowGuid(row)
-        const balance = balances[guid]
+        const id = getRowId(row)
+        const balance = balances[id]
         return balance?.pendingBalance ?? balance?.PendingBalance ?? 0
       }
     },
@@ -380,8 +415,8 @@ export default function Accounts() {
       label: 'Pending Entries',
       sortable: true,
       render: (row) => {
-        const guid = getRowGuid(row)
-        const balance = balances[guid]
+        const id = getRowId(row)
+        const balance = balances[id]
         const credits = balance?.pendingCredits?.count ?? balance?.PendingCredits?.Count ?? 0
         const debits = balance?.pendingDebits?.count ?? balance?.PendingDebits?.Count ?? 0
         const total = credits + debits
@@ -399,8 +434,8 @@ export default function Accounts() {
         )
       },
       sortValue: (row) => {
-        const guid = getRowGuid(row)
-        const balance = balances[guid]
+        const id = getRowId(row)
+        const balance = balances[id]
         const credits = balance?.pendingCredits?.count ?? balance?.PendingCredits?.Count ?? 0
         const debits = balance?.pendingDebits?.count ?? balance?.PendingDebits?.Count ?? 0
         return credits + debits
@@ -496,6 +531,27 @@ export default function Accounts() {
         </div>
       </div>
 
+      {isSystemAdmin && (
+        <div className="accounts-filter-bar">
+          <div className="accounts-tenant-filter">
+            <label htmlFor="accountsTenantFilter">Tenant</label>
+            <select
+              id="accountsTenantFilter"
+              value={selectedTenantId}
+              onChange={handleAccountTenantFilterChange}
+              disabled={loading}
+            >
+              <option value="">All tenants</option>
+              {tenants.map(tenant => (
+                <option key={getObjectId(tenant)} value={getObjectId(tenant)}>
+                  {getTenantLabel(tenant)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
@@ -511,7 +567,7 @@ export default function Accounts() {
         loading={loading}
         emptyMessage="No accounts found"
         onRowClick={openEditModal}
-        rowKey="guid"
+        rowKey="id"
       />
 
       {/* Create Modal */}
@@ -566,7 +622,7 @@ export default function Accounts() {
             </div>
           )}
 
-          {isTenantAdmin && (
+          {!isSystemAdmin && isTenantAdmin && (
             <div className="form-group">
               <label htmlFor="accountTenantLocked">Tenant</label>
               <input

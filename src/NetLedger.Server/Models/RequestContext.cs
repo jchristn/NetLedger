@@ -8,6 +8,7 @@ namespace NetLedger.Server.Models
     using System.Threading;
     using System.Threading.Tasks;
     using System.Collections.Generic;
+    using NetLedger;
     using NetLedger.Server.Authentication;
     using WatsonWebserver.Core;
 
@@ -21,7 +22,7 @@ namespace NetLedger.Server.Models
         /// <summary>
         /// Unique request identifier.
         /// </summary>
-        public Guid RequestGuid { get; set; } = Guid.NewGuid();
+        public string RequestId { get; set; } = NetLedgerId.Generate("req_");
 
         /// <summary>
         /// Timestamp when the request was received.
@@ -79,19 +80,19 @@ namespace NetLedger.Server.Models
         public NameValueCollection UrlParameters { get; set; } = new NameValueCollection();
 
         /// <summary>
-        /// Account GUID from URL.
+        /// Account identifier from URL.
         /// </summary>
-        public string? AccountGuid { get; set; }
+        public string? AccountId { get; set; }
 
         /// <summary>
-        /// Entry GUID from URL.
+        /// Entry identifier from URL.
         /// </summary>
-        public string? EntryGuid { get; set; }
+        public string? EntryId { get; set; }
 
         /// <summary>
-        /// API key GUID from URL.
+        /// API key identifier from URL.
         /// </summary>
-        public string? ApiKeyGuid { get; set; }
+        public string? CredentialId { get; set; }
 
         /// <summary>
         /// User identifier from URL.
@@ -255,28 +256,28 @@ namespace NetLedger.Server.Models
             req.TenantId = !String.IsNullOrEmpty(tenantCandidate) ? tenantCandidate : tenantQuery;
 
             // Extract account identifier from URL
-            string? accountGuidStr = req.UrlParameters["accountGuid"];
-            if (!string.IsNullOrEmpty(accountGuidStr))
+            string? accountIdStr = req.UrlParameters["accountId"];
+            if (!string.IsNullOrEmpty(accountIdStr))
             {
-                req.AccountGuid = accountGuidStr;
+                req.AccountId = accountIdStr;
             }
 
             // Extract entry identifier from URL
-            string? entryGuidStr = req.UrlParameters["entryGuid"];
-            if (!string.IsNullOrEmpty(entryGuidStr))
+            string? entryIdStr = req.UrlParameters["entryId"];
+            if (!string.IsNullOrEmpty(entryIdStr))
             {
-                req.EntryGuid = entryGuidStr;
+                req.EntryId = entryIdStr;
             }
 
             // Extract API key identifier from URL
-            string? apiKeyGuidStr = req.UrlParameters["apiKeyGuid"];
-            if (String.IsNullOrEmpty(apiKeyGuidStr))
+            string? credentialIdStr = req.UrlParameters["credentialId"];
+            if (String.IsNullOrEmpty(credentialIdStr))
             {
-                apiKeyGuidStr = req.UrlParameters["credentialId"];
+                credentialIdStr = req.UrlParameters["credentialId"];
             }
-            if (!string.IsNullOrEmpty(apiKeyGuidStr))
+            if (!string.IsNullOrEmpty(credentialIdStr))
             {
-                req.ApiKeyGuid = apiKeyGuidStr;
+                req.CredentialId = credentialIdStr;
             }
 
             req.UserId = req.UrlParameters["userId"];

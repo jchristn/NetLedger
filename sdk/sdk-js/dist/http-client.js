@@ -47,6 +47,8 @@ class HttpClient {
         this.apiKey = apiKey;
         this.tenantId = tenantId;
         this.timeoutMs = timeoutMs;
+        this.httpAgent = new http.Agent({ keepAlive: true });
+        this.httpsAgent = new https.Agent({ keepAlive: true });
     }
     /**
      * Make a GET request.
@@ -92,6 +94,7 @@ class HttpClient {
                 port: url.port || (isHttps ? 443 : 80),
                 path: url.pathname + url.search,
                 timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',
@@ -126,6 +129,7 @@ class HttpClient {
                 port: url.port || (isHttps ? 443 : 80),
                 path: url.pathname + url.search,
                 timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',

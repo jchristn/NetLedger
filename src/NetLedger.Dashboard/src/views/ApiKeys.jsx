@@ -96,25 +96,25 @@ export default function ApiKeys() {
     }
   }
 
-  // Helper to extract GUID from an object with various casing conventions
-  const getGuid = (obj) => {
+  // Helper to extract ID from an object with various casing conventions
+  const getId = (obj) => {
     if (!obj) return null
-    // Check GUID first (server uses uppercase GUID), then lowercase variants
-    return obj.GUID || obj.guid || obj.Guid || obj.Id || obj.id || null
+    // Check ID first (server uses uppercase ID), then lowercase variants
+    return obj.ID || obj.id || obj.Id || obj.Id || obj.id || null
   }
 
   const handleDelete = async () => {
     if (!selectedKey) return
 
-    const keyGuid = getGuid(selectedKey)
-    if (!keyGuid) {
+    const keyId = getId(selectedKey)
+    if (!keyId) {
       setError('Cannot revoke credential: missing identifier')
       return
     }
 
     try {
       setFormLoading(true)
-      await api.revokeApiKey(keyGuid)
+      await api.revokeApiKey(keyId)
       setShowDeleteModal(false)
       setSelectedKey(null)
       loadApiKeys()
@@ -149,20 +149,20 @@ export default function ApiKeys() {
 
   const columns = [
     {
-      key: 'guid',
-      label: 'GUID',
-      className: 'col-guid',
+      key: 'id',
+      label: 'ID',
+      className: 'col-id',
       sortable: true,
       filterable: true,
       render: (row) => (
-        <span className="guid-cell-wrapper">
-          <span className="guid-cell">
-            {getGuid(row)}
+        <span className="id-cell-wrapper">
+          <span className="id-cell">
+            {getId(row)}
           </span>
-          <CopyButton text={getGuid(row)} title="Copy GUID" />
+          <CopyButton text={getId(row)} title="Copy ID" />
         </span>
       ),
-      filterValue: (row) => getGuid(row) || ''
+      filterValue: (row) => getId(row) || ''
     },
     {
       key: 'name',
@@ -288,7 +288,7 @@ export default function ApiKeys() {
         loading={loading}
         emptyMessage="No credentials found"
         onRowClick={openEditModal}
-        rowKey="guid"
+        rowKey="id"
       />
 
       {/* Create Modal */}

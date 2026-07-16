@@ -40,9 +40,9 @@ namespace NetLedger.Server
         public static readonly string HostnameHeader = "x-hostname";
 
         /// <summary>
-        /// Request GUID header name.
+        /// Request identifier header name.
         /// </summary>
-        public static readonly string RequestGuidHeader = "x-request-guid";
+        public static readonly string RequestIdHeader = "x-request-id";
 
         /// <summary>
         /// API version header name.

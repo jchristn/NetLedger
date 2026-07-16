@@ -15,10 +15,10 @@ Example:
     account = client.account.create('My Account', 'Optional notes')
 
     # Add a credit
-    credit = client.entry.add_credit(account.guid, 100.00, 'Initial deposit')
+    credit = client.entry.add_credit(account.id, 100.00, 'Initial deposit')
 
     # Get balance
-    balance = client.balance.get(account.guid)
+    balance = client.balance.get(account.id)
 """
 
 from .client import NetLedgerClient

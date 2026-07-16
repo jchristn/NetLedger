@@ -56,7 +56,7 @@ This is useful for:
 - Debugging failed tests by examining the server state
 - Verifying data persistence
 
-When `--no-cleanup` is used, the test suite will output a list of all retained account GUIDs at the end.
+When `--no-cleanup` is used, the test suite will output a list of all retained account identifiers at the end.
 
 ## Command Line Options
 
@@ -129,7 +129,7 @@ Cleanup skipped. 42 test account(s) retained on server:
 
 1. **Service Tests** - Health checks and service info
 2. **Account Creation Tests** - Creating accounts with various options
-3. **Account Retrieval Tests** - Getting accounts by GUID and name
+3. **Account Retrieval Tests** - Getting accounts by identifier and name
 4. **Credit and Debit Tests** - Adding individual transactions
 5. **Batch Operation Tests** - Adding multiple transactions at once
 6. **Balance Tests** - Balance calculations and retrieval

@@ -2,11 +2,11 @@
 
 ## Current Version
 
-### v3.0.0 (In development)
+### v3.0.0
 
 **MAJOR VERSION - BREAKING CHANGES**
 
-NetLedger v3.0.0 introduces tenant-scoped ledger data, PrettyId string identifiers, metadata labels/tags, credential-oriented authentication, dashboard metadata workflows, and Touchstone-backed tests.
+NetLedger v3.0.0 introduces tenant-scoped ledger data, PrettyId string identifiers, metadata labels/tags, credential-oriented authentication, expanded dashboard workflows and charts, SDK/Postman/API documentation updates, and Touchstone-backed tests.
 
 #### Breaking Changes
 
@@ -21,10 +21,24 @@ NetLedger v3.0.0 introduces tenant-scoped ledger data, PrettyId string identifie
 
 - v3 schema declarations are for net-new deployments or manually migrated deployments.
 - New v3 domain models: `Tenant`, `User`, `Credential`, `AuthSession`, `AccountUserMap`, `AuditRecord`, `UserRole`, `Permission`, `RolePermissionMap`, `UserRoleAssignment`, and `CredentialScopeAssignment`.
+- Tenant-scoped route aliases under `/v1/tenants/{tenantId}/...` cover accounts, entries, balances, commits, credentials, users, sessions, audit, roles, and permissions while preserving `/v1` compatibility.
 - Credential creation now returns the raw secret key once, then stores only verifier material and `SecretKeyLast4`.
 - Watson server dependency upgraded to the Watson 7 line.
-- Dashboard login accepts tenant context and account/entry forms can set labels and tags.
-- REST route aliases under `/v1/tenants/{tenantId}/accounts/...` preserve `/v1` while making tenant scope explicit.
+- Account and entry metadata can be created, displayed, and searched through the library, REST API, SDKs, Postman collection, and dashboard.
+- Entries enumeration now supports more expressive searches such as debit-only amount ranges combined with label/tag filters and amount ordering.
+- Dashboard login accepts tenant context, detects failed authentication, and returns users to the login screen when the current session cannot be authenticated.
+- Dashboard security and credential views hide passwords, keys, and secrets by default and provide reveal controls for temporary viewing.
+- Dashboard metadata editors now use one input row per label and key/value rows per tag, with per-row delete actions and add controls.
+- Dashboard metadata displays labels as badges and tags as formatted key/value text in modal views.
+- Dashboard Entries now has a system-admin-only tenant dropdown and a collapsed advanced search panel for description, date, amount, label, and tag filters.
+- Dashboard Home now includes Value Recorded, Transactions over Time, and Amounts over Time charts with shared range, tenant, user, and account controls.
+- Dashboard chart fidelity is fixed at 60 buckets for last hour, 96 for last day, 84 for last week, and 90 for last month.
+- Dashboard Home and Request History charts have bounded hover tooltips with timestamp and value details; Request History includes a taller Traffic over Time chart.
+- Dashboard timestamps are rendered with six decimal places of precision and no wrapping.
+- Dashboard topbar adds a GitHub repository link and icon-only logout control.
+- Dashboard API Explorer loads `GET /openapi.json` and executes requests with the signed-in session.
+- Request History adds filters, summaries, detail views, scoped deletion for admins, and Traffic over Time visualization.
+- REST API documentation, Postman collection, and .NET, JavaScript/TypeScript, and Python SDKs document and expose tenant, metadata, and expanded enumeration surfaces.
 - Touchstone test projects added: `Test.Shared`, `Test.Automated`, `Test.Xunit`, and `Test.Nunit`.
 
 #### Validation
@@ -246,7 +260,7 @@ To upgrade from v1.x to v2.0.0:
 ### v1.1.0
 
 - Breaking changes
-- `SummarizedGUIDs` renamed to `CommittedByGUID` in committed entries
+- `SummarizedGUIDs` renamed to `CommittedById` in committed entries
 - Entry now has `CommittedUtc` timestamp
 - Balance object now has `EntryGUID` property
 - Balance object now has list of committed GUIDs in `Committed` property

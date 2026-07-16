@@ -38,10 +38,10 @@ class NetLedgerClient:
         account = client.account.create('My Account')
 
         # Add a credit
-        credit = client.entry.add_credit(account.guid, 100.00, 'Initial deposit')
+        credit = client.entry.add_credit(account.id, 100.00, 'Initial deposit')
 
         # Get balance
-        balance = client.balance.get(account.guid)
+        balance = client.balance.get(account.id)
     """
 
     def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0, tenant_id: Optional[str] = None):

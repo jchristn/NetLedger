@@ -7,6 +7,8 @@ export declare class HttpClient {
     private readonly apiKey;
     private readonly tenantId?;
     private readonly timeoutMs;
+    private readonly httpAgent;
+    private readonly httpsAgent;
     constructor(baseUrl: string, apiKey: string, timeoutMs?: number, tenantId?: string);
     /**
      * Make a GET request.

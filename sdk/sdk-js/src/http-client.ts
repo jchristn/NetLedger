@@ -12,12 +12,16 @@ export class HttpClient {
     private readonly apiKey: string;
     private readonly tenantId?: string;
     private readonly timeoutMs: number;
+    private readonly httpAgent: http.Agent;
+    private readonly httpsAgent: https.Agent;
 
     constructor(baseUrl: string, apiKey: string, timeoutMs: number = 30000, tenantId?: string) {
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.apiKey = apiKey;
         this.tenantId = tenantId;
         this.timeoutMs = timeoutMs;
+        this.httpAgent = new http.Agent({ keepAlive: true });
+        this.httpsAgent = new https.Agent({ keepAlive: true });
     }
 
     /**
@@ -70,6 +74,7 @@ export class HttpClient {
                 port: url.port || (isHttps ? 443 : 80),
                 path: url.pathname + url.search,
                 timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',
@@ -111,6 +116,7 @@ export class HttpClient {
                 port: url.port || (isHttps ? 443 : 80),
                 path: url.pathname + url.search,
                 timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',

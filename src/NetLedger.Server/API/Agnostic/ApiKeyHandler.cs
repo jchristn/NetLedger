@@ -52,6 +52,11 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with enumeration result.</returns>
         internal async Task<ResponseContext> EnumerateAsync(RequestContext req, CancellationToken token = default)
         {
+            if (!IsAuthenticated(req))
+            {
+                return ResponseContext.FromError(req, ApiErrorEnum.Unauthorized, null, "Authentication required");
+            }
+
             if (!CanAccessCredentials(req))
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.Forbidden, null, "Credential administration access required");
@@ -83,6 +88,11 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with created API key.</returns>
         internal async Task<ResponseContext> CreateAsync(RequestContext req, CancellationToken token = default)
         {
+            if (!IsAuthenticated(req))
+            {
+                return ResponseContext.FromError(req, ApiErrorEnum.Unauthorized, null, "Authentication required");
+            }
+
             if (!CanAccessCredentials(req))
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.Forbidden, null, "Credential administration access required");
@@ -133,17 +143,22 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context.</returns>
         internal async Task<ResponseContext> RevokeAsync(RequestContext req, CancellationToken token = default)
         {
+            if (!IsAuthenticated(req))
+            {
+                return ResponseContext.FromError(req, ApiErrorEnum.Unauthorized, null, "Authentication required");
+            }
+
             if (!CanAccessCredentials(req))
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.Forbidden, null, "Credential administration access required");
             }
 
-            if (String.IsNullOrEmpty(req.ApiKeyGuid))
+            if (String.IsNullOrEmpty(req.CredentialId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "API key GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "API key identifier is required");
             }
 
-            ApiKey? apiKey = await _AuthService.GetApiKeyByGuidAsync(req.ApiKeyGuid, token).ConfigureAwait(false);
+            ApiKey? apiKey = await _AuthService.GetApiKeyByIdAsync(req.CredentialId, token).ConfigureAwait(false);
             if (apiKey == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "API key not found");
@@ -161,7 +176,7 @@ namespace NetLedger.Server.API.Agnostic
                 return ResponseContext.FromError(req, ApiErrorEnum.Forbidden, null, "Credential administration access required");
             }
 
-            bool deleted = await _AuthService.RevokeApiKeyAsync(req.ApiKeyGuid, token).ConfigureAwait(false);
+            bool deleted = await _AuthService.RevokeApiKeyAsync(req.CredentialId, token).ConfigureAwait(false);
             if (!deleted)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "API key not found");
@@ -206,6 +221,11 @@ namespace NetLedger.Server.API.Agnostic
                 !req.Auth.IsAdmin &&
                 !req.Auth.IsTenantAdmin &&
                 String.Equals(req.Auth.PrincipalType, "User", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsAuthenticated(RequestContext req)
+        {
+            return req.Auth != null && req.Auth.IsAuthenticated;
         }
 
         #endregion

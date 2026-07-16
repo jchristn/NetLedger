@@ -28,16 +28,6 @@ namespace NetLedger
         public string TenantId { get; set; } = String.Empty;
 
         /// <summary>
-        /// Legacy account identifier alias.
-        /// </summary>
-        [JsonIgnore]
-        public string GUID
-        {
-            get { return Id; }
-            set { Id = value; }
-        }
-
-        /// <summary>
         /// Name of the account.
         /// </summary>
         public string Name { get; set; } = null!;

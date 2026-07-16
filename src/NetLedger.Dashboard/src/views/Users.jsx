@@ -97,12 +97,12 @@ export default function Users() {
     {
       key: 'id',
       label: 'ID',
-      className: 'col-guid',
+      className: 'col-id',
       render: row => {
         const id = row.Id || row.id
         return (
-          <span className="guid-cell-wrapper">
-            <span className="guid-cell">{id}</span>
+          <span className="id-cell-wrapper">
+            <span className="id-cell">{id}</span>
             <CopyButton text={id} title="Copy ID" />
           </span>
         )

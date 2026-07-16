@@ -13,6 +13,7 @@ namespace Test.Shared
     using NetLedger.Server.API.Agnostic;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Models.Identity;
     using NetLedger.Server.Settings;
     using SyslogLogging;
     using Touchstone.Core;
@@ -128,7 +129,7 @@ namespace Test.Shared
                             "ten_test",
                             token).ConfigureAwait(false);
 
-                        Account account = await ledger.GetAccountByGuidAsync(accountId, token).ConfigureAwait(false);
+                        Account account = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
                         Assert(account.TenantId == "ten_test", "Tenant ID did not persist.");
                         Assert(account.Labels.Contains("operating"), "Account label did not persist.");
                         Assert(account.Tags["department"] == "finance", "Account tag did not persist.");
@@ -153,6 +154,221 @@ namespace Test.Shared
                         Assert(entry.TenantId == "ten_test", "Entry tenant ID did not persist.");
                         Assert(entry.Labels.Contains("credit"), "Entry label did not persist.");
                         Assert(entry.Tags["user"] == "foo", "Entry tag did not persist.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "committed_batch_entries_are_summarized_once_per_batch", "Committed credit and debit batches use one summarizing balance entry per batch", async token =>
+                    {
+                        string filename = CreateDatabaseFilename();
+                        await using Ledger ledger = new Ledger(filename);
+                        string accountId = await ledger.CreateAccountAsync("batch-commit-optimized", 100m, null, null, "ten_finance", token).ConfigureAwait(false);
+
+                        List<string> creditIds = await ledger.AddCreditsAsync(accountId, new List<BatchEntryInput>
+                        {
+                            new BatchEntryInput(10m, "batch credit 1"),
+                            new BatchEntryInput(15m, "batch credit 2"),
+                            new BatchEntryInput(20m, "batch credit 3")
+                        }, true, token).ConfigureAwait(false);
+
+                        List<string> debitIds = await ledger.AddDebitsAsync(accountId, new List<BatchEntryInput>
+                        {
+                            new BatchEntryInput(4m, "batch debit 1"),
+                            new BatchEntryInput(6m, "batch debit 2")
+                        }, true, token).ConfigureAwait(false);
+
+                        await AssertBalanceAsync(ledger, accountId, 135m, 135m, 0m, 0, 0, token, "after committed batch credits and debits").ConfigureAwait(false);
+
+                        List<Entry> entries = await ledger.Driver.Entries.ReadByAccountIdAsync(accountId, token).ConfigureAwait(false);
+                        List<Entry> balanceEntries = entries.Where(entry => entry.Type == EntryType.Balance).ToList();
+                        List<Entry> journalEntries = entries.Where(entry => entry.Type != EntryType.Balance).ToList();
+
+                        Assert(creditIds.Count == 3 && debitIds.Count == 2, "Batch APIs returned the wrong number of entry identifiers.");
+                        Assert(journalEntries.Count == 5, "Committed batch journal entry count mismatch.");
+                        Assert(journalEntries.All(entry => entry.IsCommitted && !String.IsNullOrEmpty(entry.CommittedById)), "Committed batch entries were not summarized.");
+                        Assert(balanceEntries.Count == 3, "Committed credit and debit batches should create one balance entry per batch plus the initial balance.");
+                        Assert(journalEntries.Where(entry => entry.Type == EntryType.Credit).Select(entry => entry.CommittedById).Distinct(StringComparer.Ordinal).Count() == 1, "Credit batch was not summarized by a single balance entry.");
+                        Assert(journalEntries.Where(entry => entry.Type == EntryType.Debit).Select(entry => entry.CommittedById).Distinct(StringComparer.Ordinal).Count() == 1, "Debit batch was not summarized by a single balance entry.");
+                        Assert(await ledger.VerifyBalanceChainAsync(accountId, token).ConfigureAwait(false), "Balance chain failed verification after committed batch workflow.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "balance_reporting_tracks_committed_and_pending_transaction_mix", "Balance reporting is exact after each committed and uncommitted debit/credit step", async token =>
+                    {
+                        string filename = CreateDatabaseFilename();
+                        await using Ledger ledger = new Ledger(filename);
+                        string accountId = await ledger.CreateAccountAsync("finance-step-balance", 100m, null, null, "ten_finance", token).ConfigureAwait(false);
+
+                        await AssertBalanceAsync(ledger, accountId, 100m, 100m, 0m, 0, 0, token, "initial account creation").ConfigureAwait(false);
+
+                        string pendingCreditId = await ledger.AddCreditAsync(accountId, 25.75m, "pending invoice payment", null, false, null, null, "ten_finance", token).ConfigureAwait(false);
+                        await AssertBalanceAsync(ledger, accountId, 100m, 125.75m, 25.75m, 1, 0, token, "after pending credit").ConfigureAwait(false);
+
+                        string pendingDebitId = await ledger.AddDebitAsync(accountId, 10.25m, "pending fee", null, false, null, null, "ten_finance", token).ConfigureAwait(false);
+                        await AssertBalanceAsync(ledger, accountId, 100m, 115.50m, 15.50m, 1, 1, token, "after pending debit").ConfigureAwait(false);
+
+                        Balance afterPartialCommit = await ledger.CommitEntriesAsync(accountId, new List<string> { pendingCreditId }, true, token).ConfigureAwait(false);
+                        Assert(afterPartialCommit.Committed.Count == 1 && afterPartialCommit.Committed[0] == pendingCreditId, "Partial commit did not report the committed credit.");
+                        await AssertBalanceAsync(ledger, accountId, 125.75m, 115.50m, -10.25m, 0, 1, token, "after committing credit only").ConfigureAwait(false);
+
+                        string immediateDebitId = await ledger.AddDebitAsync(accountId, 5.50m, "immediate debit", null, true, null, null, "ten_finance", token).ConfigureAwait(false);
+                        await AssertBalanceAsync(ledger, accountId, 120.25m, 110.00m, -10.25m, 0, 1, token, "after immediate debit commit").ConfigureAwait(false);
+
+                        Balance afterFinalCommit = await ledger.CommitEntriesAsync(accountId, null!, true, token).ConfigureAwait(false);
+                        Assert(afterFinalCommit.Committed.Count == 1 && afterFinalCommit.Committed[0] == pendingDebitId, "Final commit did not report the remaining pending debit.");
+                        await AssertBalanceAsync(ledger, accountId, 110.00m, 110.00m, 0m, 0, 0, token, "after final pending commit").ConfigureAwait(false);
+
+                        Entry pendingCredit = await ledger.GetEntryAsync(pendingCreditId, token).ConfigureAwait(false);
+                        Entry pendingDebit = await ledger.GetEntryAsync(pendingDebitId, token).ConfigureAwait(false);
+                        Entry immediateDebit = await ledger.GetEntryAsync(immediateDebitId, token).ConfigureAwait(false);
+                        Assert(pendingCredit.IsCommitted && !String.IsNullOrEmpty(pendingCredit.CommittedById), "Committed credit was not linked to a balance entry.");
+                        Assert(pendingDebit.IsCommitted && !String.IsNullOrEmpty(pendingDebit.CommittedById), "Committed debit was not linked to a balance entry.");
+                        Assert(immediateDebit.IsCommitted && !String.IsNullOrEmpty(immediateDebit.CommittedById), "Immediate debit was not linked to a balance entry.");
+                        Assert(await ledger.VerifyBalanceChainAsync(accountId, token).ConfigureAwait(false), "Balance chain failed verification after stepwise accounting workflow.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "parallel_writes_to_same_account_preserve_exact_pending_balance", "Concurrent debit and credit writes to one account preserve exact pending totals", async token =>
+                    {
+                        string filename = CreateDatabaseFilename();
+                        await using Ledger ledger = new Ledger(filename);
+                        string accountId = await ledger.CreateAccountAsync("finance-parallel-writes", 500m, null, null, "ten_finance", token).ConfigureAwait(false);
+
+                        List<Task> writes = new List<Task>();
+                        decimal expectedCredits = 0m;
+                        decimal expectedDebits = 0m;
+                        int creditCount = 40;
+                        int debitCount = 35;
+
+                        for (int i = 1; i <= creditCount; i++)
+                        {
+                            decimal amount = i / 4m;
+                            expectedCredits += amount;
+                            writes.Add(ledger.AddCreditAsync(accountId, amount, "parallel credit " + i, null, false, null, null, "ten_finance", token));
+                        }
+
+                        for (int i = 1; i <= debitCount; i++)
+                        {
+                            decimal amount = i / 5m;
+                            expectedDebits += amount;
+                            writes.Add(ledger.AddDebitAsync(accountId, amount, "parallel debit " + i, null, false, null, null, "ten_finance", token));
+                        }
+
+                        await Task.WhenAll(writes).ConfigureAwait(false);
+
+                        decimal expectedPendingBalance = 500m + expectedCredits - expectedDebits;
+                        await AssertBalanceAsync(ledger, accountId, 500m, expectedPendingBalance, expectedCredits - expectedDebits, creditCount, debitCount, token, "after parallel pending writes").ConfigureAwait(false);
+
+                        List<Entry> pendingEntries = await ledger.GetPendingEntriesAsync(accountId, token).ConfigureAwait(false);
+                        Assert(pendingEntries.Count == creditCount + debitCount, "Pending entry count mismatch after parallel writes.");
+                        Assert(pendingEntries.Select(entry => entry.Id).Distinct(StringComparer.Ordinal).Count() == pendingEntries.Count, "Parallel writes produced duplicate entry identifiers.");
+                        Assert(pendingEntries.All(entry => !entry.IsCommitted), "Parallel pending write test found an unexpectedly committed entry.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "parallel_commits_to_same_account_are_sequential_and_idempotent", "Concurrent commits to one account produce one exact committed balance and no duplicate summarization", async token =>
+                    {
+                        string filename = CreateDatabaseFilename();
+                        await using Ledger ledger = new Ledger(filename);
+                        string accountId = await ledger.CreateAccountAsync("finance-parallel-commits", 1000m, null, null, "ten_finance", token).ConfigureAwait(false);
+
+                        decimal expectedCredits = 0m;
+                        decimal expectedDebits = 0m;
+                        for (int i = 1; i <= 30; i++)
+                        {
+                            decimal credit = i * 1.25m;
+                            decimal debit = i * 0.75m;
+                            expectedCredits += credit;
+                            expectedDebits += debit;
+                            await ledger.AddCreditAsync(accountId, credit, "commit credit " + i, null, false, null, null, "ten_finance", token).ConfigureAwait(false);
+                            await ledger.AddDebitAsync(accountId, debit, "commit debit " + i, null, false, null, null, "ten_finance", token).ConfigureAwait(false);
+                        }
+
+                        decimal expectedFinalBalance = 1000m + expectedCredits - expectedDebits;
+                        await AssertBalanceAsync(ledger, accountId, 1000m, expectedFinalBalance, expectedCredits - expectedDebits, 30, 30, token, "before parallel commits").ConfigureAwait(false);
+
+                        List<Task<Balance>> commits = Enumerable.Range(0, 12)
+                            .Select(_ => ledger.CommitEntriesAsync(accountId, null!, true, token))
+                            .ToList();
+                        Balance[] commitResults = await Task.WhenAll(commits).ConfigureAwait(false);
+
+                        await AssertBalanceAsync(ledger, accountId, expectedFinalBalance, expectedFinalBalance, 0m, 0, 0, token, "after parallel commits").ConfigureAwait(false);
+                        Assert(commitResults.Count(result => result.Committed.Count > 0) == 1, "More than one parallel commit summarized pending entries.");
+                        Assert(commitResults.Sum(result => result.Committed.Count) == 60, "Parallel commits did not summarize every pending entry exactly once.");
+
+                        List<Entry> allEntries = await ledger.Driver.Entries.ReadByAccountIdAsync(accountId, token).ConfigureAwait(false);
+                        List<Entry> journalEntries = allEntries.Where(entry => entry.Type != EntryType.Balance).ToList();
+                        Assert(journalEntries.Count == 60, "Journal entry count changed during parallel commit.");
+                        Assert(journalEntries.All(entry => entry.IsCommitted && !String.IsNullOrEmpty(entry.CommittedById)), "Committed journal entries were not all summarized.");
+                        Assert(journalEntries.Select(entry => entry.CommittedById).Distinct(StringComparer.Ordinal).Count() == 1, "Parallel commits produced multiple summarizing balance entries for one pending batch.");
+                        Assert(await ledger.VerifyBalanceChainAsync(accountId, token).ConfigureAwait(false), "Balance chain failed verification after parallel commits.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "parallel_immediate_committed_writes_preserve_final_balance_and_journal_order", "Concurrent immediately committed writes preserve final balance and sequential journal integrity", async token =>
+                    {
+                        string filename = CreateDatabaseFilename();
+                        await using Ledger ledger = new Ledger(filename);
+                        string accountId = await ledger.CreateAccountAsync("finance-parallel-immediate", 250m, null, null, "ten_finance", token).ConfigureAwait(false);
+
+                        List<Task> writes = new List<Task>();
+                        decimal expectedCredits = 0m;
+                        decimal expectedDebits = 0m;
+
+                        for (int i = 1; i <= 20; i++)
+                        {
+                            decimal credit = 2m + i;
+                            decimal debit = 1m + (i / 2m);
+                            expectedCredits += credit;
+                            expectedDebits += debit;
+                            writes.Add(ledger.AddCreditAsync(accountId, credit, "immediate credit " + i, null, true, null, null, "ten_finance", token));
+                            writes.Add(ledger.AddDebitAsync(accountId, debit, "immediate debit " + i, null, true, null, null, "ten_finance", token));
+                        }
+
+                        await Task.WhenAll(writes).ConfigureAwait(false);
+
+                        decimal expectedFinalBalance = 250m + expectedCredits - expectedDebits;
+                        await AssertBalanceAsync(ledger, accountId, expectedFinalBalance, expectedFinalBalance, 0m, 0, 0, token, "after parallel immediate committed writes").ConfigureAwait(false);
+
+                        List<Entry> entries = await ledger.Driver.Entries.ReadByAccountIdAsync(accountId, token).ConfigureAwait(false);
+                        List<Entry> balanceEntries = entries.Where(entry => entry.Type == EntryType.Balance).ToList();
+                        List<Entry> journalEntries = entries.Where(entry => entry.Type != EntryType.Balance).ToList();
+                        Assert(journalEntries.Count == 40, "Immediate write journal entry count mismatch.");
+                        Assert(journalEntries.All(entry => entry.IsCommitted && !String.IsNullOrEmpty(entry.CommittedById)), "Immediate write journal entries were not committed and summarized.");
+                        Assert(balanceEntries.Count == 41, "Each immediate committed write should create one sequential balance entry plus the initial balance.");
+                        Assert(balanceEntries.Count(entry => !String.IsNullOrEmpty(entry.Replaces)) == 40, "Balance chain does not contain one replacement link per immediate committed write.");
+                        Assert(balanceEntries.Select(entry => entry.Id).Distinct(StringComparer.Ordinal).Count() == balanceEntries.Count, "Balance entries contain duplicate identifiers.");
+                        Assert(await ledger.VerifyBalanceChainAsync(accountId, token).ConfigureAwait(false), "Balance chain failed verification after parallel immediate writes.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "multiple_ledger_instances_serialize_same_account_writes", "Independent ledger instances serialize writes to the same account through database-backed locking", async token =>
+                    {
+                        string filename = CreateDatabaseFilename();
+                        await using Ledger ledgerA = new Ledger(filename);
+                        await using Ledger ledgerB = new Ledger(filename);
+                        string accountId = await ledgerA.CreateAccountAsync("finance-multi-instance", 1000m, null, null, "ten_finance", token).ConfigureAwait(false);
+
+                        List<Task> workload = new List<Task>();
+                        decimal expectedCredits = 0m;
+                        decimal expectedDebits = 0m;
+
+                        for (int i = 1; i <= 25; i++)
+                        {
+                            decimal creditA = 3m + i;
+                            decimal debitA = 1m + (i / 10m);
+                            decimal creditB = 2m + (i / 2m);
+                            decimal debitB = 0.5m + (i / 20m);
+
+                            expectedCredits += creditA + creditB;
+                            expectedDebits += debitA + debitB;
+
+                            workload.Add(ledgerA.AddCreditAsync(accountId, creditA, "ledger-a credit " + i, null, true, null, null, "ten_finance", token));
+                            workload.Add(ledgerA.AddDebitAsync(accountId, debitA, "ledger-a debit " + i, null, true, null, null, "ten_finance", token));
+                            workload.Add(ledgerB.AddCreditAsync(accountId, creditB, "ledger-b credit " + i, null, true, null, null, "ten_finance", token));
+                            workload.Add(ledgerB.AddDebitAsync(accountId, debitB, "ledger-b debit " + i, null, true, null, null, "ten_finance", token));
+                        }
+
+                        await Task.WhenAll(workload).ConfigureAwait(false);
+
+                        decimal expectedFinalBalance = 1000m + expectedCredits - expectedDebits;
+                        await AssertBalanceAsync(ledgerA, accountId, expectedFinalBalance, expectedFinalBalance, 0m, 0, 0, token, "after multi-instance immediate writes").ConfigureAwait(false);
+                        await AssertBalanceAsync(ledgerB, accountId, expectedFinalBalance, expectedFinalBalance, 0m, 0, 0, token, "after multi-instance readback").ConfigureAwait(false);
+
+                        List<Entry> entries = await ledgerA.Driver.Entries.ReadByAccountIdAsync(accountId, token).ConfigureAwait(false);
+                        List<Entry> journalEntries = entries.Where(entry => entry.Type != EntryType.Balance).ToList();
+                        List<Entry> balanceEntries = entries.Where(entry => entry.Type == EntryType.Balance).ToList();
+                        Assert(journalEntries.Count == 100, "Multi-instance journal entry count mismatch.");
+                        Assert(journalEntries.All(entry => entry.IsCommitted && !String.IsNullOrEmpty(entry.CommittedById)), "Multi-instance journal entries were not all committed.");
+                        Assert(balanceEntries.Count == 101, "Multi-instance writes should produce one balance entry per committed write plus the initial balance.");
+                        Assert(await ledgerA.VerifyBalanceChainAsync(accountId, token).ConfigureAwait(false), "Balance chain failed verification after multi-instance writes.");
                     })
                 });
         }
@@ -178,7 +394,7 @@ namespace Test.Shared
                         };
 
                         ApiKey created = await ledger.Driver.ApiKeys.CreateAsync(credential, token).ConfigureAwait(false);
-                        ApiKey read = await ledger.Driver.ApiKeys.ReadByGuidAsync(created.Id, token).ConfigureAwait(false);
+                        ApiKey read = await ledger.Driver.ApiKeys.ReadByIdAsync(created.Id, token).ConfigureAwait(false);
                         Assert(read.TenantId == "ten_test", "Credential tenant ID did not persist.");
                         Assert(read.UserId == "usr_test", "Credential user ID did not persist.");
                         Assert(read.SecretKeySha256 == credential.SecretKeySha256, "Credential secret verifier did not persist.");
@@ -404,7 +620,10 @@ namespace Test.Shared
                         Assert(tenantASummary.TotalCount == 2, "Tenant A summary count mismatch.");
                         Assert(tenantASummary.TotalSuccess == 1, "Tenant A success summary mismatch.");
                         Assert(tenantASummary.TotalFailure == 1, "Tenant A failure summary mismatch.");
+                        Assert(Math.Abs(tenantASummary.AverageDurationMs - 10.625) < 0.001, "Tenant A average duration summary mismatch.");
                         Assert(tenantASummary.Buckets.Count > 0, "Tenant A summary buckets were not returned.");
+                        Assert(tenantASummary.Buckets.Sum(bucket => bucket.SuccessCount) == 1, "Tenant A bucket success count mismatch.");
+                        Assert(tenantASummary.Buckets.Sum(bucket => bucket.FailureCount) == 1, "Tenant A bucket failure count mismatch.");
 
                         long deletedTenantA = await ledger.Driver.RequestHistory.DeleteManyAsync(new RequestHistoryFilter
                         {
@@ -426,7 +645,13 @@ namespace Test.Shared
 
         private static string CreateDatabaseFilename()
         {
-            return Path.Combine(Path.GetTempPath(), "netledger-test-" + Guid.NewGuid().ToString("N") + ".db");
+            return Path.Combine(Path.GetTempPath(), "netledger-test-" + UniqueSuffix(24) + ".db");
+        }
+
+        private static string UniqueSuffix(int length)
+        {
+            string value = NetLedgerId.Generate("tst");
+            return value.Length <= length ? value : value.Substring(value.Length - length);
         }
 
         private static TestSuiteDescriptor ProviderMatrixSuite()
@@ -529,6 +754,168 @@ namespace Test.Shared
 
                         Assert(tenantBResult.Objects.Count == 0, "Cross-tenant mapped enumeration returned data.");
                     }),
+                    new TestCaseDescriptor(suiteId, "unauthenticated_api_handlers_reject_protected_operations", "Protected API handlers reject unauthenticated requests before executing resource operations", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        await AssertApiErrorAsync(scenario.AccountHandler.EnumerateAsync(CreateUnauthenticatedRequest(scenario.TenantA.Id), token), ApiErrorEnum.Unauthorized, "Unauthenticated account enumeration was not rejected.").ConfigureAwait(false);
+
+                        RequestContext entryReq = CreateUnauthenticatedRequest(scenario.TenantA.Id);
+                        entryReq.AccountId = scenario.TenantAUserAccountId;
+                        await AssertApiErrorAsync(scenario.EntryHandler.GetEntriesAsync(entryReq, token), ApiErrorEnum.Unauthorized, "Unauthenticated entry enumeration was not rejected.").ConfigureAwait(false);
+
+                        RequestContext balanceReq = CreateUnauthenticatedRequest(scenario.TenantA.Id);
+                        balanceReq.AccountId = scenario.TenantAUserAccountId;
+                        await AssertApiErrorAsync(scenario.BalanceHandler.GetBalanceAsync(balanceReq, token), ApiErrorEnum.Unauthorized, "Unauthenticated balance read was not rejected.").ConfigureAwait(false);
+
+                        await AssertApiErrorAsync(scenario.IdentityHandler.EnumerateUsersAsync(CreateUnauthenticatedRequest(scenario.TenantA.Id), token), ApiErrorEnum.Unauthorized, "Unauthenticated user enumeration was not rejected.").ConfigureAwait(false);
+                        await AssertApiErrorAsync(scenario.CredentialHandler.EnumerateAsync(CreateUnauthenticatedRequest(scenario.TenantA.Id), token), ApiErrorEnum.Unauthorized, "Unauthenticated credential enumeration was not rejected.").ConfigureAwait(false);
+                    }),
+                    new TestCaseDescriptor(suiteId, "tenant_admin_unqualified_enumerations_are_scoped_to_authenticated_tenant", "Tenant-admin API enumerations without an explicit tenant do not leak other tenants", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        ResponseContext accountsResponse = await AssertApiSuccessAsync(scenario.AccountHandler.EnumerateAsync(CreateRequest(scenario.TenantAAdmin, null), token), "Tenant admin account enumeration failed.").ConfigureAwait(false);
+                        EnumerationResult<Account> accounts = AssertEnumerationResult<Account>(accountsResponse, "Account enumeration did not return an enumeration result.");
+                        Assert(accounts.Objects.Any(account => account.Id == scenario.TenantAUserAccountId), "Tenant admin did not see own-tenant account.");
+                        Assert(!accounts.Objects.Any(account => account.Id == scenario.TenantBAccountId), "Tenant admin account enumeration leaked a cross-tenant account.");
+                        Assert(accounts.Objects.All(account => account.TenantId == scenario.TenantA.Id), "Tenant admin account enumeration returned a resource outside the authenticated tenant.");
+
+                        ResponseContext balancesResponse = await AssertApiSuccessAsync(scenario.BalanceHandler.GetAllBalancesAsync(CreateRequest(scenario.TenantAAdmin, null), token), "Tenant admin balance enumeration failed.").ConfigureAwait(false);
+                        Dictionary<string, Balance>? balances = balancesResponse.Data as Dictionary<string, Balance>;
+                        Assert(balances != null, "Balance enumeration did not return a dictionary.");
+                        Assert(balances!.ContainsKey(scenario.TenantAUserAccountId), "Tenant admin did not see own-tenant balance.");
+                        Assert(!balances.ContainsKey(scenario.TenantBAccountId), "Tenant admin balance enumeration leaked a cross-tenant balance.");
+
+                        ResponseContext usersResponse = await AssertApiSuccessAsync(scenario.IdentityHandler.EnumerateUsersAsync(CreateRequest(scenario.TenantAAdmin, null), token), "Tenant admin user enumeration failed.").ConfigureAwait(false);
+                        EnumerationResult<User> users = AssertEnumerationResult<User>(usersResponse, "User enumeration did not return an enumeration result.");
+                        Assert(users.Objects.Any(user => user.Id == scenario.TenantAUser.Id), "Tenant admin did not see own-tenant user.");
+                        Assert(!users.Objects.Any(user => user.Id == scenario.TenantBUser.Id), "Tenant admin user enumeration leaked a cross-tenant user.");
+                        Assert(users.Objects.All(user => user.TenantId == scenario.TenantA.Id), "Tenant admin user enumeration returned a resource outside the authenticated tenant.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "tenant_admin_cannot_omit_tenant_to_access_cross_tenant_account", "Tenant admins cannot use a missing tenant selector to operate on another tenant's account", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        RequestContext systemRead = CreateRequest(scenario.SystemAdmin, null);
+                        systemRead.AccountId = scenario.TenantBAccountId;
+                        await AssertApiSuccessAsync(scenario.AccountHandler.ReadAsync(systemRead, token), "System admin could not read a cross-tenant account without a tenant selector.").ConfigureAwait(false);
+
+                        RequestContext accountRead = CreateRequest(scenario.TenantAAdmin, null);
+                        accountRead.AccountId = scenario.TenantBAccountId;
+                        await AssertApiErrorAsync(scenario.AccountHandler.ReadAsync(accountRead, token), ApiErrorEnum.Forbidden, "Tenant admin read a cross-tenant account without a tenant selector.").ConfigureAwait(false);
+
+                        RequestContext entryRead = CreateRequest(scenario.TenantAAdmin, null);
+                        entryRead.AccountId = scenario.TenantBAccountId;
+                        await AssertApiErrorAsync(scenario.EntryHandler.GetEntriesAsync(entryRead, token), ApiErrorEnum.Forbidden, "Tenant admin enumerated cross-tenant entries without a tenant selector.").ConfigureAwait(false);
+
+                        RequestContext balanceRead = CreateRequest(scenario.TenantAAdmin, null);
+                        balanceRead.AccountId = scenario.TenantBAccountId;
+                        await AssertApiErrorAsync(scenario.BalanceHandler.GetBalanceAsync(balanceRead, token), ApiErrorEnum.Forbidden, "Tenant admin read a cross-tenant balance without a tenant selector.").ConfigureAwait(false);
+
+                        RequestContext debitReq = CreateRequest(scenario.TenantAAdmin, null);
+                        debitReq.AccountId = scenario.TenantBAccountId;
+                        SetJsonBody(debitReq, new AddEntriesRequest { Amount = 10m, Notes = "cross-tenant attempt" });
+                        await AssertApiErrorAsync(scenario.EntryHandler.AddDebitsAsync(debitReq, token), ApiErrorEnum.Forbidden, "Tenant admin created a cross-tenant debit without a tenant selector.").ConfigureAwait(false);
+                    }),
+                    new TestCaseDescriptor(suiteId, "regular_user_api_handlers_expose_only_mapped_account_surface", "Regular-user API calls are limited to self and mapped account resources", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        ResponseContext accountsResponse = await AssertApiSuccessAsync(scenario.AccountHandler.EnumerateAsync(CreateRequest(scenario.TenantAUser, null), token), "Regular user account enumeration failed.").ConfigureAwait(false);
+                        EnumerationResult<Account> accounts = AssertEnumerationResult<Account>(accountsResponse, "Regular user account enumeration did not return an enumeration result.");
+                        Assert(accounts.Objects.Count == 1 && accounts.Objects[0].Id == scenario.TenantAUserAccountId, "Regular user account enumeration returned unmapped or cross-tenant accounts.");
+
+                        RequestContext mappedRead = CreateRequest(scenario.TenantAUser, null);
+                        mappedRead.AccountId = scenario.TenantAUserAccountId;
+                        await AssertApiSuccessAsync(scenario.AccountHandler.ReadAsync(mappedRead, token), "Regular user could not read a mapped account.").ConfigureAwait(false);
+
+                        RequestContext unmappedRead = CreateRequest(scenario.TenantAUser, null);
+                        unmappedRead.AccountId = scenario.TenantAUnmappedAccountId;
+                        await AssertApiErrorAsync(scenario.AccountHandler.ReadAsync(unmappedRead, token), ApiErrorEnum.Forbidden, "Regular user read an unmapped same-tenant account.").ConfigureAwait(false);
+
+                        RequestContext crossTenantRead = CreateRequest(scenario.TenantAUser, null);
+                        crossTenantRead.AccountId = scenario.TenantBAccountId;
+                        await AssertApiErrorAsync(scenario.AccountHandler.ReadAsync(crossTenantRead, token), ApiErrorEnum.Forbidden, "Regular user read a cross-tenant account.").ConfigureAwait(false);
+
+                        RequestContext debitReq = CreateRequest(scenario.TenantAUser, null);
+                        debitReq.AccountId = scenario.TenantAUserAccountId;
+                        SetJsonBody(debitReq, new AddEntriesRequest { Amount = 12m, Notes = "mapped debit", Labels = new List<string> { "blue" }, Tags = new Dictionary<string, string> { { "color", "blue" } } });
+                        await AssertApiSuccessAsync(scenario.EntryHandler.AddDebitsAsync(debitReq, token), "Regular user could not create a debit on a mapped account.").ConfigureAwait(false);
+
+                        RequestContext unmappedDebitReq = CreateRequest(scenario.TenantAUser, null);
+                        unmappedDebitReq.AccountId = scenario.TenantAUnmappedAccountId;
+                        SetJsonBody(unmappedDebitReq, new AddEntriesRequest { Amount = 12m, Notes = "unmapped debit" });
+                        await AssertApiErrorAsync(scenario.EntryHandler.AddDebitsAsync(unmappedDebitReq, token), ApiErrorEnum.Forbidden, "Regular user created a debit on an unmapped account.").ConfigureAwait(false);
+
+                        RequestContext balanceReq = CreateRequest(scenario.TenantAUser, null);
+                        balanceReq.AccountId = scenario.TenantAUserAccountId;
+                        await AssertApiSuccessAsync(scenario.BalanceHandler.GetBalanceAsync(balanceReq, token), "Regular user could not read a mapped account balance.").ConfigureAwait(false);
+
+                        RequestContext unmappedBalanceReq = CreateRequest(scenario.TenantAUser, null);
+                        unmappedBalanceReq.AccountId = scenario.TenantAUnmappedAccountId;
+                        await AssertApiErrorAsync(scenario.BalanceHandler.GetBalanceAsync(unmappedBalanceReq, token), ApiErrorEnum.Forbidden, "Regular user read an unmapped account balance.").ConfigureAwait(false);
+                        await AssertApiErrorAsync(scenario.BalanceHandler.GetAllBalancesAsync(CreateRequest(scenario.TenantAUser, null), token), ApiErrorEnum.Forbidden, "Regular user enumerated all balances.").ConfigureAwait(false);
+                    }),
+                    new TestCaseDescriptor(suiteId, "identity_api_enforces_role_boundaries_and_redacts_secrets", "Identity API calls respect role boundaries and never return password hashes", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        RequestContext selfRead = CreateRequest(scenario.TenantAUser, scenario.TenantA.Id);
+                        selfRead.UserId = scenario.TenantAUser.Id;
+                        ResponseContext selfResponse = await AssertApiSuccessAsync(scenario.IdentityHandler.ReadUserAsync(selfRead, token), "Regular user could not read self.").ConfigureAwait(false);
+                        User? self = selfResponse.Data as User;
+                        Assert(self != null && String.IsNullOrEmpty(self.PasswordSha256), "Self-read user response exposed a password hash.");
+
+                        RequestContext otherRead = CreateRequest(scenario.TenantAUser, scenario.TenantA.Id);
+                        otherRead.UserId = scenario.TenantAOtherUser.Id;
+                        await AssertApiErrorAsync(scenario.IdentityHandler.ReadUserAsync(otherRead, token), ApiErrorEnum.Forbidden, "Regular user read another same-tenant user.").ConfigureAwait(false);
+
+                        await AssertApiErrorAsync(scenario.IdentityHandler.EnumerateUsersAsync(CreateRequest(scenario.TenantAUser, scenario.TenantA.Id), token), ApiErrorEnum.Forbidden, "Regular user enumerated users.").ConfigureAwait(false);
+
+                        RequestContext regularCreate = CreateRequest(scenario.TenantAUser, scenario.TenantA.Id);
+                        SetJsonBody(regularCreate, new CreateUserRequest { Email = "regular-created-" + UniqueSuffix(24) + "@example.com", Password = "password", IsAdmin = true, IsTenantAdmin = true });
+                        await AssertApiErrorAsync(scenario.IdentityHandler.CreateUserAsync(regularCreate, token), ApiErrorEnum.Forbidden, "Regular user created or escalated a user.").ConfigureAwait(false);
+
+                        RequestContext tenantAdminCreate = CreateRequest(scenario.TenantAAdmin, scenario.TenantA.Id);
+                        SetJsonBody(tenantAdminCreate, new CreateUserRequest { Email = "tenant-admin-created-" + UniqueSuffix(24) + "@example.com", Password = "password", IsAdmin = false, IsTenantAdmin = false });
+                        ResponseContext tenantAdminCreateResponse = await AssertApiSuccessAsync(scenario.IdentityHandler.CreateUserAsync(tenantAdminCreate, token), "Tenant admin could not create an own-tenant user.").ConfigureAwait(false);
+                        User? created = tenantAdminCreateResponse.Data as User;
+                        Assert(created != null && created.TenantId == scenario.TenantA.Id, "Tenant-admin-created user had the wrong tenant.");
+                        Assert(created != null && String.IsNullOrEmpty(created.PasswordSha256), "Created user response exposed a password hash.");
+
+                        RequestContext crossTenantCreate = CreateRequest(scenario.TenantAAdmin, scenario.TenantB.Id);
+                        SetJsonBody(crossTenantCreate, new CreateUserRequest { Email = "cross-created-" + UniqueSuffix(24) + "@example.com", Password = "password" });
+                        await AssertApiErrorAsync(scenario.IdentityHandler.CreateUserAsync(crossTenantCreate, token), ApiErrorEnum.Forbidden, "Tenant admin created a user in another tenant.").ConfigureAwait(false);
+                    }),
+                    new TestCaseDescriptor(suiteId, "entry_handler_preserves_complex_enumeration_filters_under_security_scope", "Entry enumeration applies amount, label, tag, and ordering filters within the authorized account", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        await scenario.Ledger.AddDebitAsync(scenario.TenantAUserAccountId, 10m, "matching low debit", null, false, new List<string> { "blue" }, new Dictionary<string, string> { { "color", "blue" } }, scenario.TenantA.Id, token).ConfigureAwait(false);
+                        await scenario.Ledger.AddDebitAsync(scenario.TenantAUserAccountId, 25m, "matching high debit", null, false, new List<string> { "blue" }, new Dictionary<string, string> { { "color", "blue" } }, scenario.TenantA.Id, token).ConfigureAwait(false);
+                        await scenario.Ledger.AddDebitAsync(scenario.TenantAUserAccountId, 60m, "too large debit", null, false, new List<string> { "blue" }, new Dictionary<string, string> { { "color", "blue" } }, scenario.TenantA.Id, token).ConfigureAwait(false);
+                        await scenario.Ledger.AddDebitAsync(scenario.TenantAUserAccountId, 30m, "wrong metadata debit", null, false, new List<string> { "red" }, new Dictionary<string, string> { { "color", "red" } }, scenario.TenantA.Id, token).ConfigureAwait(false);
+                        await scenario.Ledger.AddCreditAsync(scenario.TenantAUserAccountId, 40m, "wrong metadata credit", null, false, new List<string> { "blue" }, new Dictionary<string, string> { { "color", "green" } }, scenario.TenantA.Id, token).ConfigureAwait(false);
+
+                        RequestContext enumerateReq = CreateRequest(scenario.TenantAUser, null);
+                        enumerateReq.AccountId = scenario.TenantAUserAccountId;
+                        SetJsonBody(enumerateReq, new EnumerationQuery
+                        {
+                            DebitMinimum = 5m,
+                            DebitMaximum = 50m,
+                            Labels = new List<string> { "blue" },
+                            Tags = new Dictionary<string, string> { { "color", "blue" } },
+                            Ordering = EnumerationOrderEnum.AmountDescending
+                        });
+
+                        ResponseContext response = await AssertApiSuccessAsync(scenario.EntryHandler.EnumerateAsync(enumerateReq, token), "Complex entry enumeration failed.").ConfigureAwait(false);
+                        EnumerationResult<Entry> entries = AssertEnumerationResult<Entry>(response, "Entry enumeration did not return an enumeration result.");
+                        List<Entry> matchingEntries = entries.Objects.Where(entry => entry.Type == EntryType.Debit).ToList();
+                        Assert(matchingEntries.Count == 2, "Entry enumeration did not return exactly the matching debit entries.");
+                        Assert(matchingEntries[0].Amount == 25m && matchingEntries[1].Amount == 10m, "Entry enumeration did not preserve amount-descending order.");
+                        Assert(matchingEntries.All(entry => entry.TenantId == scenario.TenantA.Id && entry.AccountId == scenario.TenantAUserAccountId), "Entry enumeration returned data outside the authorized account.");
+                    }),
                     new TestCaseDescriptor(suiteId, "effective_permissions_report_role_boundaries", "Effective permissions expose admin flags and scoped regular-user permissions", async token =>
                     {
                         await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
@@ -546,6 +933,15 @@ namespace Test.Shared
                             permission.ResourceType == "User" &&
                             permission.OperationType == "Read" &&
                             permission.ResourceId == scenario.TenantAUser.Id), "Regular user self-read permission missing.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "admin_credential_auth_context_has_system_admin_privileges", "Admin credentials are treated as system-admin principals", _ =>
+                    {
+                        AuthContext adminContext = AuthContext.Success(new ApiKey("admin-test", true));
+                        AuthContext regularContext = AuthContext.Success(new ApiKey("regular-test", false));
+
+                        Assert(adminContext.IsAdmin, "Admin credential did not produce system-admin auth context.");
+                        Assert(!regularContext.IsAdmin, "Regular credential produced system-admin auth context.");
+                        return Task.CompletedTask;
                     }),
                     new TestCaseDescriptor(suiteId, "credential_enumeration_is_scoped_by_role_and_tenant", "Credential enumeration never leaks cross-tenant or other-user credentials", async token =>
                     {
@@ -571,7 +967,7 @@ namespace Test.Shared
                     {
                         await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
 
-                        string systemCreatedName = "system-created-" + Guid.NewGuid().ToString("N");
+                        string systemCreatedName = "system-created-" + UniqueSuffix(24);
                         await AssertCredentialSuccessAsync(CreateCredentialAsync(
                             scenario,
                             scenario.SystemAdmin,
@@ -590,13 +986,13 @@ namespace Test.Shared
                             scenario,
                             scenario.TenantAAdmin,
                             null,
-                            "tenant-admin-cross-" + Guid.NewGuid().ToString("N"),
+                            "tenant-admin-cross-" + UniqueSuffix(24),
                             scenario.TenantB.Id,
                             scenario.TenantBUser.Id,
                             false,
                             token), "Tenant admin created a cross-tenant credential.").ConfigureAwait(false);
 
-                        string tenantAdminCreatedName = "tenant-admin-created-" + Guid.NewGuid().ToString("N");
+                        string tenantAdminCreatedName = "tenant-admin-created-" + UniqueSuffix(24);
                         await AssertCredentialSuccessAsync(CreateCredentialAsync(
                             scenario,
                             scenario.TenantAAdmin,
@@ -615,13 +1011,13 @@ namespace Test.Shared
                             scenario,
                             scenario.TenantAUser,
                             null,
-                            "regular-cross-" + Guid.NewGuid().ToString("N"),
+                            "regular-cross-" + UniqueSuffix(24),
                             scenario.TenantB.Id,
                             scenario.TenantBUser.Id,
                             true,
                             token), "Regular user created a cross-tenant credential.").ConfigureAwait(false);
 
-                        string regularCreatedName = "regular-created-" + Guid.NewGuid().ToString("N");
+                        string regularCreatedName = "regular-created-" + UniqueSuffix(24);
                         await AssertCredentialSuccessAsync(CreateCredentialAsync(
                             scenario,
                             scenario.TenantAUser,
@@ -708,9 +1104,27 @@ namespace Test.Shared
                 User tenantAOtherUser = await CreateScenarioUserAsync(ledger, tenantA.Id, "tenant-a-other-user", false, false, token).ConfigureAwait(false);
                 User tenantBUser = await CreateScenarioUserAsync(ledger, tenantB.Id, "tenant-b-user", false, false, token).ConfigureAwait(false);
 
-                string tenantAUserAccountId = await ledger.CreateAccountAsync("tenant-a-mapped", null, null, null, tenantA.Id, token).ConfigureAwait(false);
-                string tenantAUnmappedAccountId = await ledger.CreateAccountAsync("tenant-a-unmapped", null, null, null, tenantA.Id, token).ConfigureAwait(false);
-                string tenantBAccountId = await ledger.CreateAccountAsync("tenant-b-mapped", null, null, null, tenantB.Id, token).ConfigureAwait(false);
+                string tenantAUserAccountId = await ledger.CreateAccountAsync(
+                    "tenant-a-mapped",
+                    null,
+                    new List<string> { "mapped", "blue" },
+                    new Dictionary<string, string> { { "color", "blue" }, { "scope", "tenant-a" } },
+                    tenantA.Id,
+                    token).ConfigureAwait(false);
+                string tenantAUnmappedAccountId = await ledger.CreateAccountAsync(
+                    "tenant-a-unmapped",
+                    null,
+                    new List<string> { "unmapped", "red" },
+                    new Dictionary<string, string> { { "color", "red" }, { "scope", "tenant-a" } },
+                    tenantA.Id,
+                    token).ConfigureAwait(false);
+                string tenantBAccountId = await ledger.CreateAccountAsync(
+                    "tenant-b-mapped",
+                    null,
+                    new List<string> { "mapped", "green" },
+                    new Dictionary<string, string> { { "color", "green" }, { "scope", "tenant-b" } },
+                    tenantB.Id,
+                    token).ConfigureAwait(false);
 
                 await ledger.Driver.AccountUserMaps.CreateAsync(new AccountUserMap
                 {
@@ -731,7 +1145,12 @@ namespace Test.Shared
 
                 ServerSettings settings = new ServerSettings();
                 AuthService authService = new AuthService(settings, logging, ledger.Driver);
+                AuthorizationService authorizationService = new AuthorizationService(ledger.Driver, logging);
                 ApiKeyHandler credentialHandler = new ApiKeyHandler(settings, logging, authService);
+                AccountHandler accountHandler = new AccountHandler(settings, logging, ledger, authorizationService);
+                EntryHandler entryHandler = new EntryHandler(settings, logging, ledger, authorizationService);
+                BalanceHandler balanceHandler = new BalanceHandler(settings, logging, ledger, authorizationService);
+                IdentityHandler identityHandler = new IdentityHandler(settings, logging, ledger.Driver, authService, authorizationService);
 
                 ApiKey tenantAUserCredential = await authService.CreateApiKeyAsync("tenant-a-user-credential", false, tenantA.Id, tenantAUser.Id, token).ConfigureAwait(false);
                 ApiKey tenantAOtherUserCredential = await authService.CreateApiKeyAsync("tenant-a-other-user-credential", false, tenantA.Id, tenantAOtherUser.Id, token).ConfigureAwait(false);
@@ -739,9 +1158,13 @@ namespace Test.Shared
 
                 return new SecurityScenario(
                     ledger,
-                    new AuthorizationService(ledger.Driver, logging),
+                    authorizationService,
                     authService,
                     credentialHandler,
+                    accountHandler,
+                    entryHandler,
+                    balanceHandler,
+                    identityHandler,
                     tenantA,
                     tenantB,
                     systemAdmin,
@@ -775,7 +1198,7 @@ namespace Test.Shared
             return await ledger.Driver.Users.CreateAsync(new User
             {
                 TenantId = tenantId,
-                Email = emailPrefix + "-" + Guid.NewGuid().ToString("N") + "@example.com",
+                Email = emailPrefix + "-" + UniqueSuffix(24) + "@example.com",
                 PasswordSha256 = Credential.HashSecret("password"),
                 IsAdmin = isAdmin,
                 IsTenantAdmin = isTenantAdmin
@@ -793,6 +1216,63 @@ namespace Test.Shared
                     UserId = user.Id
                 })
             };
+        }
+
+        private static async Task AssertBalanceAsync(
+            Ledger ledger,
+            string accountId,
+            decimal expectedCommitted,
+            decimal expectedPending,
+            decimal expectedNetPending,
+            int expectedPendingCredits,
+            int expectedPendingDebits,
+            CancellationToken token,
+            string step)
+        {
+            Balance balance = await ledger.GetBalanceAsync(accountId, true, token).ConfigureAwait(false);
+            Assert(balance.CommittedBalance == expectedCommitted, step + ": committed balance expected " + expectedCommitted + " but was " + balance.CommittedBalance + ".");
+            Assert(balance.PendingBalance == expectedPending, step + ": pending balance expected " + expectedPending + " but was " + balance.PendingBalance + ".");
+            Assert(balance.PendingCredits.Count == expectedPendingCredits, step + ": pending credit count expected " + expectedPendingCredits + " but was " + balance.PendingCredits.Count + ".");
+            Assert(balance.PendingDebits.Count == expectedPendingDebits, step + ": pending debit count expected " + expectedPendingDebits + " but was " + balance.PendingDebits.Count + ".");
+            Assert(balance.PendingCredits.Total - balance.PendingDebits.Total == expectedNetPending, step + ": net pending expected " + expectedNetPending + " but was " + (balance.PendingCredits.Total - balance.PendingDebits.Total) + ".");
+            Assert(balance.PendingBalance == balance.CommittedBalance + balance.PendingCredits.Total - balance.PendingDebits.Total, step + ": pending balance formula is inconsistent.");
+        }
+
+        private static RequestContext CreateUnauthenticatedRequest(string? tenantId)
+        {
+            return new RequestContext
+            {
+                TenantId = tenantId,
+                Auth = AuthContext.Failed(AuthResult.NoCredentials, "No credentials provided")
+            };
+        }
+
+        private static void SetJsonBody(RequestContext req, object body)
+        {
+            string json = JsonSerializer.Serialize(body);
+            req.Data = Encoding.UTF8.GetBytes(json);
+            req.ContentLength = req.Data.Length;
+        }
+
+        private static async Task<ResponseContext> AssertApiSuccessAsync(Task<ResponseContext> responseTask, string message)
+        {
+            ResponseContext response = await responseTask.ConfigureAwait(false);
+            Assert(response.Success, message + " Status=" + response.StatusCode + " Error=" + response.Error?.Description);
+            return response;
+        }
+
+        private static async Task<ResponseContext> AssertApiErrorAsync(Task<ResponseContext> responseTask, ApiErrorEnum expectedError, string message)
+        {
+            ResponseContext response = await responseTask.ConfigureAwait(false);
+            Assert(!response.Success && response.StatusCode == (int)expectedError, message + " Status=" + response.StatusCode + " Error=" + response.Error?.Description);
+            return response;
+        }
+
+        private static EnumerationResult<T> AssertEnumerationResult<T>(ResponseContext response, string message)
+        {
+            EnumerationResult<T>? result = response.Data as EnumerationResult<T>;
+            Assert(result != null, message);
+            return result!;
         }
 
         private static async Task AssertPermitAsync(
@@ -845,7 +1325,7 @@ namespace Test.Shared
                 String.Equals(resourceType, "Balance", StringComparison.OrdinalIgnoreCase)) &&
                 !String.IsNullOrEmpty(resourceId))
             {
-                req.AccountGuid = resourceId;
+                req.AccountId = resourceId;
             }
         }
 
@@ -884,7 +1364,7 @@ namespace Test.Shared
         private static Task<ResponseContext> RevokeCredentialAsync(SecurityScenario scenario, User user, string? requestTenantId, string credentialId, CancellationToken token)
         {
             RequestContext req = CreateRequest(user, requestTenantId);
-            req.ApiKeyGuid = credentialId;
+            req.CredentialId = credentialId;
             return scenario.CredentialHandler.RevokeAsync(req, token);
         }
 
@@ -939,8 +1419,8 @@ namespace Test.Shared
             }
 
             DatabaseSettings settings = CreateProviderSettings(type);
-            string tenantId = "ten_test_" + Guid.NewGuid().ToString("N").Substring(0, 16);
-            string userId = "usr_test_" + Guid.NewGuid().ToString("N").Substring(0, 16);
+            string tenantId = "ten_test_" + UniqueSuffix(16);
+            string userId = "usr_test_" + UniqueSuffix(16);
 
             await using Ledger ledger = new Ledger(settings);
 
@@ -956,7 +1436,7 @@ namespace Test.Shared
             User user = await ledger.Driver.Users.CreateAsync(new User
             {
                 TenantId = tenantId,
-                Email = "provider-" + Guid.NewGuid().ToString("N") + "@example.com",
+                Email = "provider-" + UniqueSuffix(24) + "@example.com",
                 PasswordSha256 = Credential.HashSecret("provider-password"),
                 IsTenantAdmin = true
             }, token).ConfigureAwait(false);
@@ -979,7 +1459,7 @@ namespace Test.Shared
                 tenantId,
                 token).ConfigureAwait(false);
 
-            Account account = await ledger.GetAccountByGuidAsync(accountId, token).ConfigureAwait(false);
+            Account account = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
             Assert(account.TenantId == tenantId, type + " account tenant did not persist.");
             Assert(account.Labels.Contains("provider"), type + " account label did not persist.");
             Assert(account.Tags["engine"] == type.ToString(), type + " account tag did not persist.");
@@ -1035,7 +1515,7 @@ namespace Test.Shared
             };
 
             ApiKey created = await ledger.Driver.ApiKeys.CreateAsync(credential, token).ConfigureAwait(false);
-            ApiKey read = await ledger.Driver.ApiKeys.ReadByGuidAsync(created.Id, token).ConfigureAwait(false);
+            ApiKey read = await ledger.Driver.ApiKeys.ReadByIdAsync(created.Id, token).ConfigureAwait(false);
             Assert(read.TenantId == tenantId, type + " credential tenant did not persist.");
             Assert(read.UserId == userId, type + " credential user did not persist.");
             Assert(read.SecretKeySha256 == credential.SecretKeySha256, type + " credential secret verifier did not persist.");

@@ -196,7 +196,7 @@ import {
 } from 'netledger-sdk';
 
 try {
-    const account = await client.account.get(accountGuid);
+    const account = await client.account.get(accountId);
 } catch (err) {
     if (err instanceof NetLedgerConnectionError) {
         // Unable to connect to the server

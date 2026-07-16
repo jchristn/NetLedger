@@ -79,7 +79,7 @@ namespace NetLedger.Server.API.REST
         {
             ctx.Response.StatusCode = resp.StatusCode;
             ctx.Response.ContentType = Constants.JsonContentType;
-            ctx.Response.Headers.Add(Constants.RequestGuidHeader, resp.RequestGuid.ToString());
+            ctx.Response.Headers.Add(Constants.RequestIdHeader, resp.RequestId.ToString());
 
             if (ctx.Request.Method == HttpMethod.HEAD)
             {

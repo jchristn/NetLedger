@@ -67,16 +67,22 @@ function buildYAxisLabels(maxValue, maxLabels = 5) {
   return labels
 }
 
-function shouldShowXAxisLabel(index, totalCount, maxLabels = 8) {
+function shouldShowXAxisLabel(index, totalCount, maxLabels = 5) {
   if (totalCount <= maxLabels) return true
   if (index === 0 || index === totalCount - 1) return true
   return index % Math.ceil(totalCount / maxLabels) === 0
 }
 
+function xAxisLabelClass(index, totalCount) {
+  if (index === 0) return 'history-x-label history-label-start'
+  if (index === totalCount - 1) return 'history-x-label history-label-end'
+  return 'history-x-label'
+}
+
 function formatChartLabel(timestamp) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 function getBucketTimestampRows(bucket) {
@@ -307,16 +313,9 @@ export default function RequestHistory() {
           <h2 className="page-title">Request History</h2>
           <p className="page-description">Review API traffic captured for your authorization scope.</p>
         </div>
-        {!isRegularUser && (
-          <div className="page-header-actions">
-            <button className="btn btn-danger" onClick={() => setDeleteManyOpen(true)} disabled={totalRecords === 0}>
-              Delete Matching
-            </button>
-          </div>
-        )}
       </div>
 
-      <Summary summary={summary} loading={loading} />
+      <SummaryStats summary={summary} />
 
       <section className="request-history-panel">
         <div className="request-history-panel-header">
@@ -362,9 +361,16 @@ export default function RequestHistory() {
           <div className="filter-actions">
             <button type="submit" className="btn btn-primary">Apply</button>
             <button type="button" className="btn btn-secondary" onClick={resetFilters}>Reset</button>
+            {!isRegularUser && (
+              <button type="button" className="btn btn-danger" onClick={() => setDeleteManyOpen(true)} disabled={totalRecords === 0}>
+                Delete Matching
+              </button>
+            )}
           </div>
         </form>
       </section>
+
+      <TrafficChartPanel summary={summary} loading={loading} />
 
       <section className="request-history-panel request-history-table-panel">
         <div className="request-history-panel-header">
@@ -423,12 +429,11 @@ export default function RequestHistory() {
   )
 }
 
-function Summary({ summary, loading }) {
+function SummaryStats({ summary }) {
   const total = valueOf(summary, 'TotalCount') || 0
   const success = valueOf(summary, 'TotalSuccess') || 0
   const failed = valueOf(summary, 'TotalFailure') || 0
   const average = valueOf(summary, 'AverageDurationMs')
-  const buckets = valueOf(summary, 'Buckets') || []
 
   return (
     <section className="request-history-summary">
@@ -450,19 +455,26 @@ function Summary({ summary, loading }) {
           <strong>{formatDuration(average)}</strong>
         </div>
       </div>
-      <div className="request-history-chart-card">
-        <div className="request-history-chart-header">
-          <div>
-            <h3>Traffic over Time</h3>
-            <p>Successful and failed requests grouped by server summary buckets.</p>
-          </div>
-          {loading && <span>Loading...</span>}
+    </section>
+  )
+}
+
+function TrafficChartPanel({ summary, loading }) {
+  const buckets = valueOf(summary, 'Buckets') || []
+
+  return (
+    <section className="request-history-chart-card">
+      <div className="request-history-chart-header">
+        <div>
+          <h3>Traffic over Time</h3>
+          <p>Successful and failed requests grouped by server summary buckets.</p>
         </div>
-        <SummaryChart buckets={buckets} />
-        <div className="request-history-chart-legend">
-          <span><i className="legend-success"></i>Success</span>
-          <span><i className="legend-failure"></i>Failed</span>
-        </div>
+        {loading && <span>Loading...</span>}
+      </div>
+      <SummaryChart buckets={buckets} />
+      <div className="request-history-chart-legend">
+        <span><i className="legend-success"></i>Success</span>
+        <span><i className="legend-failure"></i>Failed</span>
       </div>
     </section>
   )
@@ -515,7 +527,7 @@ function SummaryChart({ buckets }) {
                 </>
               )}
               {shouldShowXAxisLabel(index, visibleBuckets.length) && (
-                <text x={x + barWidth / 2} y={chartHeight - 15} className="history-x-label">{formatChartLabel(valueOf(bucket, 'BucketStartUtc'))}</text>
+                <text x={x + barWidth / 2} y={chartHeight - 15} className={xAxisLabelClass(index, visibleBuckets.length)}>{formatChartLabel(valueOf(bucket, 'BucketStartUtc'))}</text>
               )}
               <title>{`${formatDate(valueOf(bucket, 'BucketStartUtc'))}: ${total} requests`}</title>
               <rect
@@ -564,7 +576,7 @@ function RequestDetailModal({ entry, onClose }) {
   const path = valueOf(entry, 'Path') || '-'
 
   return (
-    <Modal isOpen={Boolean(entry)} onClose={onClose} title="Request History Entry" size="large">
+    <Modal isOpen={Boolean(entry)} onClose={onClose} title="Request History Entry" size="request-history">
       <div className="request-detail">
         <div className="request-detail-hero">
           <div className="request-detail-route">

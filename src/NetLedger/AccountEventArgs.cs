@@ -8,18 +8,9 @@ namespace NetLedger
     public class AccountEventArgs : EventArgs
     {
         /// <summary>
-        /// Globally-unique identifier for the account.
+        /// Account identifier.
         /// </summary>
         public string Id { get; private set; } = String.Empty;
-
-        /// <summary>
-        /// Legacy account identifier alias.
-        /// </summary>
-        public string GUID
-        {
-            get { return Id; }
-            private set { Id = value; }
-        }
 
         /// <summary>
         /// Name of the account.
@@ -40,7 +31,7 @@ namespace NetLedger
         {
             if (a == null) throw new ArgumentNullException(nameof(a));
 
-            GUID = a.GUID;
+            Id = a.Id;
             Name = a.Name;
             Notes = a.Notes;
             CreatedUtc = a.CreatedUtc;

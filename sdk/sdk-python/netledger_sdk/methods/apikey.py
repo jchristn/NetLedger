@@ -71,15 +71,15 @@ class ApiKeyMethods:
 
         return EnumerationResult.from_dict(response.data, ApiKeyInfo.from_dict)
 
-    def revoke(self, api_key_guid: str) -> None:
+    def revoke(self, api_key_id: str) -> None:
         """
         Revoke (delete) an API key.
 
         Args:
-            api_key_guid: The API key GUID.
+            api_key_id: The API key identifier.
 
         Raises:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error (401 if not authorized, 404 if not found).
         """
-        self._client.delete(f'/v1/credentials/{api_key_guid}')
+        self._client.delete(f'/v1/credentials/{api_key_id}')

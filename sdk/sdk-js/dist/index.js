@@ -40,10 +40,10 @@ __exportStar(require("./errors"), exports);
  * const account = await client.account.create('My Account');
  *
  * // Add a credit
- * const credit = await client.entry.addCredit(account.guid, 100.00, 'Initial deposit');
+ * const credit = await client.entry.addCredit(account.id, 100.00, 'Initial deposit');
  *
  * // Get balance
- * const balance = await client.balance.get(account.guid);
+ * const balance = await client.balance.get(account.id);
  * ```
  */
 class NetLedgerClient {

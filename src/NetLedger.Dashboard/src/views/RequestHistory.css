@@ -127,6 +127,14 @@
   text-anchor: middle;
 }
 
+.history-label-start {
+  text-anchor: start;
+}
+
+.history-label-end {
+  text-anchor: end;
+}
+
 .history-bar-success {
   fill: var(--color-success);
   opacity: 0.86;
@@ -248,6 +256,8 @@
   display: flex;
   align-items: end;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  grid-column: span 2;
 }
 
 .request-history-table-panel {
@@ -485,6 +495,10 @@
   }
 
   .request-history-filters .filter-wide {
+    grid-column: auto;
+  }
+
+  .filter-actions {
     grid-column: auto;
   }
 

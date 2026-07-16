@@ -44,7 +44,7 @@ namespace NetLedger.Database.SqlServer.Implementations
                 "INSERT INTO [accounts] ([guid], [name], [notes], [createdutc]) " +
                 "OUTPUT INSERTED.[id] " +
                 "VALUES (" +
-                "'" + account.GUID.ToString() + "', " +
+                "'" + account.Id.ToString() + "', " +
                 "'" + Sanitize(account.Name) + "', " +
                 (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + ", " +
                 "'" + account.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'" +
@@ -61,9 +61,9 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Account> ReadByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<Account> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT TOP 1 * FROM [accounts] WHERE [guid] = '" + guid.ToString() + "';";
+            string query = "SELECT TOP 1 * FROM [accounts] WHERE [guid] = '" + id.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -167,7 +167,7 @@ namespace NetLedger.Database.SqlServer.Implementations
             // Set continuation token if there are more records
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
@@ -182,7 +182,7 @@ namespace NetLedger.Database.SqlServer.Implementations
                 "UPDATE [accounts] SET " +
                 "[name] = '" + Sanitize(account.Name) + "', " +
                 "[notes] = " + (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + " " +
-                "WHERE [guid] = '" + account.GUID.ToString() + "';";
+                "WHERE [guid] = '" + account.Id.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -190,16 +190,16 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
+        public async Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "DELETE FROM [accounts] WHERE [guid] = '" + guid.ToString() + "';";
+            string query = "DELETE FROM [accounts] WHERE [guid] = '" + id.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM [accounts] WHERE [guid] = '" + guid.ToString() + "';";
+            string query = "SELECT COUNT(*) FROM [accounts] WHERE [guid] = '" + id.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
@@ -254,7 +254,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         {
             Account account = new Account();
             account.RowId = Convert.ToInt32(row["id"]);
-            account.GUID = row["guid"].ToString()!;
+            account.Id = row["guid"].ToString()!;
             account.Name = row["name"]?.ToString() ?? String.Empty;
             account.Notes = row["notes"] != DBNull.Value ? row["notes"]?.ToString() : null;
             account.CreatedUtc = DateTime.Parse(row["createdutc"].ToString()!);

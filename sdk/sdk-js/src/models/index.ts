@@ -64,11 +64,11 @@ export interface Entry {
     Amount: number;
     /** Optional description. */
     Description?: string;
-    /** For balance entries, the GUID of the replaced balance. */
+    /** For balance entries, the Identifier of the replaced balance. */
     Replaces?: string;
     /** Whether the entry is committed. */
     IsCommitted: boolean;
-    /** GUID of the balance entry that committed this. */
+    /** Identifier of the balance entry that committed this. */
     CommittedById?: string;
     /** Entry labels. */
     Labels: string[];
@@ -100,8 +100,8 @@ export interface EntryInput {
  * Response from adding entries.
  */
 export interface AddEntriesResponse {
-    /** GUIDs of created entries. */
-    EntryGuids: string[];
+    /** Identifiers of created entries. */
+    EntryIds: string[];
 }
 
 /**
@@ -109,8 +109,8 @@ export interface AddEntriesResponse {
  * Note: Properties are lowercase as returned by the server.
  */
 export interface HistoricalBalance {
-    /** Account GUID. */
-    accountGuid: string;
+    /** Account identifier. */
+    accountId: string;
     /** The timestamp this balance is as of. */
     asOfUtc: string;
     /** The balance value. */
@@ -133,8 +133,8 @@ export interface PendingTransactionSummary {
  * Represents an account balance.
  */
 export interface Balance {
-    /** Account GUID. */
-    AccountGUID: string;
+    /** Account identifier. */
+    AccountId: string;
     /** Committed (finalized) balance. */
     CommittedBalance: number;
     /** Pending balance (includes uncommitted entries). */
@@ -161,8 +161,8 @@ export interface CommitResult {
  * Request to commit entries.
  */
 export interface CommitRequest {
-    /** Specific entry GUIDs to commit (null = all). */
-    EntryGuids?: string[];
+    /** Specific entry identifiers to commit (null = all). */
+    EntryIds?: string[];
 }
 
 /**
@@ -459,8 +459,8 @@ export interface ApiResponse<T> {
     Data?: T;
     /** HTTP status code. */
     StatusCode: number;
-    /** Request GUID. */
-    RequestGuid?: string;
+    /** Request identifier. */
+    RequestId?: string;
 }
 
 /**

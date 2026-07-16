@@ -11,11 +11,11 @@ class BalanceMethods {
     }
     /**
      * Get the current balance for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns The account balance.
      */
-    async get(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}/balance`);
+    async get(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}/balance`);
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -23,13 +23,13 @@ class BalanceMethods {
     }
     /**
      * Get the historical balance as of a specific time.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param asOfUtc The UTC timestamp.
      * @returns The balance as of that time.
      */
-    async getAsOf(accountGuid, asOfUtc) {
+    async getAsOf(accountId, asOfUtc) {
         const asOf = asOfUtc.toISOString();
-        const response = await this.client.get(`/v1/accounts/${accountGuid}/balance/asof?asOf=${asOf}`);
+        const response = await this.client.get(`/v1/accounts/${accountId}/balance/asof?asOf=${asOf}`);
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -43,19 +43,19 @@ class BalanceMethods {
         const response = await this.client.get('/v1/balances');
         return response.Data || [];
     }
-    async commit(accountGuid, entryGuids) {
-        const body = entryGuids ? { EntryGuids: entryGuids } : null;
-        const response = await this.client.post(`/v1/accounts/${accountGuid}/commit`, body);
+    async commit(accountId, entryIds) {
+        const body = entryIds ? { EntryIds: entryIds } : null;
+        const response = await this.client.post(`/v1/accounts/${accountId}/commit`, body);
         return response.Data || { EntriesCommitted: 0 };
     }
     /**
      * Verify the balance chain integrity.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the balance chain is valid.
      */
-    async verify(accountGuid) {
+    async verify(accountId) {
         try {
-            const response = await this.client.get(`/v1/accounts/${accountGuid}/verify`);
+            const response = await this.client.get(`/v1/accounts/${accountId}/verify`);
             return response.StatusCode === 200;
         }
         catch (err) {

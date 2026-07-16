@@ -85,6 +85,11 @@ namespace NetLedger.Server.Authentication
 
             if (req.Auth.IsTenantAdmin)
             {
+                if (!await TenantAdminResourceBelongsToTenantAsync(req, tenantId, resourceType, resourceId, token).ConfigureAwait(false))
+                {
+                    return await DenyAsync(req, resourceType, operationType, resourceId, "Resource is outside the authenticated tenant", token).ConfigureAwait(false);
+                }
+
                 await WriteAuditAsync(req, tenantId, resourceType, operationType, resourceId, "Permit", "Tenant admin bypass", token).ConfigureAwait(false);
                 return AuthorizationDecision.Permit();
             }
@@ -340,9 +345,27 @@ namespace NetLedger.Server.Authentication
 
         private string? ResolveAccountId(RequestContext req, string resourceType, string? resourceId)
         {
-            if (!String.IsNullOrEmpty(req.AccountGuid)) return req.AccountGuid;
+            if (!String.IsNullOrEmpty(req.AccountId)) return req.AccountId;
             if (String.Equals(resourceType, "Account", StringComparison.OrdinalIgnoreCase)) return resourceId;
             return null;
+        }
+
+        private async Task<bool> TenantAdminResourceBelongsToTenantAsync(
+            RequestContext req,
+            string? tenantId,
+            string resourceType,
+            string? resourceId,
+            CancellationToken token)
+        {
+            if (String.IsNullOrEmpty(tenantId)) return false;
+
+            string? accountId = ResolveAccountId(req, resourceType, resourceId);
+            if (String.IsNullOrEmpty(accountId)) return true;
+
+            Account? account = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+            if (account == null) return true;
+
+            return String.Equals(account.TenantId, tenantId, StringComparison.Ordinal);
         }
 
         private async Task<AuthorizationDecision> DenyAsync(
@@ -379,7 +402,7 @@ namespace NetLedger.Server.Authentication
                 ResourceId = resourceId,
                 Result = result,
                 Reason = reason,
-                RequestId = req.RequestGuid.ToString()
+                RequestId = req.RequestId.ToString()
             };
 
             await _Driver.AuditRecords.CreateAsync(record, token).ConfigureAwait(false);

@@ -9,8 +9,8 @@ import './ApiKeys.css'
 function renderId(row) {
   const id = row.Id || row.id
   return (
-    <span className="guid-cell-wrapper">
-      <span className="guid-cell">{id}</span>
+    <span className="id-cell-wrapper">
+      <span className="id-cell">{id}</span>
       <CopyButton text={id} title="Copy ID" />
     </span>
   )
@@ -101,21 +101,21 @@ export default function Security() {
   }
 
   const tenantColumns = [
-    { key: 'id', label: 'ID', className: 'col-guid', render: renderId },
+    { key: 'id', label: 'ID', className: 'col-id', render: renderId },
     { key: 'name', label: 'Name', render: row => row.Name || row.name },
     { key: 'active', label: 'Active', render: row => (row.Active ?? row.active) ? 'Yes' : 'No' },
     { key: 'created', label: 'Created', className: 'col-date', render: row => formatDate(row.CreatedUtc || row.createdUtc) }
   ]
 
   const userColumns = [
-    { key: 'id', label: 'ID', className: 'col-guid', render: renderId },
+    { key: 'id', label: 'ID', className: 'col-id', render: renderId },
     { key: 'email', label: 'Email', render: row => row.Email || row.email },
     { key: 'role', label: 'Role', render: row => (row.IsAdmin || row.isAdmin) ? 'System Administrator' : (row.IsTenantAdmin || row.isTenantAdmin) ? 'Tenant Administrator' : 'User' },
     { key: 'active', label: 'Active', render: row => (row.Active ?? row.active) ? 'Yes' : 'No' }
   ]
 
   const sessionColumns = [
-    { key: 'id', label: 'ID', className: 'col-guid', render: renderId },
+    { key: 'id', label: 'ID', className: 'col-id', render: renderId },
     { key: 'user', label: 'User', render: row => row.UserId || row.userId },
     { key: 'active', label: 'Active', render: row => (row.Active ?? row.active) ? 'Yes' : 'No' },
     { key: 'expires', label: 'Expires', className: 'col-date', render: row => formatDate(row.ExpiresUtc || row.expiresUtc) }
@@ -130,14 +130,14 @@ export default function Security() {
   ]
 
   const roleColumns = [
-    { key: 'id', label: 'ID', className: 'col-guid', render: renderId },
+    { key: 'id', label: 'ID', className: 'col-id', render: renderId },
     { key: 'name', label: 'Name', render: row => row.Name || row.name },
     { key: 'builtIn', label: 'Built In', render: row => (row.IsBuiltIn || row.isBuiltIn) ? 'Yes' : 'No' },
     { key: 'protected', label: 'Protected', render: row => (row.IsProtected || row.isProtected) ? 'Yes' : 'No' }
   ]
 
   const permissionColumns = [
-    { key: 'id', label: 'ID', className: 'col-guid', render: renderId },
+    { key: 'id', label: 'ID', className: 'col-id', render: renderId },
     { key: 'name', label: 'Name', render: row => row.Name || row.name },
     { key: 'type', label: 'Type', render: row => row.PermissionType || row.permissionType },
     { key: 'resources', label: 'Resources', render: row => (row.ResourceTypes || row.resourceTypes || []).join(', ') },

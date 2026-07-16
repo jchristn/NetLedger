@@ -48,12 +48,12 @@ class AccountMethods:
             raise ValueError('No data returned from server')
         return Account.from_dict(response.data)
 
-    def get(self, account_guid: str) -> Account:
+    def get(self, account_id: str) -> Account:
         """
-        Get an account by GUID.
+        Get an account by identifier.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Returns:
             The account.
@@ -62,7 +62,7 @@ class AccountMethods:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error (404 if not found).
         """
-        response = self._client.get(f'/v1/accounts/{account_guid}')
+        response = self._client.get(f'/v1/accounts/{account_id}')
         if not response.data:
             raise ValueError('No data returned from server')
         return Account.from_dict(response.data)
@@ -91,12 +91,12 @@ class AccountMethods:
             raise ValueError('No data returned from server')
         return Account.from_dict(response.data)
 
-    def exists(self, account_guid: str) -> bool:
+    def exists(self, account_id: str) -> bool:
         """
         Check if an account exists.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Returns:
             True if the account exists.
@@ -104,20 +104,20 @@ class AccountMethods:
         Raises:
             NetLedgerConnectionError: If unable to connect to the server.
         """
-        return self._client.head(f'/v1/accounts/{account_guid}')
+        return self._client.head(f'/v1/accounts/{account_id}')
 
-    def delete(self, account_guid: str) -> None:
+    def delete(self, account_id: str) -> None:
         """
         Delete an account.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Raises:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error (404 if not found).
         """
-        self._client.delete(f'/v1/accounts/{account_guid}')
+        self._client.delete(f'/v1/accounts/{account_id}')
 
     def enumerate(self, query: Optional[AccountEnumerationQuery] = None) -> EnumerationResult:
         """

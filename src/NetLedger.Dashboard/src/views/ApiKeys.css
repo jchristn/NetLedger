@@ -15,14 +15,14 @@
   max-width: 260px;
 }
 
-/* GUID cell */
-.guid-cell-wrapper {
+/* ID cell */
+.id-cell-wrapper {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.guid-cell {
+.id-cell {
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
   font-size: 0.8125rem;
   color: var(--text-secondary);

@@ -152,21 +152,25 @@ namespace NetLedger.Database.Portable
             filter.FromUtc = fromUtc;
             filter.ToUtc = toUtc;
 
+            Dictionary<DateTime, BucketAccumulator> accumulators = BuildEmptyBuckets(fromUtc, toUtc, filter.BucketMinutes);
+            string bucketExpression = BuildBucketEpochExpression(filter.BucketMinutes);
+
             DataTable rows = await _Sql.ExecuteAsync(
-                "SELECT " + _Sql.Columns("statuscode", "durationms", "createdutc") +
-                " FROM " + _Sql.Table("requesthistory") + BuildWhereClause(filter) +
-                " ORDER BY " + _Sql.Column("createdutc") + " ASC;",
+                "SELECT " + bucketExpression + " AS bucketepoch, " +
+                "COUNT(*) AS totalcount, " +
+                "SUM(CASE WHEN " + _Sql.Column("statuscode") + " >= 200 AND " + _Sql.Column("statuscode") + " < 400 THEN 1 ELSE 0 END) AS successcount, " +
+                "SUM(CASE WHEN " + _Sql.Column("statuscode") + " >= 200 AND " + _Sql.Column("statuscode") + " < 400 THEN 0 ELSE 1 END) AS failurecount, " +
+                "SUM(" + _Sql.Column("durationms") + ") AS durationtotalms " +
+                "FROM " + _Sql.Table("requesthistory") + BuildWhereClause(filter) +
+                " GROUP BY " + bucketExpression +
+                " ORDER BY bucketepoch ASC;",
                 false,
                 token).ConfigureAwait(false);
 
-            Dictionary<DateTime, BucketAccumulator> accumulators = BuildEmptyBuckets(fromUtc, toUtc, filter.BucketMinutes);
-
             foreach (DataRow row in rows.Rows)
             {
-                int statusCode = Convert.ToInt32(row["statuscode"], CultureInfo.InvariantCulture);
-                double durationMs = Convert.ToDouble(row["durationms"], CultureInfo.InvariantCulture);
-                DateTime createdUtc = ParseDate(_Sql.Get(row, "createdutc"));
-                DateTime bucketStart = FloorToBucket(createdUtc, filter.BucketMinutes);
+                long bucketEpoch = Convert.ToInt64(Convert.ToDouble(row["bucketepoch"], CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+                DateTime bucketStart = DateTimeOffset.FromUnixTimeSeconds(bucketEpoch).UtcDateTime;
 
                 if (!accumulators.ContainsKey(bucketStart))
                 {
@@ -174,10 +178,10 @@ namespace NetLedger.Database.Portable
                 }
 
                 BucketAccumulator accumulator = accumulators[bucketStart];
-                accumulator.Count++;
-                accumulator.DurationTotalMs += durationMs;
-                if (statusCode >= 200 && statusCode < 400) accumulator.SuccessCount++;
-                else accumulator.FailureCount++;
+                accumulator.Count = Convert.ToInt32(row["totalcount"], CultureInfo.InvariantCulture);
+                accumulator.SuccessCount = Convert.ToInt32(row["successcount"], CultureInfo.InvariantCulture);
+                accumulator.FailureCount = Convert.ToInt32(row["failurecount"], CultureInfo.InvariantCulture);
+                accumulator.DurationTotalMs = Convert.ToDouble(row["durationtotalms"], CultureInfo.InvariantCulture);
             }
 
             foreach (BucketAccumulator accumulator in accumulators.Values)
@@ -273,6 +277,20 @@ namespace NetLedger.Database.Portable
             }
 
             return "LIMIT " + filter.MaxResults + " OFFSET " + filter.Skip;
+        }
+
+        private string BuildBucketEpochExpression(int bucketMinutes)
+        {
+            int bucketSeconds = Math.Max(1, bucketMinutes) * 60;
+            string created = _Sql.Column("createdutc");
+
+            return _DatabaseType switch
+            {
+                DatabaseTypeEnum.Mysql => "FLOOR(UNIX_TIMESTAMP(" + created + ") / " + bucketSeconds + ") * " + bucketSeconds,
+                DatabaseTypeEnum.Postgresql => "FLOOR(EXTRACT(EPOCH FROM " + created + "::timestamp) / " + bucketSeconds + ") * " + bucketSeconds,
+                DatabaseTypeEnum.SqlServer => "FLOOR(DATEDIFF_BIG(SECOND, '1970-01-01', " + created + ") / " + bucketSeconds + ".0) * " + bucketSeconds,
+                _ => "FLOOR(strftime('%s', " + created + ") / " + bucketSeconds + ") * " + bucketSeconds
+            };
         }
 
         private string NullableTimestamp(DateTime? value)

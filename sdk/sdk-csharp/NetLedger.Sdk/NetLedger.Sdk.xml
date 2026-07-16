@@ -2116,6 +2116,16 @@
             <param name="tenantId">Tenant identifier for x-tenant-id.</param>
             <exception cref="T:System.ArgumentNullException">Thrown when baseUrl or apiKey is null or empty.</exception>
         </member>
+        <member name="M:NetLedger.Sdk.NetLedgerClient.#ctor(System.String,System.String,System.String,System.Net.Http.HttpClient)">
+            <summary>
+            Instantiate a new tenant-scoped NetLedger client using an externally-managed HTTP client.
+            </summary>
+            <param name="baseUrl">The base URL of the NetLedger server.</param>
+            <param name="apiKey">The API key or credential access key for authentication.</param>
+            <param name="tenantId">Tenant identifier for x-tenant-id.</param>
+            <param name="httpClient">Externally-managed HTTP client.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when baseUrl, apiKey, or httpClient is null or empty.</exception>
+        </member>
         <member name="M:NetLedger.Sdk.NetLedgerClient.Dispose">
             <summary>
             Releases all resources used by the NetLedgerClient.

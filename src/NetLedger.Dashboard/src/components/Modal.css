@@ -35,6 +35,11 @@
   max-width: 800px;
 }
 
+.modal-request-history {
+  width: 100%;
+  max-width: min(1328px, calc(100vw - 2rem));
+}
+
 .modal-header {
   display: flex;
   align-items: center;

@@ -10,9 +10,9 @@ namespace NetLedger.Server.Models
         #region Public-Members
 
         /// <summary>
-        /// Request GUID.
+        /// Request identifier.
         /// </summary>
-        public Guid RequestGuid { get; set; }
+        public string RequestId { get; set; } = string.Empty;
 
         /// <summary>
         /// Whether the request was successful.
@@ -53,7 +53,7 @@ namespace NetLedger.Server.Models
         public ResponseContext(RequestContext req, object? data = null)
         {
             if (req == null) throw new ArgumentNullException(nameof(req));
-            RequestGuid = req.RequestGuid;
+            RequestId = req.RequestId;
             Success = true;
             StatusCode = 200;
             Data = data;
@@ -77,7 +77,7 @@ namespace NetLedger.Server.Models
 
             return new ResponseContext
             {
-                RequestGuid = req.RequestGuid,
+                RequestId = req.RequestId,
                 Success = false,
                 StatusCode = (int)error,
                 Error = new ApiErrorResponse(error, context, description)
@@ -98,7 +98,7 @@ namespace NetLedger.Server.Models
         {
             return new ResponseContext
             {
-                RequestGuid = Guid.Empty,
+                RequestId = string.Empty,
                 Success = false,
                 StatusCode = (int)error,
                 Error = new ApiErrorResponse(error, context, description)

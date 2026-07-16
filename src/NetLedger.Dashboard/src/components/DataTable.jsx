@@ -12,7 +12,7 @@ import './DataTable.css'
  * @param {boolean} props.loading - Loading state
  * @param {string} props.emptyMessage - Message when no data
  * @param {Function} props.onRowClick - Optional row click handler
- * @param {string} props.rowKey - Key to use for row identification (default: 'guid')
+ * @param {string} props.rowKey - Key to use for row identification (default: 'id')
  */
 export default function DataTable({
   columns,
@@ -25,7 +25,7 @@ export default function DataTable({
   onViewJson,
   onDelete,
   actions,
-  rowKey = 'guid'
+  rowKey = 'id'
 }) {
   const [sortColumn, setSortColumn] = useState(null)
   const [sortDirection, setSortDirection] = useState('asc')
@@ -37,7 +37,7 @@ export default function DataTable({
   const getRecordTitle = (row) => {
     if (!row) return 'Record'
 
-    return row.name || row.Name || row.email || row.Email || row.id || row.Id || row.guid || row.Guid || 'Record'
+    return row.name || row.Name || row.email || row.Email || row.id || row.Id || row.ID || 'Record'
   }
 
   const openEditRow = useCallback((row) => {

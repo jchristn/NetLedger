@@ -21,8 +21,8 @@ export declare class ApiKeyMethods {
     enumerate(query?: ApiKeyEnumerationQuery): Promise<EnumerationResult<ApiKeyInfo>>;
     /**
      * Revoke (delete) an API key.
-     * @param apiKeyGuid The API key GUID.
+     * @param apiKeyId The API key identifier.
      */
-    revoke(apiKeyGuid: string): Promise<void>;
+    revoke(apiKeyId: string): Promise<void>;
 }
 //# sourceMappingURL=apikey.d.ts.map

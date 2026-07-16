@@ -2,7 +2,7 @@
     "info":  {
                  "_postman_id":  "b96fef4f-51a0-42bf-a386-692ecc3297c3",
                  "name":  "NetLedger",
-                 "description":  "Comprehensive Postman collection for testing the NetLedger.Server REST API.\n\n## Variables\n- `{{protocol}}` - HTTP or HTTPS (default: http)\n- `{{hostname}}` - Server hostname (default: localhost)\n- `{{port}}` - Server port (default: 8080)\n- `{{apiKey}}` - Bearer token for authentication (see below)\n- `{{accountGuid}}` - Auto-captured account GUID\n- `{{entryGuid}}` - Auto-captured entry GUID\n- `{{credentialId}}` - Auto-captured credential GUID\n\n## Credential Setup\nThe server generates a random admin credential on first run if none is configured. Check the server console for: `created default admin credential: nlk_...`\n\nAlternatively, set `DefaultAdminKey` in your server settings before starting.",
+                 "description":  "Comprehensive Postman collection for testing the NetLedger.Server REST API.\n\n## Variables\n- `{{protocol}}` - HTTP or HTTPS (default: http)\n- `{{hostname}}` - Server hostname (default: localhost)\n- `{{port}}` - Server port (default: 8080)\n- `{{apiKey}}` - Bearer token for authentication (see below)\n- `{{accountId}}` - Auto-captured account identifier\n- `{{entryId}}` - Auto-captured entry identifier\n- `{{credentialId}}` - Auto-captured credential identifier\n\n## Credential Setup\nThe server generates a random admin credential on first run if none is configured. Check the server console for: `created default admin credential: nlk_...`\n\nAlternatively, set `DefaultAdminKey` in your server settings before starting.",
                  "schema":  "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
                  "_exporter_id":  "720438"
              },
@@ -103,15 +103,15 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has account data\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027GUID\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027Id\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Name\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture account GUID for subsequent requests",
+                                                                                    "// Capture account identifier for subsequent requests",
                                                                                     "var jsonData = pm.response.json();",
-                                                                                    "if (jsonData \u0026\u0026 jsonData.GUID) {",
-                                                                                    "    pm.collectionVariables.set(\"accountGuid\", jsonData.GUID);",
-                                                                                    "    console.log(\"Captured accountGuid: \" + jsonData.GUID);",
+                                                                                    "if (jsonData \u0026\u0026 jsonData.Id) {",
+                                                                                    "    pm.collectionVariables.set(\"accountId\", jsonData.Id);",
+                                                                                    "    console.log(\"Captured accountId: \" + jsonData.Id);",
                                                                                     "}"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -167,10 +167,10 @@
                                                                                     "    pm.expect(jsonData.Objects).to.be.an(\u0027array\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture first account GUID if available",
+                                                                                    "// Capture first account identifier if available",
                                                                                     "var jsonData = pm.response.json();",
                                                                                     "if (jsonData \u0026\u0026 jsonData.Objects \u0026\u0026 jsonData.Objects.length \u003e 0) {",
-                                                                                    "    pm.collectionVariables.set(\"accountGuid\", jsonData.Objects[0].GUID);",
+                                                                                    "    pm.collectionVariables.set(\"accountId\", jsonData.Objects[0].Id);",
                                                                                     "}",
                                                                                     "",
                                                                                     "// Capture continuation token if available",
@@ -235,7 +235,7 @@
                                                                                 {
                                                                                     "key":  "continuationToken",
                                                                                     "value":  "",
-                                                                                    "description":  "GUID for pagination continuation",
+                                                                                    "description":  "Identifier for pagination continuation",
                                                                                     "disabled":  true
                                                                                 }
                                                                             ]
@@ -319,7 +319,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -328,17 +328,17 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}"
+                                                                               "{{accountId}}"
                                                                            ]
                                                               },
-                                                      "description":  "Check if an account exists by GUID. Returns 200 if exists, 404 if not."
+                                                      "description":  "Check if an account exists by identifier. Returns 200 if exists, 404 if not."
                                                   },
                                       "response":  [
 
                                                    ]
                                   },
                                   {
-                                      "name":  "Get Account by GUID",
+                                      "name":  "Get Account by Identifier",
                                       "event":  [
                                                     {
                                                         "listen":  "test",
@@ -350,7 +350,7 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has account details\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027GUID\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027Id\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Name\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027CreatedUtc\u0027);",
                                                                                     "});"
@@ -365,7 +365,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -374,10 +374,10 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}"
+                                                                               "{{accountId}}"
                                                                            ]
                                                               },
-                                                      "description":  "Retrieve account details by GUID."
+                                                      "description":  "Retrieve account details by identifier."
                                                   },
                                       "response":  [
 
@@ -396,14 +396,14 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has account details\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027GUID\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027Id\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Name\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture account GUID",
+                                                                                    "// Capture account identifier",
                                                                                     "var jsonData = pm.response.json();",
-                                                                                    "if (jsonData \u0026\u0026 jsonData.GUID) {",
-                                                                                    "    pm.collectionVariables.set(\"accountGuid\", jsonData.GUID);",
+                                                                                    "if (jsonData \u0026\u0026 jsonData.Id) {",
+                                                                                    "    pm.collectionVariables.set(\"accountId\", jsonData.Id);",
                                                                                     "}"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -456,7 +456,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -465,10 +465,10 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}"
+                                                                               "{{accountId}}"
                                                                            ]
                                                               },
-                                                      "description":  "Delete an account by GUID. Warning: This is destructive."
+                                                      "description":  "Delete an account by identifier. Warning: This is destructive."
                                                   },
                                       "response":  [
 
@@ -491,17 +491,17 @@
                                                                                     "    pm.response.to.have.status(201);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "pm.test(\"Response has entry GUIDs\", function () {",
+                                                                                    "pm.test(\"Response has entry identifiers\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryGuids\u0027);",
-                                                                                    "    pm.expect(jsonData.EntryGuids).to.be.an(\u0027array\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryIds\u0027);",
+                                                                                    "    pm.expect(jsonData.EntryIds).to.be.an(\u0027array\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture entry GUID for subsequent requests",
+                                                                                    "// Capture entry identifier for subsequent requests",
                                                                                     "var jsonData = pm.response.json();",
-                                                                                    "if (jsonData \u0026\u0026 jsonData.EntryGuids \u0026\u0026 jsonData.EntryGuids.length \u003e 0) {",
-                                                                                    "    pm.collectionVariables.set(\"entryGuid\", jsonData.EntryGuids[0]);",
-                                                                                    "    console.log(\"Captured entryGuid: \" + jsonData.EntryGuids[0]);",
+                                                                                    "if (jsonData \u0026\u0026 jsonData.EntryIds \u0026\u0026 jsonData.EntryIds.length \u003e 0) {",
+                                                                                    "    pm.collectionVariables.set(\"entryId\", jsonData.EntryIds[0]);",
+                                                                                    "    console.log(\"Captured entryId: \" + jsonData.EntryIds[0]);",
                                                                                     "}"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -521,7 +521,7 @@
                                                                    "raw":  "{\n    \"Amount\": 500.00,\n    \"Notes\": \"Deposit from client payment\",\n    \"IsCommitted\": false\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/credits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/credits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -530,7 +530,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "credits"
                                                                            ]
                                                               },
@@ -551,11 +551,11 @@
                                                                                     "    pm.response.to.have.status(201);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "pm.test(\"Response has multiple entry GUIDs\", function () {",
+                                                                                    "pm.test(\"Response has multiple entry identifiers\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryGuids\u0027);",
-                                                                                    "    pm.expect(jsonData.EntryGuids).to.be.an(\u0027array\u0027);",
-                                                                                    "    pm.expect(jsonData.EntryGuids.length).to.be.greaterThan(1);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryIds\u0027);",
+                                                                                    "    pm.expect(jsonData.EntryIds).to.be.an(\u0027array\u0027);",
+                                                                                    "    pm.expect(jsonData.EntryIds.length).to.be.greaterThan(1);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -575,7 +575,7 @@
                                                                    "raw":  "{\n    \"Entries\": [\n        {\n            \"Amount\": 250.00,\n            \"Notes\": \"Batch credit 1 - Invoice #1001\"\n        },\n        {\n            \"Amount\": 175.50,\n            \"Notes\": \"Batch credit 2 - Invoice #1002\"\n        },\n        {\n            \"Amount\": 89.99,\n            \"Notes\": \"Batch credit 3 - Refund\"\n        }\n    ],\n    \"IsCommitted\": false\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/credits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/credits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -584,7 +584,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "credits"
                                                                            ]
                                                               },
@@ -605,9 +605,9 @@
                                                                                     "    pm.response.to.have.status(201);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "pm.test(\"Response has entry GUIDs\", function () {",
+                                                                                    "pm.test(\"Response has entry identifiers\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryGuids\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryIds\u0027);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -627,7 +627,7 @@
                                                                    "raw":  "{\n    \"Amount\": 1000.00,\n    \"Notes\": \"Initial deposit - immediately committed\",\n    \"IsCommitted\": true\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/credits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/credits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -636,7 +636,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "credits"
                                                                            ]
                                                               },
@@ -663,16 +663,16 @@
                                                                                     "    pm.response.to.have.status(201);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "pm.test(\"Response has entry GUIDs\", function () {",
+                                                                                    "pm.test(\"Response has entry identifiers\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryGuids\u0027);",
-                                                                                    "    pm.expect(jsonData.EntryGuids).to.be.an(\u0027array\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryIds\u0027);",
+                                                                                    "    pm.expect(jsonData.EntryIds).to.be.an(\u0027array\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture entry GUID",
+                                                                                    "// Capture entry identifier",
                                                                                     "var jsonData = pm.response.json();",
-                                                                                    "if (jsonData \u0026\u0026 jsonData.EntryGuids \u0026\u0026 jsonData.EntryGuids.length \u003e 0) {",
-                                                                                    "    pm.collectionVariables.set(\"entryGuid\", jsonData.EntryGuids[0]);",
+                                                                                    "if (jsonData \u0026\u0026 jsonData.EntryIds \u0026\u0026 jsonData.EntryIds.length \u003e 0) {",
+                                                                                    "    pm.collectionVariables.set(\"entryId\", jsonData.EntryIds[0]);",
                                                                                     "}"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -692,7 +692,7 @@
                                                                    "raw":  "{\n    \"Amount\": 150.00,\n    \"Notes\": \"Withdrawal - Equipment purchase\",\n    \"IsCommitted\": false\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/debits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/debits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -701,7 +701,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "debits"
                                                                            ]
                                                               },
@@ -722,10 +722,10 @@
                                                                                     "    pm.response.to.have.status(201);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "pm.test(\"Response has multiple entry GUIDs\", function () {",
+                                                                                    "pm.test(\"Response has multiple entry identifiers\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryGuids\u0027);",
-                                                                                    "    pm.expect(jsonData.EntryGuids.length).to.be.greaterThan(1);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryIds\u0027);",
+                                                                                    "    pm.expect(jsonData.EntryIds.length).to.be.greaterThan(1);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -745,7 +745,7 @@
                                                                    "raw":  "{\n    \"Entries\": [\n        {\n            \"Amount\": 50.00,\n            \"Notes\": \"Batch debit 1 - Office supplies\"\n        },\n        {\n            \"Amount\": 25.00,\n            \"Notes\": \"Batch debit 2 - Shipping cost\"\n        },\n        {\n            \"Amount\": 12.50,\n            \"Notes\": \"Batch debit 3 - Service fee\"\n        }\n    ],\n    \"IsCommitted\": false\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/debits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/debits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -754,7 +754,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "debits"
                                                                            ]
                                                               },
@@ -775,9 +775,9 @@
                                                                                     "    pm.response.to.have.status(201);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "pm.test(\"Response has entry GUIDs\", function () {",
+                                                                                    "pm.test(\"Response has entry identifiers\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryGuids\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027EntryIds\u0027);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -797,7 +797,7 @@
                                                                    "raw":  "{\n    \"Amount\": 200.00,\n    \"Notes\": \"Immediate expense - immediately committed\",\n    \"IsCommitted\": true\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/debits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/debits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -806,7 +806,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "debits"
                                                                            ]
                                                               },
@@ -835,7 +835,7 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has enumeration result\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027AccountGUID\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027AccountId\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027TotalCount\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Records\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027EndOfResults\u0027);",
@@ -847,9 +847,9 @@
                                                                                     "    pm.collectionVariables.set(\"continuationToken\", jsonData.ContinuationToken);",
                                                                                     "}",
                                                                                     "",
-                                                                                    "// Capture first entry GUID if available",
+                                                                                    "// Capture first entry identifier if available",
                                                                                     "if (jsonData \u0026\u0026 jsonData.Records \u0026\u0026 jsonData.Records.length \u003e 0) {",
-                                                                                    "    pm.collectionVariables.set(\"entryGuid\", jsonData.Records[0].GUID);",
+                                                                                    "    pm.collectionVariables.set(\"entryId\", jsonData.Records[0].Id);",
                                                                                     "}"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -862,7 +862,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?maxResults=100\u0026skip=0\u0026ordering=CreatedDescending",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries?maxResults=100\u0026skip=0\u0026ordering=CreatedDescending",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -871,7 +871,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries"
                                                                            ],
                                                                   "query":  [
@@ -959,7 +959,7 @@
                                                                                 {
                                                                                     "key":  "continuationToken",
                                                                                     "value":  "",
-                                                                                    "description":  "GUID for pagination continuation",
+                                                                                    "description":  "Identifier for pagination continuation",
                                                                                     "disabled":  true
                                                                                 }
                                                                             ]
@@ -1011,7 +1011,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?startTime={{filterStartTime}}\u0026endTime={{filterEndTime}}",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries?startTime={{filterStartTime}}\u0026endTime={{filterEndTime}}",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1020,7 +1020,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries"
                                                                            ],
                                                                   "query":  [
@@ -1066,7 +1066,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?amountMin=100\u0026amountMax=1000\u0026ordering=AmountDescending",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries?amountMin=100\u0026amountMax=1000\u0026ordering=AmountDescending",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1075,7 +1075,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries"
                                                                            ],
                                                                   "query":  [
@@ -1125,7 +1125,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1134,7 +1134,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries"
                                                                            ],
                                                                   "query":  [
@@ -1200,7 +1200,7 @@
                                                                    "raw":  "{\n    \"MaxResults\": 50,\n    \"Skip\": 0,\n    \"ContinuationToken\": null,\n    \"Ordering\": \"AmountDescending\",\n    \"SearchTerm\": null,\n    \"CreatedAfterUtc\": null,\n    \"CreatedBeforeUtc\": null,\n    \"AmountMinimum\": null,\n    \"AmountMaximum\": null,\n    \"CreditMinimum\": null,\n    \"CreditMaximum\": null,\n    \"DebitMinimum\": 5.0,\n    \"DebitMaximum\": 50.0,\n    \"Labels\": [\"blue\"],\n    \"Tags\": { \"color\": \"blue\" }\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/enumerate",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries/enumerate",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1209,7 +1209,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries",
                                                                                "enumerate"
                                                                            ]
@@ -1236,10 +1236,10 @@
                                                                                     "    pm.expect(jsonData).to.be.an(\u0027array\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture first pending entry GUID",
+                                                                                    "// Capture first pending entry identifier",
                                                                                     "var jsonData = pm.response.json();",
                                                                                     "if (jsonData \u0026\u0026 jsonData.length \u003e 0) {",
-                                                                                    "    pm.collectionVariables.set(\"entryGuid\", jsonData[0].GUID);",
+                                                                                    "    pm.collectionVariables.set(\"entryId\", jsonData[0].Id);",
                                                                                     "}"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -1252,7 +1252,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/pending",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries/pending",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1261,7 +1261,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries",
                                                                                "pending"
                                                                            ]
@@ -1303,7 +1303,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/pending/credits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries/pending/credits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1312,7 +1312,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries",
                                                                                "pending",
                                                                                "credits"
@@ -1355,7 +1355,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/pending/debits",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries/pending/debits",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1364,7 +1364,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries",
                                                                                "pending",
                                                                                "debits"
@@ -1397,7 +1397,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/entries/{{entryGuid}}",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/entries/{{entryId}}",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1406,9 +1406,9 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "entries",
-                                                                               "{{entryGuid}}"
+                                                                               "{{entryId}}"
                                                                            ]
                                                               },
                                                       "description":  "Cancel (delete) a pending entry. Only uncommitted entries can be cancelled."
@@ -1436,7 +1436,7 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has balance details\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027AccountGUID\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027AccountId\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027CommittedBalance\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027PendingBalance\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027PendingCredits\u0027);",
@@ -1453,7 +1453,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/balance",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/balance",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1462,7 +1462,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "balance"
                                                                            ]
                                                               },
@@ -1497,7 +1497,7 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has historical balance\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027accountGuid\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027accountId\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027asOfUtc\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027balance\u0027);",
                                                                                     "});"
@@ -1512,7 +1512,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/balance/asof?asOf={{asOfDate}}",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/balance/asof?asOf={{asOfDate}}",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1521,7 +1521,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "balance",
                                                                                "asof"
                                                                            ],
@@ -1616,7 +1616,7 @@
                                                                    "raw":  "{}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/commit",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/commit",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1625,7 +1625,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "commit"
                                                                            ]
                                                               },
@@ -1665,10 +1665,10 @@
                                                                  ],
                                                       "body":  {
                                                                    "mode":  "raw",
-                                                                   "raw":  "{\n    \"EntryGuids\": [\n        \"{{entryGuid}}\"\n    ]\n}"
+                                                                   "raw":  "{\n    \"EntryIds\": [\n        \"{{entryId}}\"\n    ]\n}"
                                                                },
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/commit",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/commit",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1677,11 +1677,11 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "commit"
                                                                            ]
                                                               },
-                                                      "description":  "Commit specific pending entries by their GUIDs."
+                                                      "description":  "Commit specific pending entries by their identifiers."
                                                   },
                                       "response":  [
 
@@ -1700,7 +1700,7 @@
                                                                                     "",
                                                                                     "pm.test(\"Response indicates balance chain validity\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027accountGuid\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027accountId\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027isValid\u0027);",
                                                                                     "});"
                                                                                 ],
@@ -1714,7 +1714,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountGuid}}/verify",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}/verify",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -1723,7 +1723,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "{{accountGuid}}",
+                                                                               "{{accountId}}",
                                                                                "verify"
                                                                            ]
                                                               },
@@ -1758,10 +1758,10 @@
                                                                                     "    pm.expect(jsonData.Objects).to.be.an(\u0027array\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture first credential GUID if available",
+                                                                                    "// Capture first credential identifier if available",
                                                                                     "var jsonData = pm.response.json();",
                                                                                     "if (jsonData \u0026\u0026 jsonData.Objects \u0026\u0026 jsonData.Objects.length \u003e 0) {",
-                                                                                    "    pm.collectionVariables.set(\"credentialId\", jsonData.Objects[0].GUID);",
+                                                                                    "    pm.collectionVariables.set(\"credentialId\", jsonData.Objects[0].Id);",
                                                                                     "}",
                                                                                     "",
                                                                                     "// Capture continuation token if available",
@@ -1814,7 +1814,7 @@
                                                                                 {
                                                                                     "key":  "continuationToken",
                                                                                     "value":  "",
-                                                                                    "description":  "GUID for pagination continuation",
+                                                                                    "description":  "Identifier for pagination continuation",
                                                                                     "disabled":  true
                                                                                 }
                                                                             ]
@@ -1838,17 +1838,17 @@
                                                                                     "",
                                                                                     "pm.test(\"Response has full credential\", function () {",
                                                                                     "    var jsonData = pm.response.json();",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027GUID\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027Id\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Key\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Name\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027Active\u0027);",
                                                                                     "    pm.expect(jsonData).to.have.property(\u0027IsAdmin\u0027);",
                                                                                     "});",
                                                                                     "",
-                                                                                    "// Capture the new credential GUID and key value",
+                                                                                    "// Capture the new credential identifier and key value",
                                                                                     "var jsonData = pm.response.json();",
                                                                                     "if (jsonData) {",
-                                                                                    "    pm.collectionVariables.set(\"credentialId\", jsonData.GUID);",
+                                                                                    "    pm.collectionVariables.set(\"credentialId\", jsonData.Id);",
                                                                                     "    pm.collectionVariables.set(\"newApiKey\", jsonData.Key);",
                                                                                     "    console.log(\"New Credential created: \" + jsonData.Key);",
                                                                                     "    console.log(\"Save this key - it will be redacted in future responses!\");",
@@ -1908,7 +1908,7 @@
                                                                                     "// Capture the new admin credential",
                                                                                     "var jsonData = pm.response.json();",
                                                                                     "if (jsonData) {",
-                                                                                    "    pm.collectionVariables.set(\"credentialId\", jsonData.GUID);",
+                                                                                    "    pm.collectionVariables.set(\"credentialId\", jsonData.Id);",
                                                                                     "    pm.collectionVariables.set(\"newAdminApiKey\", jsonData.Key);",
                                                                                     "    console.log(\"New Admin Credential: \" + jsonData.Key);",
                                                                                     "}"
@@ -2007,8 +2007,8 @@
                                                                                                      "});",
                                                                                                      "",
                                                                                                      "var jsonData = pm.response.json();",
-                                                                                                     "if (jsonData \u0026\u0026 jsonData.GUID) {",
-                                                                                                     "    pm.collectionVariables.set(\"workflowAccountGuid\", jsonData.GUID);",
+                                                                                                     "if (jsonData \u0026\u0026 jsonData.Id) {",
+                                                                                                     "    pm.collectionVariables.set(\"workflowAccountId\", jsonData.Id);",
                                                                                                      "}"
                                                                                                  ],
                                                                                         "type":  "text/javascript"
@@ -2072,7 +2072,7 @@
                                                                                     "raw":  "{\n    \"Amount\": 5000.00,\n    \"Notes\": \"Initial deposit\",\n    \"IsCommitted\": true\n}"
                                                                                 },
                                                                        "url":  {
-                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/credits",
+                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountId}}/credits",
                                                                                    "protocol":  "{{protocol}}",
                                                                                    "host":  [
                                                                                                 "{{hostname}}"
@@ -2081,7 +2081,7 @@
                                                                                    "path":  [
                                                                                                 "v1",
                                                                                                 "accounts",
-                                                                                                "{{workflowAccountGuid}}",
+                                                                                                "{{workflowAccountId}}",
                                                                                                 "credits"
                                                                                             ]
                                                                                }
@@ -2102,8 +2102,8 @@
                                                                                                      "});",
                                                                                                      "",
                                                                                                      "var jsonData = pm.response.json();",
-                                                                                                     "if (jsonData \u0026\u0026 jsonData.EntryGuids) {",
-                                                                                                     "    pm.collectionVariables.set(\"workflowEntryGuids\", JSON.stringify(jsonData.EntryGuids));",
+                                                                                                     "if (jsonData \u0026\u0026 jsonData.EntryIds) {",
+                                                                                                     "    pm.collectionVariables.set(\"workflowEntryIds\", JSON.stringify(jsonData.EntryIds));",
                                                                                                      "}"
                                                                                                  ],
                                                                                         "type":  "text/javascript"
@@ -2123,7 +2123,7 @@
                                                                                     "raw":  "{\n    \"Entries\": [\n        { \"Amount\": 200.00, \"Notes\": \"Payment received - Invoice #001\" },\n        { \"Amount\": 350.00, \"Notes\": \"Payment received - Invoice #002\" }\n    ],\n    \"IsCommitted\": false\n}"
                                                                                 },
                                                                        "url":  {
-                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/credits",
+                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountId}}/credits",
                                                                                    "protocol":  "{{protocol}}",
                                                                                    "host":  [
                                                                                                 "{{hostname}}"
@@ -2132,7 +2132,7 @@
                                                                                    "path":  [
                                                                                                 "v1",
                                                                                                 "accounts",
-                                                                                                "{{workflowAccountGuid}}",
+                                                                                                "{{workflowAccountId}}",
                                                                                                 "credits"
                                                                                             ]
                                                                                }
@@ -2167,7 +2167,7 @@
 
                                                                                   ],
                                                                        "url":  {
-                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/balance",
+                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountId}}/balance",
                                                                                    "protocol":  "{{protocol}}",
                                                                                    "host":  [
                                                                                                 "{{hostname}}"
@@ -2176,7 +2176,7 @@
                                                                                    "path":  [
                                                                                                 "v1",
                                                                                                 "accounts",
-                                                                                                "{{workflowAccountGuid}}",
+                                                                                                "{{workflowAccountId}}",
                                                                                                 "balance"
                                                                                             ]
                                                                                }
@@ -2213,7 +2213,7 @@
                                                                                     "raw":  "{}"
                                                                                 },
                                                                        "url":  {
-                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/commit",
+                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountId}}/commit",
                                                                                    "protocol":  "{{protocol}}",
                                                                                    "host":  [
                                                                                                 "{{hostname}}"
@@ -2222,7 +2222,7 @@
                                                                                    "path":  [
                                                                                                 "v1",
                                                                                                 "accounts",
-                                                                                                "{{workflowAccountGuid}}",
+                                                                                                "{{workflowAccountId}}",
                                                                                                 "commit"
                                                                                             ]
                                                                                }
@@ -2264,7 +2264,7 @@
 
                                                                                   ],
                                                                        "url":  {
-                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}/balance",
+                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountId}}/balance",
                                                                                    "protocol":  "{{protocol}}",
                                                                                    "host":  [
                                                                                                 "{{hostname}}"
@@ -2273,7 +2273,7 @@
                                                                                    "path":  [
                                                                                                 "v1",
                                                                                                 "accounts",
-                                                                                                "{{workflowAccountGuid}}",
+                                                                                                "{{workflowAccountId}}",
                                                                                                 "balance"
                                                                                             ]
                                                                                }
@@ -2303,7 +2303,7 @@
 
                                                                                   ],
                                                                        "url":  {
-                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountGuid}}",
+                                                                                   "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{workflowAccountId}}",
                                                                                    "protocol":  "{{protocol}}",
                                                                                    "host":  [
                                                                                                 "{{hostname}}"
@@ -2312,7 +2312,7 @@
                                                                                    "path":  [
                                                                                                 "v1",
                                                                                                 "accounts",
-                                                                                                "{{workflowAccountGuid}}"
+                                                                                                "{{workflowAccountId}}"
                                                                                             ]
                                                                                }
                                                                    },
@@ -2454,7 +2454,7 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/00000000-0000-0000-0000-000000000000",
+                                                                  "raw":  "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/acct_missing",
                                                                   "protocol":  "{{protocol}}",
                                                                   "host":  [
                                                                                "{{hostname}}"
@@ -2463,7 +2463,7 @@
                                                                   "path":  [
                                                                                "v1",
                                                                                "accounts",
-                                                                               "00000000-0000-0000-0000-000000000000"
+                                                                               "acct_missing"
                                                                            ]
                                                               },
                                                       "description":  "Demonstrates 404 Not Found when account doesn\u0027t exist."
@@ -2633,7 +2633,7 @@
                          "type":  "string"
                      },
                      {
-                         "key":  "accountGuid",
+                         "key":  "accountId",
                          "value":  "",
                          "type":  "string"
                      },
@@ -2643,7 +2643,7 @@
                          "type":  "string"
                      },
                      {
-                         "key":  "entryGuid",
+                         "key":  "entryId",
                          "value":  "",
                          "type":  "string"
                      },

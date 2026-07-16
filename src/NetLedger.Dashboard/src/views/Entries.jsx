@@ -12,17 +12,16 @@ import { formatDate, formatCurrency, normalizeEnumerationResult } from '../api/a
 import { getRoleFlags, valueOf } from '../utils/roles'
 import './Entries.css'
 
-// Helper to extract GUID from an object with various casing conventions
-const getGuid = (obj) => {
+// Helper to extract ID from an object with various casing conventions
+const getId = (obj) => {
   if (!obj) return null
-  // Check GUID first (server uses uppercase GUID), then lowercase variants
-  return obj.Id || obj.id || obj.GUID || obj.guid || obj.Guid || null
+  return obj.Id || obj.id || obj.ID || null
 }
 
 const getAccountTenantId = (account) => valueOf(account, 'TenantId') || ''
 
 const getTenantLabel = (tenant) => {
-  const id = getGuid(tenant)
+  const id = getId(tenant)
   const name = valueOf(tenant, 'Name') || id
   return id && name !== id ? `${name} (${id})` : name
 }
@@ -74,7 +73,7 @@ export default function Entries() {
   const [accounts, setAccounts] = useState([])
   const [tenants, setTenants] = useState([])
   const [selectedTenantId, setSelectedTenantId] = useState(searchParams.get('tenant') || '')
-  const [selectedAccountGuid, setSelectedAccountGuid] = useState(searchParams.get('account') || '')
+  const [selectedAccountId, setSelectedAccountId] = useState(searchParams.get('account') || '')
   const [selectedAccount, setSelectedAccount] = useState(null)
   const [balance, setBalance] = useState(null)
   const [accountsLoading, setAccountsLoading] = useState(true)
@@ -137,8 +136,8 @@ export default function Entries() {
       setAccounts(accountsList)
 
       // If we have a preselected account from URL, find it
-      if (selectedAccountGuid) {
-        const account = accountsList.find(a => getGuid(a) === selectedAccountGuid)
+      if (selectedAccountId) {
+        const account = accountsList.find(a => getId(a) === selectedAccountId)
         setSelectedAccount(account || null)
       }
     } catch (err) {
@@ -146,23 +145,23 @@ export default function Entries() {
     } finally {
       setAccountsLoading(false)
     }
-  }, [api, isSystemAdmin, selectedAccountGuid, selectedTenantId, setError])
+  }, [api, isSystemAdmin, selectedAccountId, selectedTenantId, setError])
 
   const loadEntries = useCallback(async () => {
-    if (!selectedAccountGuid) return
+    if (!selectedAccountId) return
 
     try {
       setLoading(true)
 
       let result
       if (showOnlyPending) {
-        result = await api.getPendingEntries(selectedAccountGuid, requestTenantId)
+        result = await api.getPendingEntries(selectedAccountId, requestTenantId)
         // Pending entries endpoint returns an array directly or wrapped
         const entriesList = Array.isArray(result) ? result : (result?.Objects || result?.objects || [])
         setEntries(entriesList.slice(currentPage * pageSize, (currentPage + 1) * pageSize))
         setTotalRecords(entriesList.length)
       } else {
-        result = await api.listEntries(selectedAccountGuid, {
+        result = await api.listEntries(selectedAccountId, {
           maxResults: pageSize,
           skip: currentPage * pageSize,
           ordering: appliedFilters.ordering,
@@ -188,19 +187,19 @@ export default function Entries() {
     } finally {
       setLoading(false)
     }
-  }, [api, selectedAccountGuid, currentPage, pageSize, showOnlyPending, appliedFilters, requestTenantId, setError])
+  }, [api, selectedAccountId, currentPage, pageSize, showOnlyPending, appliedFilters, requestTenantId, setError])
 
   const loadBalance = useCallback(async () => {
-    if (!selectedAccountGuid) return
+    if (!selectedAccountId) return
 
     try {
-      const result = await api.getBalance(selectedAccountGuid, requestTenantId)
+      const result = await api.getBalance(selectedAccountId, requestTenantId)
       setBalance(result)
     } catch (err) {
       // Balance might not exist yet
       setBalance(null)
     }
-  }, [api, selectedAccountGuid, requestTenantId])
+  }, [api, selectedAccountId, requestTenantId])
 
   useEffect(() => {
     loadTenants()
@@ -213,13 +212,13 @@ export default function Entries() {
 
   // Load entries when account changes
   useEffect(() => {
-    if (selectedAccountGuid) {
+    if (selectedAccountId) {
       loadEntries()
       loadBalance()
       // Update URL
       setSearchParams({
         ...(isSystemAdmin && selectedTenantId ? { tenant: selectedTenantId } : {}),
-        account: selectedAccountGuid
+        account: selectedAccountId
       })
     } else {
       setEntries([])
@@ -227,11 +226,11 @@ export default function Entries() {
       setBalance(null)
       setSearchParams(isSystemAdmin && selectedTenantId ? { tenant: selectedTenantId } : {})
     }
-  }, [isSystemAdmin, selectedAccountGuid, selectedTenantId, loadEntries, loadBalance, setSearchParams])
+  }, [isSystemAdmin, selectedAccountId, selectedTenantId, loadEntries, loadBalance, setSearchParams])
 
   const handleTenantChange = (e) => {
     setSelectedTenantId(e.target.value)
-    setSelectedAccountGuid('')
+    setSelectedAccountId('')
     setSelectedAccount(null)
     setEntries([])
     setTotalRecords(0)
@@ -241,11 +240,11 @@ export default function Entries() {
   }
 
   const handleAccountChange = (e) => {
-    const guid = e.target.value
-    setSelectedAccountGuid(guid)
+    const id = e.target.value
+    setSelectedAccountId(id)
     setCurrentPage(0)
 
-    const account = accounts.find(a => getGuid(a) === guid)
+    const account = accounts.find(a => getId(a) === id)
     setSelectedAccount(account || null)
   }
 
@@ -283,9 +282,9 @@ export default function Entries() {
       }]
 
       if (entryType === 'credit') {
-        await api.addCredits(selectedAccountGuid, entryData, formData.commitImmediately, requestTenantId)
+        await api.addCredits(selectedAccountId, entryData, formData.commitImmediately, requestTenantId)
       } else {
-        await api.addDebits(selectedAccountGuid, entryData, formData.commitImmediately, requestTenantId)
+        await api.addDebits(selectedAccountId, entryData, formData.commitImmediately, requestTenantId)
       }
 
       setShowAddEntryModal(false)
@@ -302,7 +301,7 @@ export default function Entries() {
   const handleCommit = async () => {
     try {
       setFormLoading(true)
-      await api.commitEntries(selectedAccountGuid, { tenantId: requestTenantId })
+      await api.commitEntries(selectedAccountId, { tenantId: requestTenantId })
       setShowCommitModal(false)
       loadEntries()
       loadBalance()
@@ -318,7 +317,7 @@ export default function Entries() {
 
     try {
       setFormLoading(true)
-      await api.cancelEntry(selectedAccountGuid, getGuid(selectedEntry), requestTenantId)
+      await api.cancelEntry(selectedAccountId, getId(selectedEntry), requestTenantId)
       setShowCancelModal(false)
       setSelectedEntry(null)
       loadEntries()
@@ -360,7 +359,7 @@ export default function Entries() {
 
     try {
       setFormLoading(true)
-      await api.commitEntries(selectedAccountGuid, { entryGuids: [getGuid(selectedEntry)], tenantId: requestTenantId })
+      await api.commitEntries(selectedAccountId, { entryIds: [getId(selectedEntry)], tenantId: requestTenantId })
       setShowCommitEntryModal(false)
       setSelectedEntry(null)
       loadEntries()
@@ -433,20 +432,20 @@ export default function Entries() {
 
   const columns = [
     {
-      key: 'guid',
+      key: 'id',
       label: 'ID',
-      className: 'col-guid',
+      className: 'col-id',
       sortable: true,
       filterable: true,
       render: (row) => (
-        <span className="guid-cell-wrapper">
-          <span className="guid-cell">
-            {getGuid(row)}
+        <span className="id-cell-wrapper">
+          <span className="id-cell">
+            {getId(row)}
           </span>
-          <CopyButton text={getGuid(row)} title="Copy ID" />
+          <CopyButton text={getId(row)} title="Copy ID" />
         </span>
       ),
-      filterValue: (row) => getGuid(row) || ''
+      filterValue: (row) => getId(row) || ''
     },
     {
       key: 'labels',
@@ -629,7 +628,7 @@ export default function Entries() {
                 >
                   <option value="">All visible tenants</option>
                   {tenants.map(tenant => (
-                    <option key={getGuid(tenant)} value={getGuid(tenant)}>
+                    <option key={getId(tenant)} value={getId(tenant)}>
                       {getTenantLabel(tenant)}
                     </option>
                   ))}
@@ -641,32 +640,32 @@ export default function Entries() {
               <label htmlFor="accountSelect">Select Account</label>
               <select
                 id="accountSelect"
-                value={selectedAccountGuid}
+                value={selectedAccountId}
                 onChange={handleAccountChange}
                 disabled={accountsLoading}
               >
                 <option value="">-- Select an account --</option>
                 {accounts.map(account => (
-                  <option key={getGuid(account)} value={getGuid(account)}>
+                  <option key={getId(account)} value={getId(account)}>
                     {account.name || account.Name}{isSystemAdmin && !selectedTenantId && getAccountTenantId(account) ? ` (${getAccountTenantId(account)})` : ''}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="account-guid-input">
-              <label htmlFor="accountGuid">Or Enter GUID</label>
+            <div className="account-id-input">
+              <label htmlFor="accountId">Or Enter ID</label>
               <input
                 type="text"
-                id="accountGuid"
-                value={selectedAccountGuid}
-                onChange={(e) => setSelectedAccountGuid(e.target.value.trim())}
-                placeholder="Paste account GUID"
+                id="accountId"
+                value={selectedAccountId}
+                onChange={(e) => setSelectedAccountId(e.target.value.trim())}
+                placeholder="Paste account ID"
                 disabled={accountsLoading}
               />
             </div>
 
-            {selectedAccountGuid && (
+            {selectedAccountId && (
               <>
                 <div className="entries-filter">
                   <label className="checkbox-label">
@@ -717,7 +716,7 @@ export default function Entries() {
             )}
           </div>
 
-          {selectedAccountGuid && (
+          {selectedAccountId && (
             <div className="entry-search-panel">
               <button
                 className="entry-search-toggle"
@@ -904,7 +903,7 @@ export default function Entries() {
           )}
 
           {/* Balance Summary */}
-          {selectedAccountGuid && balance && (
+          {selectedAccountId && balance && (
             <div className="balance-summary">
               <div className="balance-item">
                 <span className="balance-label">Committed Balance</span>
@@ -942,7 +941,7 @@ export default function Entries() {
       </div>
 
       {/* Entries Table */}
-      {selectedAccountGuid ? (
+      {selectedAccountId ? (
         <>
           <Pagination
             currentPage={currentPage}
@@ -959,7 +958,7 @@ export default function Entries() {
             loading={loading}
             emptyMessage={showOnlyPending ? 'No pending entries' : 'No entries found'}
             onRowClick={openEditModal}
-            rowKey="guid"
+            rowKey="id"
           />
         </>
       ) : (
@@ -1128,7 +1127,7 @@ export default function Entries() {
           setShowEditModal(false)
           setSelectedEntry(null)
         }}
-        title={`Edit ${getGuid(selectedEntry) || 'Entry'}`}
+        title={`Edit ${getId(selectedEntry) || 'Entry'}`}
         data={selectedEntry}
         mode="edit"
       />
@@ -1139,7 +1138,7 @@ export default function Entries() {
           setShowViewModal(false)
           setSelectedEntry(null)
         }}
-        title={`View ${getGuid(selectedEntry) || 'Entry'}`}
+        title={`View ${getId(selectedEntry) || 'Entry'}`}
         data={selectedEntry}
       />
 

@@ -6,7 +6,6 @@ namespace NetLedger.Database.SqlServer
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using AsyncKeyedLock;
     using Microsoft.Data.SqlClient;
     using NetLedger.Database.SqlServer.Implementations;
     using NetLedger.Database.SqlServer.Queries;
@@ -20,7 +19,6 @@ namespace NetLedger.Database.SqlServer
         #region Private-Members
 
         private readonly string _ConnectionString;
-        private readonly AsyncNonKeyedLocker _Lock = new AsyncNonKeyedLocker();
         private bool _Disposed = false;
 
         #endregion
@@ -94,8 +92,6 @@ namespace NetLedger.Database.SqlServer
                 LogQuery($"[SQL Server] {query}");
             }
 
-            AsyncNonKeyedLockReleaser lockReleaser = await _Lock.LockAsync(token).ConfigureAwait(false);
-            using (lockReleaser)
             using (SqlConnection connection = new SqlConnection(_ConnectionString))
             {
                 await connection.OpenAsync(token).ConfigureAwait(false);
@@ -153,31 +149,59 @@ namespace NetLedger.Database.SqlServer
             if (_Disposed) throw new ObjectDisposedException(nameof(SqlServerDatabaseDriver));
             if (queries == null || !queries.Any()) return new DataTable();
 
-            AsyncNonKeyedLockReleaser lockReleaser = await _Lock.LockAsync(token).ConfigureAwait(false);
-            using (lockReleaser)
             using (SqlConnection connection = new SqlConnection(_ConnectionString))
             {
                 await connection.OpenAsync(token).ConfigureAwait(false);
 
                 DataTable lastResult = new DataTable();
+                SqlTransaction? transaction = null;
 
-                foreach (string query in queries)
+                try
                 {
-                    if (String.IsNullOrEmpty(query)) continue;
-
-                    if (Settings.LogQueries)
+                    if (isTransaction)
                     {
-                        LogQuery($"[SQL Server] {query}");
+                        transaction = (SqlTransaction)await connection.BeginTransactionAsync(token).ConfigureAwait(false);
                     }
 
-                    using (SqlCommand command = new SqlCommand(query, connection))
+                    foreach (string query in queries)
                     {
-                        command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
-                        await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                        if (String.IsNullOrEmpty(query)) continue;
+
+                        if (Settings.LogQueries)
+                        {
+                            LogQuery($"[SQL Server] {query}");
+                        }
+
+                        using (SqlCommand command = new SqlCommand(query, connection))
+                        {
+                            command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
+                            if (transaction != null) command.Transaction = transaction;
+                            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                        }
+                    }
+
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(token).ConfigureAwait(false);
+                    }
+
+                    return lastResult;
+                }
+                catch
+                {
+                    if (transaction != null)
+                    {
+                        await transaction.RollbackAsync(token).ConfigureAwait(false);
+                    }
+                    throw;
+                }
+                finally
+                {
+                    if (transaction != null)
+                    {
+                        await transaction.DisposeAsync().ConfigureAwait(false);
                     }
                 }
-
-                return lastResult;
             }
         }
 
@@ -203,10 +227,6 @@ namespace NetLedger.Database.SqlServer
         {
             if (!_Disposed)
             {
-                if (disposing)
-                {
-                    _Lock.Dispose();
-                }
                 _Disposed = true;
             }
             base.Dispose(disposing);

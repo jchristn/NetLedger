@@ -44,7 +44,7 @@ namespace NetLedger.Database.SqlServer.Implementations
                 "INSERT INTO [apikeys] ([guid], [name], [apikey], [active], [isadmin], [createdutc]) " +
                 "OUTPUT INSERTED.[id] " +
                 "VALUES (" +
-                "'" + apiKey.GUID.ToString() + "', " +
+                "'" + apiKey.Id.ToString() + "', " +
                 "'" + Sanitize(apiKey.Name) + "', " +
                 "'" + Sanitize(apiKey.Key) + "', " +
                 (apiKey.Active ? "1" : "0") + ", " +
@@ -63,9 +63,9 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<ApiKey> ReadByGuidAsync(string guid, CancellationToken token = default)
+        public async Task<ApiKey> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT TOP 1 * FROM [apikeys] WHERE [guid] = '" + guid.ToString() + "';";
+            string query = "SELECT TOP 1 * FROM [apikeys] WHERE [guid] = '" + id.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -148,7 +148,7 @@ namespace NetLedger.Database.SqlServer.Implementations
             // Set continuation token if there are more records
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
@@ -165,7 +165,7 @@ namespace NetLedger.Database.SqlServer.Implementations
                 "[apikey] = '" + Sanitize(apiKey.Key) + "', " +
                 "[active] = " + (apiKey.Active ? "1" : "0") + ", " +
                 "[isadmin] = " + (apiKey.IsAdmin ? "1" : "0") + " " +
-                "WHERE [guid] = '" + apiKey.GUID.ToString() + "';";
+                "WHERE [guid] = '" + apiKey.Id.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -173,9 +173,9 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
+        public async Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "DELETE FROM [apikeys] WHERE [guid] = '" + guid.ToString() + "';";
+            string query = "DELETE FROM [apikeys] WHERE [guid] = '" + id.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
@@ -222,7 +222,7 @@ namespace NetLedger.Database.SqlServer.Implementations
         {
             ApiKey apiKey = new ApiKey();
             apiKey.RowId = Convert.ToInt32(row["id"]);
-            apiKey.GUID = row["guid"].ToString()!;
+            apiKey.Id = row["guid"].ToString()!;
             apiKey.Name = row["name"]?.ToString() ?? String.Empty;
             apiKey.Key = row["apikey"]?.ToString() ?? String.Empty;
 

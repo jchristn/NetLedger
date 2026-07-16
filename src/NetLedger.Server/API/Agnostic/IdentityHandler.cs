@@ -220,7 +220,7 @@ namespace NetLedger.Server.API.Agnostic
         /// </summary>
         internal async Task<ResponseContext> EnumerateAccountUsersAsync(RequestContext req, CancellationToken token = default)
         {
-            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Read", req.AccountGuid, token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Read", req.AccountId, token).ConfigureAwait(false);
             if (authz != null) return authz;
             EnumerationResult<AccountUserMap> result = await _Driver.AccountUserMaps.EnumerateAsync(ToEnumerationQuery(req), token).ConfigureAwait(false);
             return new ResponseContext(req, result);
@@ -231,11 +231,11 @@ namespace NetLedger.Server.API.Agnostic
         /// </summary>
         internal async Task<ResponseContext> MapAccountUserAsync(RequestContext req, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(req.TenantId) || String.IsNullOrEmpty(req.AccountGuid) || String.IsNullOrEmpty(req.UserId))
+            if (String.IsNullOrEmpty(req.TenantId) || String.IsNullOrEmpty(req.AccountId) || String.IsNullOrEmpty(req.UserId))
                 return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Tenant ID, account ID, and user ID are required");
-            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Update", req.AccountGuid, token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Update", req.AccountId, token).ConfigureAwait(false);
             if (authz != null) return authz;
-            AccountUserMap map = await _Driver.AccountUserMaps.CreateAsync(new AccountUserMap { TenantId = req.TenantId, AccountId = req.AccountGuid, UserId = req.UserId }, token).ConfigureAwait(false);
+            AccountUserMap map = await _Driver.AccountUserMaps.CreateAsync(new AccountUserMap { TenantId = req.TenantId, AccountId = req.AccountId, UserId = req.UserId }, token).ConfigureAwait(false);
             return new ResponseContext(req, map);
         }
 
@@ -244,11 +244,11 @@ namespace NetLedger.Server.API.Agnostic
         /// </summary>
         internal async Task<ResponseContext> DeleteAccountUserAsync(RequestContext req, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(req.TenantId) || String.IsNullOrEmpty(req.AccountGuid) || String.IsNullOrEmpty(req.UserId))
+            if (String.IsNullOrEmpty(req.TenantId) || String.IsNullOrEmpty(req.AccountId) || String.IsNullOrEmpty(req.UserId))
                 return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Tenant ID, account ID, and user ID are required");
-            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Update", req.AccountGuid, token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Update", req.AccountId, token).ConfigureAwait(false);
             if (authz != null) return authz;
-            await _Driver.AccountUserMaps.DeleteAsync(req.TenantId, req.AccountGuid, req.UserId, token).ConfigureAwait(false);
+            await _Driver.AccountUserMaps.DeleteAsync(req.TenantId, req.AccountId, req.UserId, token).ConfigureAwait(false);
             return new ResponseContext(req);
         }
 
@@ -410,20 +410,30 @@ namespace NetLedger.Server.API.Agnostic
         {
             AuthorizationDecision decision = await _AuthorizationService.AuthorizeAsync(req, resourceType, operationType, resourceId, token).ConfigureAwait(false);
             if (decision.Permitted) return null;
-            return ResponseContext.FromError(req, ApiErrorEnum.Forbidden, null, decision.Reason);
+            ApiErrorEnum error = String.Equals(decision.Reason, "Authentication required", StringComparison.Ordinal)
+                ? ApiErrorEnum.Unauthorized
+                : ApiErrorEnum.Forbidden;
+            return ResponseContext.FromError(req, error, null, decision.Reason);
         }
 
         private EnumerationQuery ToEnumerationQuery(RequestContext req)
         {
             return new EnumerationQuery
             {
-                TenantId = req.TenantId,
+                TenantId = ResolveEnumerationTenant(req),
                 MaxResults = req.MaxResults,
                 Skip = req.Skip,
                 ContinuationToken = req.ContinuationToken,
                 SearchTerm = req.SearchTerm,
                 Ordering = req.Ordering
             };
+        }
+
+        private string? ResolveEnumerationTenant(RequestContext req)
+        {
+            if (req.Auth?.IsAdmin == true) return req.TenantId;
+            if (req.Auth?.IsAuthenticated == true) return req.TenantId ?? req.Auth.TenantId;
+            return req.TenantId;
         }
 
         private User RedactUser(User? user)

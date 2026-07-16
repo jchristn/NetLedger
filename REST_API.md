@@ -42,7 +42,7 @@ PUT /v1/tenants/{tenantId}/accounts/{accountId}/credits
 
 If both a route tenant and `x-tenant-id` are provided, they must match.
 
-Public IDs are PrettyId strings, not GUIDs. Examples:
+Public IDs are opaque PrettyId strings. Examples:
 
 | Entity | Prefix |
 | --- | --- |
@@ -207,7 +207,7 @@ All endpoints include the following response headers:
 |--------|-------------|
 | `x-hostname` | Server hostname |
 | `x-api-version` | Current API version (v1) |
-| `x-request-guid` | Unique request identifier for tracking |
+| `x-request-id` | Unique request identifier for tracking |
 | `Content-Type` | `application/json` |
 
 ---
@@ -222,7 +222,7 @@ All endpoints return standardized error responses:
   "Message": "Bad request",
   "StatusCode": 400,
   "Context": null,
-  "Description": "Account GUID is required"
+  "Description": "Account identifier is required"
 }
 ```
 
@@ -301,7 +301,7 @@ GET /v1/accounts
 |-----------|------|---------|-------------|
 | `maxResults` | int | 1000 | Maximum results per page (1-1000) |
 | `skip` | int | 0 | Number of records to skip |
-| `continuationToken` | GUID | null | Token for pagination continuation |
+| `continuationToken` | string | null | Token for pagination continuation |
 | `ordering` | enum | CreatedDescending | Sort order: `CreatedAscending`, `CreatedDescending`, `AmountAscending`, `AmountDescending` |
 | `search` | string | null | Search filter for account name |
 | `startTime` | DateTime | null | Filter by creation date (UTC) |
@@ -336,7 +336,7 @@ GET /v1/accounts?search=Operating&labels=operating,blue&tags=department=finance,
   "RecordsRemaining": 0,
   "Objects": [
     {
-      "GUID": "550e8400-e29b-41d4-a716-446655440000",
+      "Id": "acct_operating_001",
       "Name": "Checking Account",
       "Notes": null,
       "Labels": ["operating", "blue"],
@@ -385,7 +385,7 @@ PUT /v1/accounts
 
 ```json
 {
-  "GUID": "550e8400-e29b-41d4-a716-446655440000",
+  "Id": "acct_operating_001",
   "Name": "Checking Account",
   "Notes": null,
   "Labels": ["operating", "blue"],
@@ -401,41 +401,41 @@ PUT /v1/accounts
 
 #### Check Account Exists
 
-Check if an account exists by GUID.
+Check if an account exists by identifier.
 
 ```
-HEAD /v1/accounts/{accountGuid}
+HEAD /v1/accounts/{accountId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` if exists, `404 Not Found` if not
 
 ---
 
-#### Get Account by GUID
+#### Get Account by Identifier
 
-Retrieve a specific account by its GUID.
+Retrieve a specific account by its identifier.
 
 ```
-GET /v1/accounts/{accountGuid}
+GET /v1/accounts/{accountId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 {
-  "GUID": "550e8400-e29b-41d4-a716-446655440000",
+  "Id": "acct_operating_001",
   "Name": "Checking Account",
   "Notes": null,
   "Labels": ["operating", "blue"],
@@ -467,7 +467,7 @@ GET /v1/accounts/byname/{accountName}
 
 ```json
 {
-  "GUID": "550e8400-e29b-41d4-a716-446655440000",
+  "Id": "acct_operating_001",
   "Name": "Checking Account",
   "Notes": null,
   "Labels": ["operating", "blue"],
@@ -486,14 +486,14 @@ GET /v1/accounts/byname/{accountName}
 Delete an account and all its entries.
 
 ```
-DELETE /v1/accounts/{accountGuid}
+DELETE /v1/accounts/{accountId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` (empty body)
 
@@ -508,14 +508,14 @@ All entry endpoints require authentication.
 Enumerate entries with query parameter-based filtering.
 
 ```
-GET /v1/accounts/{accountGuid}/entries
+GET /v1/accounts/{accountId}/entries
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Query Parameters**:
 
@@ -523,7 +523,7 @@ GET /v1/accounts/{accountGuid}/entries
 |-----------|------|---------|-------------|
 | `maxResults` | int | 1000 | Maximum results per page (1-1000) |
 | `skip` | int | 0 | Number of records to skip |
-| `continuationToken` | GUID | null | Token for pagination continuation |
+| `continuationToken` | string | null | Token for pagination continuation |
 | `ordering` | enum | CreatedDescending | Sort order |
 | `search` | string | null | Description search term |
 | `startTime` | DateTime | null | Filter entries created after (UTC) |
@@ -540,7 +540,7 @@ GET /v1/accounts/{accountGuid}/entries
 Example complex search:
 
 ```
-GET /v1/accounts/{accountGuid}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending
+GET /v1/accounts/{accountId}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending
 ```
 
 **Response**: `200 OK`
@@ -562,14 +562,14 @@ GET /v1/accounts/{accountGuid}/entries?debitMin=5&debitMax=50&labels=blue&tags=c
   "RecordsRemaining": 0,
   "Objects": [
     {
-      "GUID": "660e8400-e29b-41d4-a716-446655440001",
-      "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
+      "Id": "ent_credit_001",
+      "AccountId": "acct_operating_001",
       "Type": "Credit",
       "Amount": 100.50,
       "Description": "Initial deposit",
       "IsCommitted": true,
       "CommittedUtc": "2025-12-23T00:00:00Z",
-      "CommittedByGUID": null,
+      "CommittedById": null,
       "Replaces": null,
       "Labels": ["blue"],
       "Tags": {
@@ -588,14 +588,14 @@ GET /v1/accounts/{accountGuid}/entries?debitMin=5&debitMax=50&labels=blue&tags=c
 Enumerate entries with request body-based filtering.
 
 ```
-POST /v1/accounts/{accountGuid}/entries/enumerate
+POST /v1/accounts/{accountId}/entries/enumerate
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body**:
 
@@ -628,28 +628,28 @@ POST /v1/accounts/{accountGuid}/entries/enumerate
 Get all pending (uncommitted) entries for an account.
 
 ```
-GET /v1/accounts/{accountGuid}/entries/pending
+GET /v1/accounts/{accountId}/entries/pending
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 [
   {
-    "GUID": "660e8400-e29b-41d4-a716-446655440002",
-    "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
+    "Id": "ent_debit_001",
+    "AccountId": "acct_operating_001",
     "Type": "Debit",
     "Amount": 25.00,
     "Description": "Pending withdrawal",
     "IsCommitted": false,
     "CommittedUtc": null,
-    "CommittedByGUID": null,
+    "CommittedById": null,
     "Replaces": null,
     "Labels": ["blue"],
     "Tags": {
@@ -667,14 +667,14 @@ GET /v1/accounts/{accountGuid}/entries/pending
 Get all pending credit entries for an account.
 
 ```
-GET /v1/accounts/{accountGuid}/entries/pending/credits
+GET /v1/accounts/{accountId}/entries/pending/credits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` (array of credit Entry objects)
 
@@ -685,14 +685,14 @@ GET /v1/accounts/{accountGuid}/entries/pending/credits
 Get all pending debit entries for an account.
 
 ```
-GET /v1/accounts/{accountGuid}/entries/pending/debits
+GET /v1/accounts/{accountId}/entries/pending/debits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` (array of debit Entry objects)
 
@@ -703,14 +703,14 @@ GET /v1/accounts/{accountGuid}/entries/pending/debits
 Add one or more credit entries to an account.
 
 ```
-PUT /v1/accounts/{accountGuid}/credits
+PUT /v1/accounts/{accountId}/credits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body (Single Entry)**:
 
@@ -762,9 +762,9 @@ PUT /v1/accounts/{accountGuid}/credits
 
 ```json
 {
-  "EntryGuids": [
-    "660e8400-e29b-41d4-a716-446655440003",
-    "660e8400-e29b-41d4-a716-446655440004"
+  "EntryIds": [
+    "ent_credit_002",
+    "ent_credit_003"
   ]
 }
 ```
@@ -776,14 +776,14 @@ PUT /v1/accounts/{accountGuid}/credits
 Add one or more debit entries to an account.
 
 ```
-PUT /v1/accounts/{accountGuid}/debits
+PUT /v1/accounts/{accountId}/debits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body**: Same format as Add Credit(s)
 
@@ -796,15 +796,15 @@ PUT /v1/accounts/{accountGuid}/debits
 Cancel a pending entry. Only uncommitted entries can be canceled.
 
 ```
-DELETE /v1/accounts/{accountGuid}/entries/{entryGuid}
+DELETE /v1/accounts/{accountId}/entries/{entryId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
-| `entryGuid` | GUID | Entry identifier |
+| `accountId` | string | Account identifier |
+| `entryId` | string | Entry identifier |
 
 **Response**: `200 OK` (empty body)
 
@@ -819,21 +819,21 @@ All balance and commit endpoints require authentication.
 Get the current balance for an account, including committed and pending amounts.
 
 ```
-GET /v1/accounts/{accountGuid}/balance
+GET /v1/accounts/{accountId}/balance
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 {
-  "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
-  "EntryGUID": "770e8400-e29b-41d4-a716-446655440000",
+  "AccountId": "acct_operating_001",
+  "EntryId": "ent_balance_001",
   "Name": "Checking Account",
   "CreatedUtc": "2025-12-23T00:00:00Z",
   "BalanceTimestampUtc": "2025-12-23T01:00:00Z",
@@ -860,14 +860,14 @@ GET /v1/accounts/{accountGuid}/balance
 Get the balance at a specific point in time.
 
 ```
-GET /v1/accounts/{accountGuid}/balance/asof
+GET /v1/accounts/{accountId}/balance/asof
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Query Parameters**:
 
@@ -879,7 +879,7 @@ GET /v1/accounts/{accountGuid}/balance/asof
 
 ```json
 {
-  "accountGuid": "550e8400-e29b-41d4-a716-446655440000",
+  "accountId": "acct_operating_001",
   "asOfUtc": "2025-12-22T00:00:00Z",
   "balance": 75.00
 }
@@ -899,9 +899,9 @@ GET /v1/balances
 
 ```json
 {
-  "550e8400-e29b-41d4-a716-446655440000": {
-    "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
-    "EntryGUID": "770e8400-e29b-41d4-a716-446655440000",
+  "acct_operating_001": {
+    "AccountId": "acct_operating_001",
+    "EntryId": "ent_balance_001",
     "Name": "Checking Account",
     "CreatedUtc": "2025-12-23T00:00:00Z",
     "BalanceTimestampUtc": "2025-12-23T01:00:00Z",
@@ -921,20 +921,20 @@ GET /v1/balances
 Commit pending entries, creating a new balance snapshot.
 
 ```
-POST /v1/accounts/{accountGuid}/commit
+POST /v1/accounts/{accountId}/commit
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body (Commit All Pending)**:
 
 ```json
 {
-  "EntryGuids": null
+  "EntryIds": null
 }
 ```
 
@@ -942,9 +942,9 @@ POST /v1/accounts/{accountGuid}/commit
 
 ```json
 {
-  "EntryGuids": [
-    "660e8400-e29b-41d4-a716-446655440003",
-    "660e8400-e29b-41d4-a716-446655440004"
+  "EntryIds": [
+    "ent_credit_002",
+    "ent_credit_003"
   ]
 }
 ```
@@ -953,8 +953,8 @@ POST /v1/accounts/{accountGuid}/commit
 
 ```json
 {
-  "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
-  "EntryGUID": "880e8400-e29b-41d4-a716-446655440000",
+  "AccountId": "acct_operating_001",
+  "EntryId": "ent_balance_002",
   "Name": "Checking Account",
   "CreatedUtc": "2025-12-23T00:00:00Z",
   "BalanceTimestampUtc": "2025-12-23T02:00:00Z",
@@ -981,20 +981,20 @@ POST /v1/accounts/{accountGuid}/commit
 Verify the integrity of the balance entry chain (audit trail).
 
 ```
-GET /v1/accounts/{accountGuid}/verify
+GET /v1/accounts/{accountId}/verify
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 {
-  "accountGuid": "550e8400-e29b-41d4-a716-446655440000",
+  "accountId": "acct_operating_001",
   "isValid": true
 }
 ```
@@ -1218,7 +1218,7 @@ Bulk delete accepts the same filters as enumeration and deletes only records wit
 | Category | Count | Endpoints |
 |----------|-------|-----------|
 | Service | 2 | Health check, service info |
-| Account | 6 | List, create, check exists, get by GUID, get by name, delete |
+| Account | 6 | List, create, check exists, get by identifier, get by name, delete |
 | Entry | 8 | Get entries, enumerate, pending entries, pending credits, pending debits, add credits, add debits, cancel |
 | Balance/Commit | 5 | Get balance, historical balance, all balances, commit, verify |
 | API Key Management | 3 | List, create, revoke |

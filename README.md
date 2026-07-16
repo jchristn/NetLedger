@@ -6,24 +6,25 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/NetLedger.svg)](https://www.nuget.org/packages/NetLedger)
 [![License](https://img.shields.io/github/license/jchristn/NetLedger)](https://github.com/jchristn/NetLedger/blob/main/LICENSE.md)
 
-NetLedger is a thread-safe, self-contained ledgering library for .NET 8.0 that provides rigorous financial transaction control with full audit trails. Built on SQLite with async/await throughout, it enables strict separation between pending and committed transactions, making it ideal for applications requiring precise financial controls and auditability.
+NetLedger is a thread-safe ledgering library for .NET 8.0 and .NET 10.0 that provides tenant-aware debit/credit workflows with auditable pending and committed entry lifecycles. It supports SQLite for embedded deployments and MySQL, PostgreSQL, and SQL Server for external database deployments.
 
-## v3.0.0 Preview
+## v3.0.0
 
 NetLedger v3.0.0 is the tenant-aware release. Public objects now use PrettyId string IDs such as `acct_...`, `ent_...`, `ten_...`, `usr_...`, and `cred_...`; accounts and entries carry `TenantId`; and account/entry metadata can be set with `Labels` and `Tags`.
 
-Key v3 capabilities:
+What is new in v3.0.0:
 
-- Tenant-scoped account and entry models.
-- PrettyId K-sortable string IDs with 32-character total length.
-- Account and entry metadata through `List<string> Labels` and `Dictionary<string,string> Tags`.
-- Search and enumeration filters for labels and tags on accounts and entries, plus credit/debit amount bounds for entries.
-- `/v1/tenants/{tenantId}/...` route aliases plus `x-tenant-id` support; existing `/v1` paths remain.
-- Credential-oriented authentication model with tenant/user-scoped credential entities.
-- Tenant discovery and email/password login issuing revocable server-side sessions.
-- Dashboard tenant context, label/tag entry, label visibility, security administration, API Explorer, and Request History.
-- OpenAPI document at `GET /openapi.json` for explorer-driven API navigation.
-- Touchstone test projects: `Test.Shared`, `Test.Automated`, `Test.Xunit`, and `Test.Nunit`.
+- Multi-tenancy: tenant, user, credential, session, role, permission, account-user mapping, and audit-record domain models.
+- Tenant-scoped ledger data: accounts, entries, balances, commits, pending entries, credentials, users, sessions, audit records, roles, and permissions can be scoped by tenant.
+- Tenant-aware APIs: `/v1/tenants/{tenantId}/...` route aliases and `x-tenant-id` support preserve existing `/v1` paths while making tenant scope explicit.
+- PrettyId identifiers: public models now use K-sortable string IDs with prefixes such as `acct_`, `ent_`, `ten_`, `usr_`, and `cred_`.
+- Metadata on accounts and entries: `List<string> Labels` and `Dictionary<string,string> Tags` are available in library models, REST payloads, SDKs, Postman, and dashboard forms.
+- Metadata search and enumeration: account and entry searches can filter by labels and tags; entry enumeration also supports debit/credit amount bounds and amount/date ordering.
+- Authentication and authorization: tenant discovery, email/password login, revocable server-side sessions, credential rotation/revocation, RBAC role assignment, and effective-permission checks.
+- Dashboard v3 workflows: tenant-aware login, tenant/user/account filtering, account and entry metadata editors, label badges, formatted tag display, reveal controls for hidden secrets, and automatic return to login when authentication fails.
+- Dashboard charts: Home now shows Value Recorded, Transactions over Time, and Amounts over Time with shared tenant/user/account/range controls, fixed time-bucket fidelity, and bounded hover tooltips; Request History includes a taller Traffic over Time chart with matching hover behavior.
+- API tooling: OpenAPI is served at `GET /openapi.json`, the dashboard API Explorer executes requests with the signed-in session, `REST_API.md` and Postman cover tenant and metadata filters, and the .NET, JavaScript/TypeScript, and Python SDKs expose v3 search/enumeration options.
+- Touchstone-backed tests: shared suites run through `Test.Shared`, `Test.Automated`, `Test.Xunit`, and `Test.Nunit` for provider certification and behavior coverage.
 
 Authentication flow:
 
@@ -41,20 +42,9 @@ using NetLedger;
 
 await using Ledger ledger = new Ledger("accounting.db");
 
-string accountId = await ledger.CreateAccountAsync(
-    "Operating Account",
-    1000.00m,
-    new List<string> { "operating", "usd" },
-    new Dictionary<string, string> { { "department", "finance" } },
-    "ten_01h000000000000000000000000");
+string accountId = await ledger.CreateAccountAsync("Operating Account", 1000.00m);
 
-string creditId = await ledger.AddCreditAsync(
-    accountId,
-    500.00m,
-    "Customer payment",
-    labels: new List<string> { "credit", "blue" },
-    tags: new Dictionary<string, string> { { "user", "foo" } },
-    tenantId: "ten_01h000000000000000000000000");
+await ledger.AddCreditAsync(accountId, 500.00m, "Customer payment");
 
 Balance balance = await ledger.CommitEntriesAsync(accountId);
 ```
@@ -63,45 +53,51 @@ Balance balance = await ledger.CommitEntriesAsync(accountId);
 
 NetLedger is designed for developers building applications that require:
 
-- **Strict Financial Controls** - Separate pending and committed transaction states with explicit commit operations
-- **Full Audit Trails** - Immutable transaction history with balance chains for forensic accounting
-- **Thread Safety** - Account-level locking ensures safe concurrent access without race conditions
-- **Embedded Storage** - Self-contained SQLite database with no external dependencies
-- **Transactional Integrity** - ACID-compliant operations with atomic commits and rollback on failure
-- **Async/Await Support** - Modern .NET async patterns with cancellation token support throughout
+- **Tenant-Aware Ledger Workflows** - Scope accounts, entries, balances, users, credentials, sessions, roles, permissions, and audit records by tenant.
+- **Controlled Financial Entry Lifecycles** - Keep pending entries separate from committed entries, then explicitly commit reviewed debits and credits.
+- **Auditable Account Balances** - Maintain balance-entry chains that support point-in-time balance reads and integrity verification.
+- **Role-Aware API Access** - Build systems with system admins, tenant admins, and account-scoped users using sessions, credentials, RBAC assignments, and effective-permission checks.
+- **Metadata-Driven Search** - Attach labels and tags to accounts and entries, then filter and enumerate by metadata, amount bounds, timestamps, and ordering.
+- **Database Choice** - Use SQLite for embedded/local deployments or MySQL, PostgreSQL, and SQL Server for external database deployments.
+- **Concurrent Account Writes** - Serialize writes to the same account while allowing independent accounts to proceed in parallel.
+- **API, Dashboard, and SDK Integration** - Use the core .NET library directly or integrate through the REST server, dashboard, Postman collection, and .NET, JavaScript/TypeScript, and Python SDKs.
+- **Async .NET Applications** - Use async APIs with cancellation-token support throughout the library and server.
 
-**Ideal use cases:** Financial applications, expense tracking systems, point-of-sale systems, accounting software, multi-user financial platforms, billing systems, payment processing, and any application requiring double-entry bookkeeping.
+**Ideal use cases:** Financial applications, expense tracking systems, point-of-sale systems, accounting software, multi-user financial platforms, billing systems, payment processing, and applications requiring account-level debit/credit ledgers with strong auditability.
 
 ## What NetLedger Does
 
 ### Core Capabilities
 
-- ✅ **Account Management** - Create, retrieve, search, and delete accounts with optional initial balances
-- ✅ **Transaction Operations** - Add credits and debits as pending or immediately committed
-- ✅ **Batch Operations** - Process multiple credits or debits in a single atomic operation
-- ✅ **Dual Balance Tracking** - Separate committed balance (finalized) and pending balance (projected)
-- ✅ **Selective Commits** - Commit all pending entries or specific entries by GUID
-- ✅ **Entry Cancellation** - Cancel pending entries before commit
-- ✅ **Transaction History** - Query entries with filtering by date range, amount range, and ordering
-- ✅ **Pagination Support** - Continuation token-based enumeration for large datasets (up to 1000 records per query)
-- ✅ **Point-in-Time Balances** - Calculate balances as of any historical timestamp
-- ✅ **Balance Chain Verification** - Validate audit trail integrity across all balance entries
-- ✅ **Event Notifications** - Async events for all state changes (account created/deleted, entries added/committed/canceled)
-- ✅ **Thread-Safe Operations** - SemaphoreSlim-based account locking prevents concurrent modification issues
-- ✅ **Connection Pooling** - High-performance connection pool (max 500 connections, 120s timeout)
+- **Tenant Management** - Create and enumerate tenants, users, sessions, credentials, account-user mappings, roles, permissions, and audit records.
+- **Authentication and Authorization** - Tenant discovery, email/password login, revocable sessions, credential management, admin flags, RBAC assignments, effective-permission checks, and scoped API access.
+- **Account Management** - Create, retrieve, search, enumerate, update, and delete tenant-scoped accounts with optional initial balances.
+- **Account and Entry Metadata** - Attach normalized labels and key/value tags to accounts and entries.
+- **Transaction Operations** - Add credits and debits as pending entries or immediately committed entries.
+- **Batch Operations** - Process multiple credits or debits in a single account-scoped batch.
+- **Dual Balance Tracking** - Separate committed balance from pending/projected balance.
+- **Selective Commits** - Commit all pending entries or a specific set of entries.
+- **Entry Cancellation** - Cancel pending entries before they are committed.
+- **Powerful Enumeration** - Filter accounts and entries by tenant, account, text, timestamps, amount bounds, debit/credit-specific bounds, labels, tags, and ordering.
+- **Pagination Support** - Use skip/limit and continuation-token enumeration patterns for large result sets.
+- **Point-in-Time Balances** - Calculate balances as of a historical timestamp.
+- **Balance Chain Verification** - Validate audit-trail integrity across balance entries.
+- **REST API, Dashboard, and SDKs** - Use NetLedger through the .NET library, REST server, dashboard, Postman collection, and .NET, JavaScript/TypeScript, and Python SDKs.
+- **Request History and Charts** - Capture request history and summarize dashboard chart data over fixed time buckets.
+- **Supported Databases** - SQLite, MySQL, PostgreSQL, and SQL Server providers are included.
+- **Concurrent Write Safety** - Entries for the same account are serialized with in-process and database-backed account locks, while different accounts can proceed independently.
 
 ### What NetLedger Does NOT Do
 
-- ❌ **Multi-Currency Support** - Single currency per ledger (implement multiple ledgers for multi-currency)
-- ❌ **Automatic Transfers** - No built-in inter-account transfers (manually debit one account and credit another)
-- ✅ **Authentication/Authorization** - v3 adds tenant-scoped users, sessions, credentials, admin flags, account mappings, RBAC role assignments, and audit records
-- ❌ **Multi-Tenant Isolation** - Single database instance (use separate databases for tenants)
-- ❌ **External Databases** - SQLite only (contact maintainer for external database support)
-- ❌ **Transaction Reversal** - Cannot undo committed entries (create offsetting entries instead)
-- ❌ **Scheduled Transactions** - No recurring or future-dated entries
-- ❌ **Account Hierarchies** - No parent-child account relationships
-- ❌ **Budget Enforcement** - No built-in spending limits or budget tracking
-- ❌ **Custom Fields** - Fixed schema for accounts and entries
+- **Double-Entry Accounting** - NetLedger is an account-level debit/credit ledger. It does not enforce balanced journal entries across two or more accounts.
+- **Multi-Currency Accounting** - Amounts are numeric ledger values; currency codes, FX rates, and currency conversion are application responsibilities.
+- **Automatic Transfers** - There is no built-in transfer primitive that atomically debits one account and credits another account as a balanced pair.
+- **Transaction Reversal Workflow** - Committed entries are not undone in place; create offsetting entries when a business reversal is required.
+- **Scheduled or Recurring Transactions** - NetLedger does not schedule future-dated or recurring entries.
+- **Account Hierarchies** - Accounts do not have built-in parent/child rollup relationships.
+- **Budget Enforcement** - Spending limits, approvals, and budget controls are application-level concerns.
+- **Arbitrary Custom Columns** - Accounts and entries have a defined schema. Use labels and tags for supported metadata filtering rather than adding arbitrary fields.
+- **Cross-Database Transactions** - NetLedger does not coordinate a transaction across multiple independent database instances.
 
 ## Quick Start
 
@@ -130,21 +126,21 @@ using NetLedger;
 Ledger ledger = new Ledger("accounting.db");
 
 // Create an account with optional initial balance
-Guid accountGuid = await ledger.CreateAccountAsync("Operating Account", 1000.00m);
+string accountId = await ledger.CreateAccountAsync("Operating Account", 1000.00m);
 
 // Add a pending credit
-Guid creditGuid = await ledger.AddCreditAsync(accountGuid, 500.00m, "Customer payment");
+string creditId = await ledger.AddCreditAsync(accountId, 500.00m, "Customer payment");
 
 // Add a pending debit
-Guid debitGuid = await ledger.AddDebitAsync(accountGuid, 150.00m, "Supplier invoice");
+string debitId = await ledger.AddDebitAsync(accountId, 150.00m, "Supplier invoice");
 
 // Check balances before commit
-Balance balance = await ledger.GetBalanceAsync(accountGuid);
+Balance balance = await ledger.GetBalanceAsync(accountId);
 Console.WriteLine($"Committed: ${balance.CommittedBalance}");  // 1000.00
 Console.WriteLine($"Pending: ${balance.PendingBalance}");      // 1350.00
 
 // Commit all pending entries
-balance = await ledger.CommitEntriesAsync(accountGuid);
+balance = await ledger.CommitEntriesAsync(accountId);
 Console.WriteLine($"Committed: ${balance.CommittedBalance}");  // 1350.00
 
 // Cleanup
@@ -216,12 +212,21 @@ The Docker setup uses configuration files in the `docker/server/` directory:
     "EnableConsole": true,
     "LogRequests": true
   },
+  "Authentication": {
+    "Enabled": true,
+    "DefaultAdminKey": "netledgeradmin"
+  },
   "Database": {
     "Type": "Postgresql",
     "Hostname": "postgres",
-    "DatabaseName": "netledger",
+    "Port": 5432,
     "Username": "netledger",
     "Password": "netledger",
+    "DatabaseName": "netledger",
+    "Schema": "public",
+    "RequireEncryption": false,
+    "ConnectionTimeoutSeconds": 30,
+    "MaxPoolSize": 100,
     "LogQueries": false
   }
 }
@@ -256,10 +261,12 @@ The dashboard provides:
 - Transaction entry (credits and debits)
 - Label and tag metadata entry for accounts and entries
 - Balance viewing and history
-- Entry search and enumeration by description, amount bounds, labels, tags, and ordering
+- Home charts for Value Recorded, Transactions over Time, and Amounts over Time with shared range, tenant, user, and account controls
+- Chart hover tooltips with timestamp/value detail and fixed time-bucket fidelity for last hour, day, week, and month views
+- Entry search and enumeration by tenant, account, description, date range, amount bounds, labels, tags, and ordering
 - Entry commit operations
 - API Explorer backed by `GET /openapi.json`
-- Request History with filters, summaries, detail views, and scoped deletion for admins
+- Request History with filters, summaries, detail views, scoped deletion for admins, and a Traffic over Time chart
 
 ## SDKs
 
@@ -274,8 +281,8 @@ dotnet add package NetLedger.Sdk
 ```csharp
 using NetLedger.Sdk;
 
-// Create a client
-using NetLedgerClient client = new NetLedgerClient("http://localhost:8080", "your-api-key");
+// Create a client with a session token or credential access key.
+using NetLedgerClient client = new NetLedgerClient("http://localhost:8080", "netledgeradmin", "default");
 
 // Create an account
 Account account = await client.Account.CreateAsync("My Account");
@@ -304,8 +311,8 @@ npm install netledger-sdk
 ```typescript
 import { NetLedgerClient } from 'netledger-sdk';
 
-// Create a client
-const client = new NetLedgerClient('http://localhost:8080', 'your-api-key');
+// Create a client with a session token or credential access key.
+const client = new NetLedgerClient('http://localhost:8080', 'netledgeradmin', { tenantId: 'default' });
 
 // Create an account
 const account = await client.account.create('My Account');
@@ -331,7 +338,7 @@ When running NetLedger Server (via Docker or directly), a full REST API is avail
 
 **Base URL**: `http://localhost:8080`
 
-**Authentication**: Bearer token via `Authorization: Bearer <api-key>` header
+**Authentication**: User sessions and credentials are accepted as bearer tokens via `Authorization: Bearer <token-or-access-key>`. Credential authentication can also use `x-access-key` and `x-secret-key`. Tenant scope can be supplied with `x-tenant-id` or tenant-scoped routes.
 
 ### Quick Examples
 
@@ -342,31 +349,36 @@ curl http://localhost:8080/
 # Create an account with label/tag metadata
 curl -X PUT http://localhost:8080/v1/accounts \
   -H "Authorization: Bearer netledgeradmin" \
+  -H "x-tenant-id: default" \
   -H "Content-Type: application/json" \
   -d '{"Name":"My Account","InitialBalance":100.00,"Labels":["operating","blue"],"Tags":{"department":"finance","color":"blue"}}'
 
 # Add a credit with label/tag metadata
-curl -X PUT http://localhost:8080/v1/accounts/{accountGuid}/credits \
+curl -X PUT http://localhost:8080/v1/accounts/{accountId}/credits \
   -H "Authorization: Bearer netledgeradmin" \
+  -H "x-tenant-id: default" \
   -H "Content-Type: application/json" \
   -d '{"Amount":50.00,"Notes":"Customer payment","Labels":["blue"],"Tags":{"color":"blue"}}'
 
 # Search entries by amount bounds, label, tag, and ordering
-curl "http://localhost:8080/v1/accounts/{accountGuid}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending" \
-  -H "Authorization: Bearer netledgeradmin"
+curl "http://localhost:8080/v1/accounts/{accountId}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending" \
+  -H "Authorization: Bearer netledgeradmin" \
+  -H "x-tenant-id: default"
 
 # Get balance
-curl http://localhost:8080/v1/accounts/{accountGuid}/balance \
-  -H "Authorization: Bearer netledgeradmin"
+curl http://localhost:8080/v1/accounts/{accountId}/balance \
+  -H "Authorization: Bearer netledgeradmin" \
+  -H "x-tenant-id: default"
 
 # Commit pending entries
-curl -X POST http://localhost:8080/v1/accounts/{accountGuid}/commit \
+curl -X POST http://localhost:8080/v1/accounts/{accountId}/commit \
   -H "Authorization: Bearer netledgeradmin" \
+  -H "x-tenant-id: default" \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
 
-For complete API documentation including all 24 endpoints, see [REST_API.md](REST_API.md).
+For complete API documentation, see [REST_API.md](REST_API.md).
 
 ## Detailed Usage
 
@@ -374,10 +386,10 @@ For complete API documentation including all 24 endpoints, see [REST_API.md](RES
 
 ```csharp
 // Create account with zero balance
-Guid guid1 = await ledger.CreateAccountAsync("Checking Account");
+string accountId1 = await ledger.CreateAccountAsync("Checking Account");
 
 // Create account with initial balance
-Guid guid2 = await ledger.CreateAccountAsync("Savings Account", 5000.00m);
+string accountId2 = await ledger.CreateAccountAsync("Savings Account", 5000.00m);
 
 // Create account with label/tag metadata
 string operatingAccountId = await ledger.CreateAccountAsync(
@@ -388,13 +400,13 @@ string operatingAccountId = await ledger.CreateAccountAsync(
 );
 
 // Create account with negative balance (e.g., credit card)
-Guid guid3 = await ledger.CreateAccountAsync("Credit Card", -250.00m);
+string accountId3 = await ledger.CreateAccountAsync("Credit Card", -250.00m);
 
 // Retrieve account by name
-Account account = await ledger.GetAccountByNameAsync("Checking Account");
+Account accountByName = await ledger.GetAccountByNameAsync("Checking Account");
 
-// Retrieve account by GUID
-Account account = await ledger.GetAccountByGuidAsync(guid1);
+// Retrieve account by Id
+Account accountById = await ledger.GetAccountByIdAsync(accountId1);
 
 // Get all accounts
 List<Account> accounts = await ledger.GetAllAccountsAsync();
@@ -417,25 +429,25 @@ EnumerationResult<Account> blueFinanceAccounts = await ledger.EnumerateAccountsA
 // Delete account by name
 await ledger.DeleteAccountByNameAsync("Checking Account");
 
-// Delete account by GUID
-await ledger.DeleteAccountByGuidAsync(guid1);
+// Delete account by Id
+await ledger.DeleteAccountByIdAsync(accountId1);
 ```
 
 ### Adding Transactions
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("Revenue Account", 0m);
+string accountId = await ledger.CreateAccountAsync("Revenue Account", 0m);
 
 // Add pending credit (default)
-Guid entryGuid = await ledger.AddCreditAsync(
-    accountGuid,
+string entryId = await ledger.AddCreditAsync(
+    accountId,
     amount: 250.00m,
     notes: "Invoice #1234"
 );
 
 // Add pending credit with label/tag metadata
 string labeledCreditId = await ledger.AddCreditAsync(
-    accountGuid,
+    accountId,
     amount: 175.00m,
     notes: "Blue customer payment",
     labels: new List<string> { "blue", "customer-payment" },
@@ -443,40 +455,40 @@ string labeledCreditId = await ledger.AddCreditAsync(
 );
 
 // Add immediately committed credit
-Guid committedGuid = await ledger.AddCreditAsync(
-    accountGuid,
+string committedId = await ledger.AddCreditAsync(
+    accountId,
     amount: 100.00m,
     notes: "Cash sale",
     isCommitted: true
 );
 
 // Add pending debit
-Guid debitGuid = await ledger.AddDebitAsync(
-    accountGuid,
+string debitId = await ledger.AddDebitAsync(
+    accountId,
     amount: 50.00m,
     notes: "Bank fee"
 );
 
 // Batch add multiple credits
-List<(decimal amount, string notes)> credits = new List<(decimal, string)>
+List<BatchEntryInput> credits = new List<BatchEntryInput>
 {
-    (100.00m, "Sale 1"),
-    (200.00m, "Sale 2"),
-    (150.00m, "Sale 3")
+    new BatchEntryInput(100.00m, "Sale 1"),
+    new BatchEntryInput(200.00m, "Sale 2"),
+    new BatchEntryInput(150.00m, "Sale 3")
 };
-List<Guid> creditGuids = await ledger.AddCreditsAsync(accountGuid, credits);
+List<string> creditIds = await ledger.AddCreditsAsync(accountId, credits);
 
 // Batch add multiple debits
-List<(decimal amount, string notes)> debits = new List<(decimal, string)>
+List<BatchEntryInput> debits = new List<BatchEntryInput>
 {
-    (25.00m, "Fee 1"),
-    (30.00m, "Fee 2")
+    new BatchEntryInput(25.00m, "Fee 1"),
+    new BatchEntryInput(30.00m, "Fee 2")
 };
-List<Guid> debitGuids = await ledger.AddDebitsAsync(accountGuid, debits);
+List<string> debitIds = await ledger.AddDebitsAsync(accountId, debits);
 
 // Batch add with immediate commit
-List<Guid> committedGuids = await ledger.AddCreditsAsync(
-    accountGuid,
+List<string> committedIds = await ledger.AddCreditsAsync(
+    accountId,
     credits,
     isCommitted: true
 );
@@ -485,14 +497,14 @@ List<Guid> committedGuids = await ledger.AddCreditsAsync(
 ### Working with Balances
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("Main Account", 1000.00m);
+string accountId = await ledger.CreateAccountAsync("Main Account", 1000.00m);
 
 // Add some pending transactions
-await ledger.AddCreditAsync(accountGuid, 500.00m, "Pending credit");
-await ledger.AddDebitAsync(accountGuid, 100.00m, "Pending debit");
+await ledger.AddCreditAsync(accountId, 500.00m, "Pending credit");
+await ledger.AddDebitAsync(accountId, 100.00m, "Pending debit");
 
 // Get current balance
-Balance balance = await ledger.GetBalanceAsync(accountGuid);
+Balance balance = await ledger.GetBalanceAsync(accountId);
 
 Console.WriteLine($"Account: {balance.Name}");
 Console.WriteLine($"Committed Balance: ${balance.CommittedBalance}");  // 1000.00
@@ -509,93 +521,93 @@ foreach (Entry entry in balance.PendingCredits.Entries)
 }
 
 // Get balances for all accounts
-Dictionary<Guid, Balance> allBalances = await ledger.GetAllBalancesAsync();
-foreach (KeyValuePair<Guid, Balance> kvp in allBalances)
+Dictionary<string, Balance> allBalances = await ledger.GetAllBalancesAsync();
+foreach (KeyValuePair<string, Balance> kvp in allBalances)
 {
     Console.WriteLine($"{kvp.Value.Name}: ${kvp.Value.CommittedBalance}");
 }
 
 // Get balance as of specific date/time
 DateTime asOf = new DateTime(2024, 12, 31, 23, 59, 59, DateTimeKind.Utc);
-decimal historicalBalance = await ledger.GetBalanceAsOfAsync(accountGuid, asOf);
+decimal historicalBalance = await ledger.GetBalanceAsOfAsync(accountId, asOf);
 ```
 
 ### Committing Transactions
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("Operations", 500.00m);
+string accountId = await ledger.CreateAccountAsync("Operations", 500.00m);
 
 // Add several pending entries
-Guid credit1 = await ledger.AddCreditAsync(accountGuid, 100.00m, "Entry 1");
-Guid credit2 = await ledger.AddCreditAsync(accountGuid, 200.00m, "Entry 2");
-Guid debit1 = await ledger.AddDebitAsync(accountGuid, 50.00m, "Entry 3");
+string credit1 = await ledger.AddCreditAsync(accountId, 100.00m, "Entry 1");
+string credit2 = await ledger.AddCreditAsync(accountId, 200.00m, "Entry 2");
+string debit1 = await ledger.AddDebitAsync(accountId, 50.00m, "Entry 3");
 
 // Commit ALL pending entries
-Balance balance = await ledger.CommitEntriesAsync(accountGuid);
+Balance balance = await ledger.CommitEntriesAsync(accountId);
 Console.WriteLine($"New Balance: ${balance.CommittedBalance}");  // 750.00
 
 // Add more pending entries
-Guid credit3 = await ledger.AddCreditAsync(accountGuid, 300.00m, "Entry 4");
-Guid credit4 = await ledger.AddCreditAsync(accountGuid, 400.00m, "Entry 5");
-Guid debit2 = await ledger.AddDebitAsync(accountGuid, 75.00m, "Entry 6");
+string credit3 = await ledger.AddCreditAsync(accountId, 300.00m, "Entry 4");
+string credit4 = await ledger.AddCreditAsync(accountId, 400.00m, "Entry 5");
+string debit2 = await ledger.AddDebitAsync(accountId, 75.00m, "Entry 6");
 
 // Commit SPECIFIC entries only
-List<Guid> toCommit = new List<Guid> { credit3, debit2 };
-balance = await ledger.CommitEntriesAsync(accountGuid, toCommit);
+List<string> toCommit = new List<string> { credit3, debit2 };
+balance = await ledger.CommitEntriesAsync(accountId, toCommit);
 
 Console.WriteLine($"Committed Balance: ${balance.CommittedBalance}");  // 975.00
 Console.WriteLine($"Pending Balance: ${balance.PendingBalance}");      // 1375.00 (includes uncommitted credit4)
 
 // Examine what was committed
-Console.WriteLine($"Committed Entry GUIDs: {string.Join(", ", balance.Committed)}");
+Console.WriteLine($"Committed Entry identifiers: {string.Join(", ", balance.Committed)}");
 ```
 
 ### Managing Pending Entries
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("Test Account", 100.00m);
+string accountId = await ledger.CreateAccountAsync("Test Account", 100.00m);
 
-await ledger.AddCreditAsync(accountGuid, 50.00m, "Credit 1");
-await ledger.AddCreditAsync(accountGuid, 75.00m, "Credit 2");
-await ledger.AddDebitAsync(accountGuid, 25.00m, "Debit 1");
-await ledger.AddDebitAsync(accountGuid, 30.00m, "Debit 2");
+await ledger.AddCreditAsync(accountId, 50.00m, "Credit 1");
+await ledger.AddCreditAsync(accountId, 75.00m, "Credit 2");
+await ledger.AddDebitAsync(accountId, 25.00m, "Debit 1");
+await ledger.AddDebitAsync(accountId, 30.00m, "Debit 2");
 
 // Get all pending entries
-List<Entry> allPending = await ledger.GetPendingEntriesAsync(accountGuid);
+List<Entry> allPending = await ledger.GetPendingEntriesAsync(accountId);
 Console.WriteLine($"Total pending: {allPending.Count}");  // 4
 
 // Get only pending credits
-List<Entry> pendingCredits = await ledger.GetPendingCreditsAsync(accountGuid);
+List<Entry> pendingCredits = await ledger.GetPendingCreditsAsync(accountId);
 Console.WriteLine($"Pending credits: {pendingCredits.Count}");  // 2
 
 // Get only pending debits
-List<Entry> pendingDebits = await ledger.GetPendingDebitsAsync(accountGuid);
+List<Entry> pendingDebits = await ledger.GetPendingDebitsAsync(accountId);
 Console.WriteLine($"Pending debits: {pendingDebits.Count}");  // 2
 
 // Cancel a pending entry
-Guid entryToCancel = allPending[0].GUID;
-await ledger.CancelPendingAsync(accountGuid, entryToCancel);
+string entryToCancel = allPending[0].Id;
+await ledger.CancelPendingAsync(accountId, entryToCancel);
 
 // Verify cancellation
-List<Entry> afterCancel = await ledger.GetPendingEntriesAsync(accountGuid);
+List<Entry> afterCancel = await ledger.GetPendingEntriesAsync(accountId);
 Console.WriteLine($"Remaining pending: {afterCancel.Count}");  // 3
 ```
 
 ### Querying Transaction History
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("History Test", 0m);
+string accountId = await ledger.CreateAccountAsync("History Test", 0m);
 
 // Add and commit various transactions
-await ledger.AddCreditAsync(accountGuid, 100.00m, "January sale", isCommitted: true);
+await ledger.AddCreditAsync(accountId, 100.00m, "January sale", isCommitted: true);
 await Task.Delay(100);  // Ensure different timestamps
-await ledger.AddDebitAsync(accountGuid, 50.00m, "February expense", isCommitted: true);
+await ledger.AddDebitAsync(accountId, 50.00m, "February expense", isCommitted: true);
 await Task.Delay(100);
-await ledger.AddCreditAsync(accountGuid, 200.00m, "March sale", isCommitted: true);
+await ledger.AddCreditAsync(accountId, 200.00m, "March sale", isCommitted: true);
 
 // Get entries with basic filtering (excludes balance entries by default)
 List<Entry> entries = await ledger.GetEntriesAsync(
-    accountGuid: accountGuid,
+    accountId,
     skip: 0,
     take: 10
 );
@@ -603,7 +615,7 @@ List<Entry> entries = await ledger.GetEntriesAsync(
 // Paginated enumeration with filtering
 EnumerationQuery query = new EnumerationQuery
 {
-    AccountGUID = accountGuid,
+    AccountId = accountId,
     MaxResults = 10,
     Ordering = EnumerationOrderEnum.AmountDescending,
     AmountMinimum = 75.00m,     // Only entries >= $75
@@ -637,7 +649,7 @@ Complex metadata and debit-specific searches use the same enumeration surface. L
 ```csharp
 EnumerationQuery blueDebitQuery = new EnumerationQuery
 {
-    AccountGUID = accountGuid,
+    AccountId = accountId,
     MaxResults = 50,
     Ordering = EnumerationOrderEnum.AmountDescending,
     DebitMinimum = 5.00m,
@@ -652,18 +664,18 @@ EnumerationResult<Entry> blueDebits = await ledger.EnumerateTransactionsAsync(bl
 ### Audit Trail and Balance Verification
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("Audit Test", 1000.00m);
+string accountId = await ledger.CreateAccountAsync("Audit Test", 1000.00m);
 
 // Perform several commit operations to create balance chain
-await ledger.AddCreditAsync(accountGuid, 100.00m, isCommitted: true);
-await ledger.AddDebitAsync(accountGuid, 50.00m, isCommitted: true);
-await ledger.AddCreditAsync(accountGuid, 200.00m, isCommitted: true);
+await ledger.AddCreditAsync(accountId, 100.00m, isCommitted: true);
+await ledger.AddDebitAsync(accountId, 50.00m, isCommitted: true);
+await ledger.AddCreditAsync(accountId, 200.00m, isCommitted: true);
 
-// Each commit creates a new balance entry that replaces the previous one
-// This creates an immutable chain: Balance₁ → Balance₂ → Balance₃
+// Each commit creates a new balance entry that replaces the previous one.
+// This creates an immutable chain of balance entries.
 
 // Verify the integrity of the balance chain
-bool isValid = await ledger.VerifyBalanceChainAsync(accountGuid);
+bool isValid = await ledger.VerifyBalanceChainAsync(accountId);
 if (isValid)
 {
     Console.WriteLine("Balance chain is valid - audit trail intact");
@@ -673,25 +685,8 @@ else
     Console.WriteLine("WARNING: Balance chain is broken - possible data corruption");
 }
 
-// Get balance entries specifically for forensic analysis
-List<Entry> balanceEntries = await ledger.GetEntriesAsync(
-    accountGuid: accountGuid,
-    entryType: EntryType.Balance,
-    skip: 0,
-    take: 100
-);
-
-balanceEntries = balanceEntries.OrderBy(e => e.CreatedUtc).ToList();
-
-Console.WriteLine("Balance Entry Chain:");
-foreach (Entry balanceEntry in balanceEntries)
-{
-    Console.WriteLine($"  {balanceEntry.CreatedUtc:yyyy-MM-dd HH:mm:ss} - Balance: ${balanceEntry.Amount}");
-    if (balanceEntry.Replaces != null)
-    {
-        Console.WriteLine($"    Replaces: {balanceEntry.Replaces}");
-    }
-}
+// The public verifier walks the internal balance-entry chain and returns false
+// if the chain is broken or cyclic.
 ```
 
 ### Event Handling
@@ -702,7 +697,7 @@ Ledger ledger = new Ledger("events.db");
 // Subscribe to events
 ledger.AccountCreated += (sender, args) =>
 {
-    Console.WriteLine($"Account created: {args.Name} (GUID: {args.GUID})");
+    Console.WriteLine($"Account created: {args.Name} (Id: {args.Id})");
 };
 
 ledger.AccountDeleted += (sender, args) =>
@@ -722,7 +717,7 @@ ledger.DebitAdded += (sender, args) =>
 
 ledger.EntryCanceled += (sender, args) =>
 {
-    Console.WriteLine($"Entry canceled: {args.Entry.GUID}");
+    Console.WriteLine($"Entry canceled: {args.Entry.Id}");
 };
 
 ledger.EntriesCommitted += (sender, args) =>
@@ -733,9 +728,9 @@ ledger.EntriesCommitted += (sender, args) =>
 };
 
 // Perform operations - events will fire asynchronously
-Guid accountGuid = await ledger.CreateAccountAsync("Event Test", 100.00m);
-await ledger.AddCreditAsync(accountGuid, 50.00m);
-await ledger.CommitEntriesAsync(accountGuid);
+string accountId = await ledger.CreateAccountAsync("Event Test", 100.00m);
+await ledger.AddCreditAsync(accountId, 50.00m);
+await ledger.CommitEntriesAsync(accountId);
 
 await ledger.DisposeAsync();
 ```
@@ -749,13 +744,13 @@ using CancellationTokenSource cts = new CancellationTokenSource(TimeSpan.FromSec
 try
 {
     // All async methods support cancellation
-    Guid accountGuid = await ledger.CreateAccountAsync("Cancelable Account", token: cts.Token);
+    string accountId = await ledger.CreateAccountAsync("Cancelable Account", token: cts.Token);
 
-    await ledger.AddCreditAsync(accountGuid, 100.00m, token: cts.Token);
+    await ledger.AddCreditAsync(accountId, 100.00m, token: cts.Token);
 
-    Balance balance = await ledger.GetBalanceAsync(accountGuid, token: cts.Token);
+    Balance balance = await ledger.GetBalanceAsync(accountId, token: cts.Token);
 
-    await ledger.CommitEntriesAsync(accountGuid, token: cts.Token);
+    await ledger.CommitEntriesAsync(accountId, token: cts.Token);
 }
 catch (OperationCanceledException)
 {
@@ -766,10 +761,10 @@ catch (OperationCanceledException)
 ### Thread Safety Example
 
 ```csharp
-Guid accountGuid = await ledger.CreateAccountAsync("Concurrent Account", 0m);
+string accountId = await ledger.CreateAccountAsync("Concurrent Account", 0m);
 
-// Multiple threads can safely operate on the same account
-// NetLedger uses SemaphoreSlim-based locking per account
+// Multiple threads can safely operate on the same account.
+// NetLedger uses account-keyed in-process locks and database-backed account locks.
 List<Task> tasks = new List<Task>();
 
 for (int i = 0; i < 100; i++)
@@ -777,13 +772,13 @@ for (int i = 0; i < 100; i++)
     int capture = i;
     tasks.Add(Task.Run(async () =>
     {
-        await ledger.AddCreditAsync(accountGuid, 10.00m, $"Concurrent credit {capture}");
+        await ledger.AddCreditAsync(accountId, 10.00m, $"Concurrent credit {capture}");
     }));
 }
 
 await Task.WhenAll(tasks);
 
-Balance balance = await ledger.GetBalanceAsync(accountGuid);
+Balance balance = await ledger.GetBalanceAsync(accountId);
 Console.WriteLine($"Final pending balance: ${balance.PendingBalance}");  // 1000.00
 ```
 
@@ -801,7 +796,7 @@ NetLedger enforces a two-phase transaction model:
 2. **Committed Phase** - Entries are finalized via `CommitEntriesAsync()`
    - Cannot be canceled or modified (immutable)
    - Included in `CommittedBalance`
-   - Linked to a balance entry via `CommittedByGUID`
+   - Linked to a balance entry via `CommittedById`
    - Creates a new balance entry in the audit chain
 
 This model enables "draft transactions" that can be reviewed, approved, and finalized separately from the committed ledger state.
@@ -811,49 +806,73 @@ This model enables "draft transactions" that can be reviewed, approved, and fina
 Each commit operation creates a special `EntryType.Balance` entry that:
 - Summarizes the current committed balance
 - Links to the previous balance entry via the `Replaces` field
-- Creates an immutable audit trail: Balance₁ → Balance₂ → Balance₃ → ...
+- Creates an immutable audit trail from one balance entry to the next
 - Can be verified for integrity via `VerifyBalanceChainAsync()`
 
 This chain provides forensic accounting capabilities and prevents tampering with historical balances.
 
 ### Account-Level Locking
 
-NetLedger uses `ConcurrentDictionary<Guid, SemaphoreSlim>` to provide per-account locking:
+NetLedger uses account-keyed in-process locks plus database-backed account locks to provide per-account write serialization:
 - Operations on different accounts execute in parallel
 - Operations on the same account are serialized to prevent race conditions
-- Locks are acquired asynchronously via `SemaphoreSlim.WaitAsync()`
+- Locks are acquired asynchronously and released after the account mutation completes
 - All locks are released in `finally` blocks to prevent deadlocks
 - Supports cancellation tokens for responsive lock acquisition
 
 ### Database Schema
 
-**accounts table:**
-```sql
-id INTEGER PRIMARY KEY AUTOINCREMENT
-guid TEXT NOT NULL
-name TEXT NOT NULL
-notes TEXT
-createdutc TEXT NOT NULL
-```
+NetLedger supports SQLite, MySQL, PostgreSQL, and SQL Server. Provider DDL is kept in source under `src/NetLedger/Database/*/Queries/SetupQueries.cs`; providers intentionally retain a few legacy physical identifier column names for compatibility while exposing public v3 model properties as `Id`, `AccountId`, `EntryId`, `CommittedById`, and `CredentialId`.
 
-**entries table:**
-```sql
-id INTEGER PRIMARY KEY AUTOINCREMENT
-guid TEXT NOT NULL
-accountguid TEXT NOT NULL
-type INTEGER NOT NULL              -- 0=Debit, 1=Credit, 2=Balance
-amount REAL NOT NULL
-description TEXT
-replaces TEXT                      -- Links to previous balance entry
-committed INTEGER NOT NULL         -- 0=Pending, 1=Committed
-committedbyguid TEXT              -- GUID of balance entry that committed this
-committedutc TEXT
-createdutc TEXT NOT NULL
-```
+The v3 schema includes these primary tables:
+
+| Table | Purpose |
+| --- | --- |
+| `accounts` | Tenant-scoped ledger accounts with notes, labels, tags, active state, and timestamps. |
+| `entries` | Account entries for debits, credits, and balance snapshots, including commit linkage and metadata. |
+| `accountlocks` | Database-backed per-account lock ownership and expiration records. |
+| `schemamigrations` | Applied schema migration records. |
+| `tenants` | Tenant records, optional parent link, region, active/protected flags, and timestamps. |
+| `users` | Tenant users with email, password hash, admin flags, active/protected flags, and timestamps. |
+| `credentials` | User credentials with access key, secret verifier material, auth mode, active/protected flags, and timestamps. |
+| `authsessions` | Revocable user sessions with token, expiration, and revocation timestamps. |
+| `accountusermaps` | Tenant/account/user mappings used for account-scoped access. |
+| `auditrecords` | Authorization and security audit events. |
+| `requesthistory` | Captured API request/response metadata for request history and traffic charts. |
+| `userroles`, `permissions`, `rolepermissionmaps`, `userroleassignments`, `credentialscopeassignments` | RBAC roles, permissions, mappings, and scoped assignments. |
+
+Public account records map to:
+- `Id`
+- `TenantId`
+- `Name`
+- `Notes`
+- `Labels`
+- `Tags`
+- `Active`
+- `CreatedUtc`
+- `LastUpdateUtc`
+
+Public entry records map to:
+- `Id`
+- `TenantId`
+- `AccountId`
+- `Type` (`Debit`, `Credit`, or `Balance`)
+- `Amount`
+- `Description`
+- `Replaces`
+- `IsCommitted`
+- `CommittedById`
+- `CommittedUtc`
+- `Labels`
+- `Tags`
+- `CreatedUtc`
+- `LastUpdateUtc`
+
+SQLite stores timestamps in UTC using six fractional digits. MySQL, PostgreSQL, and SQL Server use equivalent provider-specific column types and quoting.
 
 ## Performance Considerations
 
-- **Connection Pooling**: Max 500 connections with 120-second timeout
+- **Connection Pooling**: External database providers use configurable pooling up to 500 connections; the default maximum is 100.
 - **Batch Operations**: Use `AddCreditsAsync()` and `AddDebitsAsync()` for bulk inserts
 - **Pagination**: Use `EnumerateTransactionsAsync()` with continuation tokens for large result sets (max 1000 records per query)
 - **Account Locking**: Lock contention only occurs within the same account; different accounts have no lock interaction
@@ -865,36 +884,42 @@ createdutc TEXT NOT NULL
 // NetLedger does not have built-in transfer operations
 // Implement transfers by debiting one account and crediting another
 
-async Task TransferAsync(Ledger ledger, Guid fromAccount, Guid toAccount, decimal amount, string notes)
+async Task TransferAsync(Ledger ledger, string fromAccount, string toAccount, decimal amount, string notes)
 {
     string description = $"Transfer: {notes}";
 
     // Debit the source account
-    Guid debitGuid = await ledger.AddDebitAsync(fromAccount, amount, description);
+    string debitId = await ledger.AddDebitAsync(fromAccount, amount, description);
 
     // Credit the destination account
-    Guid creditGuid = await ledger.AddCreditAsync(toAccount, amount, description);
+    string creditId = await ledger.AddCreditAsync(toAccount, amount, description);
 
     // Commit both entries
-    await ledger.CommitEntriesAsync(fromAccount, new List<Guid> { debitGuid });
-    await ledger.CommitEntriesAsync(toAccount, new List<Guid> { creditGuid });
+    await ledger.CommitEntriesAsync(fromAccount, new List<string> { debitId });
+    await ledger.CommitEntriesAsync(toAccount, new List<string> { creditId });
 }
 
 // Usage
-Guid checking = await ledger.CreateAccountAsync("Checking", 1000.00m);
-Guid savings = await ledger.CreateAccountAsync("Savings", 500.00m);
+string checking = await ledger.CreateAccountAsync("Checking", 1000.00m);
+string savings = await ledger.CreateAccountAsync("Savings", 500.00m);
 
 await TransferAsync(ledger, checking, savings, 200.00m, "Monthly savings");
 ```
 
 ## Requirements
 
-- **.NET 8.0** or later
-- **SQLite** (included via Durable.Sqlite package)
+- **.NET 8.0** or **.NET 10.0**
+- **Database provider**: SQLite is bundled for embedded use; MySQL, PostgreSQL, and SQL Server require reachable database instances and credentials.
 
 ## Dependencies
 
-- **Durable.Sqlite** (v0.1.10) - Custom ORM with connection pooling
+- **AsyncKeyedLock** (v8.0.2) - Account-keyed in-process locking
+- **Padlock** (v1.0.4) - Database-backed account lock coordination
+- **Microsoft.Data.Sqlite** (v9.0.0) and **SQLitePCLRaw.bundle_e_sqlite3** (v3.0.3) - SQLite provider
+- **MySqlConnector** (v2.4.0) - MySQL provider
+- **Npgsql** (v9.0.2) - PostgreSQL provider
+- **Microsoft.Data.SqlClient** (v6.0.1) - SQL Server provider
+- **PrettyId** (v2.0.1) - K-sortable public string IDs
 - **Timestamps** (v1.0.11) - Timestamp utilities
 
 ## License
@@ -913,12 +938,11 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## Version History
 
-### v2.0.0 (Current)
-- Full async/await support throughout
-- Transaction support with ACID guarantees
-- Batch operations for credits and debits
-- Enhanced error handling with specific exception types
-- Performance improvements with connection pooling
-- Breaking changes from v1.x (see [CHANGELOG.md](CHANGELOG.md))
+### v3.0.0 (Current)
+- Tenant-scoped ledger data, authentication, authorization, credentials, sessions, RBAC, and audit records.
+- PrettyId string identifiers on public models.
+- Account and entry labels/tags with metadata-aware search and enumeration.
+- SQLite, MySQL, PostgreSQL, and SQL Server providers.
+- Dashboard charts, request history, API Explorer, Touchstone-backed tests, LoadGenerator, REST API docs, Postman, and SDK updates.
 
 See [CHANGELOG.md](CHANGELOG.md) for complete version history.

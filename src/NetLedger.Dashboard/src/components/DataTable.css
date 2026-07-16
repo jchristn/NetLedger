@@ -132,7 +132,7 @@
   text-align: center;
 }
 
-.data-table .col-guid {
+.data-table .col-id {
   min-width: 320px;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
   font-size: 0.8125rem;

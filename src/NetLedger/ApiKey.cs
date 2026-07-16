@@ -32,16 +32,6 @@ namespace NetLedger
         public string UserId { get; set; } = String.Empty;
 
         /// <summary>
-        /// Legacy API key identifier alias.
-        /// </summary>
-        [JsonIgnore]
-        public string GUID
-        {
-            get { return Id; }
-            set { Id = value; }
-        }
-
-        /// <summary>
         /// Display name for the API key.
         /// </summary>
         public string Name { get; set; } = String.Empty;
@@ -133,7 +123,6 @@ namespace NetLedger
                 Id = Id,
                 TenantId = TenantId,
                 UserId = UserId,
-                GUID = GUID,
                 Name = Name,
                 Key = Key.Length >= 8 ? Key.Substring(0, 4) + "****" + Key.Substring(Key.Length - 4) : "****",
                 SecretKeySha256 = String.Empty,

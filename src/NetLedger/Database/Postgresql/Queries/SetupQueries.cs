@@ -28,6 +28,13 @@ namespace NetLedger.Database.Postgresql.Queries
                     success BOOLEAN NOT NULL DEFAULT TRUE
                 );",
 
+                @"CREATE TABLE IF NOT EXISTS accountlocks (
+                    accountid VARCHAR(64) PRIMARY KEY,
+                    ownerid VARCHAR(64) NOT NULL,
+                    expiresutc TIMESTAMP NOT NULL,
+                    createdutc TIMESTAMP NOT NULL
+                );",
+
                 @"CREATE TABLE IF NOT EXISTS accounts (
                     id SERIAL PRIMARY KEY,
                     guid VARCHAR(64) NOT NULL,
@@ -248,8 +255,12 @@ namespace NetLedger.Database.Postgresql.Queries
                 "CREATE INDEX IF NOT EXISTS idx_entries_type ON entries (type);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_iscommitted ON entries (iscommitted);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_createdutc ON entries (createdutc);",
+                "CREATE INDEX IF NOT EXISTS idx_entries_accountguid_createdutc ON entries (accountguid, createdutc);",
+                "CREATE INDEX IF NOT EXISTS idx_entries_accountguid_id ON entries (accountguid, id);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type ON entries (accountguid, type);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_accountguid_iscommitted ON entries (accountguid, iscommitted);",
+                "CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type_iscommitted_createdutc ON entries (accountguid, type, iscommitted, createdutc);",
+                "CREATE INDEX IF NOT EXISTS idx_entries_tenantid_accountguid_createdutc ON entries (tenantid, accountguid, createdutc);",
 
                 // API keys indices
                 "CREATE INDEX IF NOT EXISTS idx_apikeys_guid ON apikeys (guid);",

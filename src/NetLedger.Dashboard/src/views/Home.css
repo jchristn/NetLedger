@@ -208,6 +208,10 @@
   text-transform: uppercase;
 }
 
+.drilldown-controls input[type="datetime-local"] {
+  min-height: 2.5rem;
+}
+
 .transactions-chart {
   position: relative;
   width: 100%;
@@ -284,6 +288,10 @@
 
 .chart-label-end {
   text-anchor: end;
+}
+
+.chart-label-start {
+  text-anchor: start;
 }
 
 .chart-tooltip {

@@ -7,6 +7,7 @@ namespace NetLedger.Server.API.Agnostic
         /// <summary>
         /// Optional entry identifiers to commit.
         /// </summary>
-        public List<string>? EntryGuids { get; set; }
+        public List<string>? EntryIds { get; set; }
+
     }
 }

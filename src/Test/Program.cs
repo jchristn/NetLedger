@@ -11,7 +11,7 @@ namespace Test
         static string _Filename = null;
         static Ledger _Ledger = null;
         static bool _RunForever = true;
-        static Guid? _LastAccountGuid = null;
+        static string _LastAccountId = null;
 
         static async Task Main(string[] args)
         {
@@ -62,17 +62,17 @@ namespace Test
                     {
                         await AccountByName();
                     }
-                    else if (subCmd.Equals("by guid"))
+                    else if (subCmd.Equals("by id"))
                     {
-                        await AccountByGuid();
+                        await AccountById();
                     }
                     else if (subCmd.Equals("del by name"))
                     {
                         await AccountDeleteByName();
                     }
-                    else if (subCmd.Equals("del by guid"))
+                    else if (subCmd.Equals("del by id"))
                     {
-                        await AccountDeleteByGuid();
+                        await AccountDeleteById();
                     }
                     else if (subCmd.Equals("balance"))
                     {
@@ -143,9 +143,9 @@ namespace Test
             Console.WriteLine(" acct all            list all accounts, or search by name");
             Console.WriteLine("      add            create an account");
             Console.WriteLine("      by name        retrieve an account by name");
-            Console.WriteLine("      by guid        retrieve an account by GUID");
+            Console.WriteLine("      by id        retrieve an account by identifier");
             Console.WriteLine("      del by name    delete an account by name");
-            Console.WriteLine("      del by guid    delete an account by GUID");
+            Console.WriteLine("      del by id    delete an account by identifier");
             Console.WriteLine("      balance        retrieve an account balance");
             Console.WriteLine("      commit         commit pending entries to the balance");
             Console.WriteLine("");
@@ -183,9 +183,9 @@ namespace Test
             string name = Inputty.GetString("Name:", null, true);
             if (!String.IsNullOrEmpty(name))
             {
-                Guid guid = await _Ledger.CreateAccountAsync(name);
-                _LastAccountGuid = guid;
-                Console.WriteLine(guid);
+                string id = await _Ledger.CreateAccountAsync(name);
+                _LastAccountId = id;
+                Console.WriteLine(id);
             }
         }
 
@@ -197,22 +197,22 @@ namespace Test
                 Account a = await _Ledger.GetAccountByNameAsync(name);
                 if (a != null)
                 {
-                    _LastAccountGuid = a.GUID;
+                    _LastAccountId = a.Id;
                     Console.WriteLine(SerializationHelper.SerializeJson(a, true));
                 }
                 else Console.WriteLine("(none)");
             }
         }
 
-        static async Task AccountByGuid()
+        static async Task AccountById()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                Account a = await _Ledger.GetAccountByGuidAsync(guid);
+                Account a = await _Ledger.GetAccountByIdAsync(id);
                 if (a != null)
                 {
-                    _LastAccountGuid = a.GUID;
+                    _LastAccountId = a.Id;
                     Console.WriteLine(SerializationHelper.SerializeJson(a, true));
                 }
                 else Console.WriteLine("(none)");
@@ -228,21 +228,21 @@ namespace Test
             }
         }
 
-        static async Task AccountDeleteByGuid()
+        static async Task AccountDeleteById()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                await _Ledger.DeleteAccountByGuidAsync(guid);
+                await _Ledger.DeleteAccountByIdAsync(id);
             }
         }
 
         static async Task AccountBalance()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                Balance b = await _Ledger.GetBalanceAsync(guid);
+                Balance b = await _Ledger.GetBalanceAsync(id);
                 if (b != null) Console.WriteLine(SerializationHelper.SerializeJson(b, true));
                 else Console.WriteLine("(none)");
             }
@@ -250,24 +250,17 @@ namespace Test
 
         static async Task AccountCommit()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                List<Guid> entries = new List<Guid>();
+                List<string> entries = new List<string>();
                 while (true)
                 {
-                    string entryGuidStr = Inputty.GetString("Entry GUID (leave blank to finish):", null, true);
-                    if (String.IsNullOrEmpty(entryGuidStr)) break;
-                    if (Guid.TryParse(entryGuidStr, out Guid entryGuid))
-                    {
-                        entries.Add(entryGuid);
-                    }
-                    else
-                    {
-                        Console.WriteLine("Invalid GUID format, please try again.");
-                    }
+                    string entryIdStr = Inputty.GetString("Entry identifier (leave blank to finish):", null, true);
+                    if (String.IsNullOrEmpty(entryIdStr)) break;
+                    entries.Add(entryIdStr);
                 }
-                Balance b = await _Ledger.CommitEntriesAsync(guid, entries.Count > 0 ? entries : null);
+                Balance b = await _Ledger.CommitEntriesAsync(id, entries.Count > 0 ? entries : null);
                 if (b != null) Console.WriteLine(SerializationHelper.SerializeJson(b, true));
                 else Console.WriteLine("(none)");
             }
@@ -279,29 +272,26 @@ namespace Test
 
         static async Task CreditAdd()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
                 decimal amount = Inputty.GetDecimal("Amount:", 1m, true, true);
                 string notes = Inputty.GetString("Notes:", null, true);
-                Guid? summarizedBy = null;
+                string summarizedBy = null;
                 string summarizedByStr = Inputty.GetString("Summarized By (leave blank for none):", null, true);
-                if (!String.IsNullOrEmpty(summarizedByStr) && Guid.TryParse(summarizedByStr, out Guid parsedGuid))
-                {
-                    summarizedBy = parsedGuid;
-                }
+                if (!String.IsNullOrEmpty(summarizedByStr)) summarizedBy = summarizedByStr;
                 bool isCommitted = Inputty.GetBoolean("Already Committed", false);
-                Guid entryGuid = await _Ledger.AddCreditAsync(guid, amount, notes, summarizedBy, isCommitted);
-                Console.WriteLine(entryGuid);
+                string entryId = await _Ledger.AddCreditAsync(id, amount, notes, summarizedBy, isCommitted);
+                Console.WriteLine(entryId);
             }
         }
 
         static async Task CreditsPending()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                List<Entry> entries = await _Ledger.GetPendingCreditsAsync(guid);
+                List<Entry> entries = await _Ledger.GetPendingCreditsAsync(id);
                 if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
@@ -313,29 +303,26 @@ namespace Test
 
         static async Task DebitAdd()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
                 decimal amount = Inputty.GetDecimal("Amount:", 1m, true, true);
                 string notes = Inputty.GetString("Notes:", null, true);
-                Guid? summarizedBy = null;
+                string summarizedBy = null;
                 string summarizedByStr = Inputty.GetString("Summarized By (leave blank for none):", null, true);
-                if (!String.IsNullOrEmpty(summarizedByStr) && Guid.TryParse(summarizedByStr, out Guid parsedGuid))
-                {
-                    summarizedBy = parsedGuid;
-                }
+                if (!String.IsNullOrEmpty(summarizedByStr)) summarizedBy = summarizedByStr;
                 bool isCommitted = Inputty.GetBoolean("Already Committed", false);
-                Guid entryGuid = await _Ledger.AddDebitAsync(guid, amount, notes, summarizedBy, isCommitted);
-                Console.WriteLine(entryGuid);
+                string entryId = await _Ledger.AddDebitAsync(id, amount, notes, summarizedBy, isCommitted);
+                Console.WriteLine(entryId);
             }
         }
 
         static async Task DebitsPending()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                List<Entry> entries = await _Ledger.GetPendingDebitsAsync(guid);
+                List<Entry> entries = await _Ledger.GetPendingDebitsAsync(id);
                 if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
@@ -347,10 +334,10 @@ namespace Test
 
         static async Task EntriesPending()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
-                List<Entry> entries = await _Ledger.GetPendingEntriesAsync(guid);
+                List<Entry> entries = await _Ledger.GetPendingEntriesAsync(id);
                 if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
@@ -358,8 +345,8 @@ namespace Test
 
         static async Task EntrySearch()
         {
-            Guid guid = Inputty.GetGuid("GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (guid != Guid.Empty)
+            string id = Inputty.GetString("Identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(id))
             {
                 string startDateStr = Inputty.GetString("Start date:", null, true);
                 string endDateStr = Inputty.GetString("End date:", null, true);
@@ -377,7 +364,7 @@ namespace Test
                 if (!String.IsNullOrEmpty(minAmountStr)) minAmount = Convert.ToDecimal(minAmountStr);
                 if (!String.IsNullOrEmpty(maxAmountStr)) maxAmount = Convert.ToDecimal(maxAmountStr);
 
-                List<Entry> entries = await _Ledger.GetEntriesAsync(guid, startDate, endDate, minAmount, maxAmount, searchTerm);
+                List<Entry> entries = await _Ledger.GetEntriesAsync(id, startDate, endDate, minAmount, maxAmount, searchTerm);
                 if (entries != null && entries.Count > 0) Console.WriteLine(SerializationHelper.SerializeJson(entries, true));
                 else Console.WriteLine("(none)");
             }
@@ -385,21 +372,21 @@ namespace Test
 
         static async Task EntryCancel()
         {
-            Guid acctGuid = Inputty.GetGuid("Account GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (acctGuid != Guid.Empty)
+            string acctId = Inputty.GetString("Account identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(acctId))
             {
-                Guid entryGuid = Inputty.GetGuid("Entry GUID:", Guid.Empty);
-                if (entryGuid != Guid.Empty)
+                string entryId = Inputty.GetString("Entry identifier:", null, true);
+                if (!String.IsNullOrEmpty(entryId))
                 {
-                    await _Ledger.CancelPendingAsync(acctGuid, entryGuid);
+                    await _Ledger.CancelPendingAsync(acctId, entryId);
                 }
             }
         }
 
         static async Task EnumerateTransactions()
         {
-            Guid acctGuid = Inputty.GetGuid("Account GUID:", _LastAccountGuid ?? Guid.Empty);
-            if (acctGuid != Guid.Empty)
+            string acctId = Inputty.GetString("Account identifier:", _LastAccountId, true);
+            if (!String.IsNullOrEmpty(acctId))
             {
                 int maxResults = Inputty.GetInteger("MaxResults:", 10, true, false);
                 int skip = Inputty.GetInteger("Skip:", 0, true, false);
@@ -430,7 +417,7 @@ namespace Test
 
                 EnumerationQuery query = new EnumerationQuery
                 {
-                    AccountGUID = acctGuid,
+                    AccountId = acctId,
                     MaxResults = maxResults,
                     Skip = skip,
                     Ordering = ordering,
@@ -447,7 +434,7 @@ namespace Test
                 Console.WriteLine("Total Records:      " + result.TotalRecords);
                 Console.WriteLine("Records Remaining:  " + result.RecordsRemaining);
                 Console.WriteLine("End of Results:     " + result.EndOfResults);
-                Console.WriteLine("Continuation Token: " + (result.ContinuationToken.HasValue ? result.ContinuationToken.Value.ToString() : "(none)"));
+                Console.WriteLine("Continuation Token: " + (!String.IsNullOrEmpty(result.ContinuationToken) ? result.ContinuationToken : "(none)"));
                 Console.WriteLine("Max Results:        " + result.MaxResults);
                 Console.WriteLine("Skip:               " + result.Skip);
                 Console.WriteLine("");
