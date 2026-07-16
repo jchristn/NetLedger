@@ -662,9 +662,11 @@ export default function Entries() {
                   </svg>
                   Search Filters
                 </span>
-                <span className="entry-search-toggle-meta">
-                  {showOnlyPending ? 'Disabled while showing pending' : activeFilterCount > 0 ? `${activeFilterCount} active` : 'Collapsed'}
-                </span>
+                {(showOnlyPending || activeFilterCount > 0) && (
+                  <span className="entry-search-toggle-meta">
+                    {showOnlyPending ? 'Disabled while showing pending' : `${activeFilterCount} active`}
+                  </span>
+                )}
               </button>
 
               {isSearchPanelOpen && (

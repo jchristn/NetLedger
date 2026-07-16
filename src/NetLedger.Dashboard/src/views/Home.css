@@ -105,7 +105,19 @@
   color: var(--text-muted);
 }
 
-/* Transactions Chart */
+/* Dashboard Charts */
+.dashboard-chart-controls {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.dashboard-chart-controls .chart-controls {
+  margin-bottom: 0;
+}
+
 .transactions-chart-section {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -197,8 +209,9 @@
 }
 
 .transactions-chart {
+  position: relative;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .transactions-chart svg {
@@ -228,6 +241,32 @@
   fill: var(--color-danger);
 }
 
+.chart-area-value {
+  fill: var(--color-primary);
+  opacity: 0.12;
+}
+
+.chart-line-value {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-point-value {
+  fill: var(--bg-secondary);
+  stroke: var(--color-primary);
+  stroke-width: 2;
+}
+
+.chart-hover-target {
+  fill: transparent;
+  cursor: crosshair;
+  outline: none;
+  pointer-events: all;
+}
+
 .chart-y-label,
 .chart-x-label {
   fill: var(--text-muted);
@@ -245,6 +284,53 @@
 
 .chart-label-end {
   text-anchor: end;
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 3;
+  min-width: 180px;
+  max-width: min(260px, calc(100% - 1rem));
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+
+.chart-tooltip-above {
+  transform: translate(-50%, calc(-100% - 0.5rem));
+}
+
+.chart-tooltip-below {
+  transform: translate(-50%, 0.5rem);
+}
+
+.chart-tooltip-title {
+  margin-bottom: 0.375rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.chart-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.chart-tooltip-row span {
+  color: var(--text-muted);
+}
+
+.chart-tooltip-row strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-align: right;
 }
 
 .chart-legend {
@@ -274,6 +360,10 @@
 
 .legend-debit {
   background: var(--color-danger);
+}
+
+.legend-value {
+  background: var(--color-primary);
 }
 
 /* Recent Accounts */

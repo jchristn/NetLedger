@@ -32,6 +32,11 @@ function getEntryAmount(entry) {
   return Number(valueOf(entry, 'Amount') || 0)
 }
 
+function getEntryIsCommitted(entry) {
+  const value = valueOf(entry, 'IsCommitted')
+  return value === null || value === undefined ? true : value !== false
+}
+
 function getEntryCreatedUtc(entry) {
   return valueOf(entry, 'CreatedUtc')
 }
@@ -65,7 +70,11 @@ function buildBuckets(entries, range) {
       credits: 0,
       debits: 0,
       count: 0,
-      amount: 0
+      amount: 0,
+      creditAmount: 0,
+      debitAmount: 0,
+      committedCreditAmount: 0,
+      committedDebitAmount: 0
     }
   })
 
@@ -78,11 +87,32 @@ function buildBuckets(entries, range) {
     const type = getEntryType(entry)
     buckets[index].count += 1
     buckets[index].amount += amount
-    if (type === 'Credit') buckets[index].credits += 1
-    if (type === 'Debit') buckets[index].debits += 1
+    if (type === 'Credit') {
+      buckets[index].credits += 1
+      buckets[index].creditAmount += amount
+      if (getEntryIsCommitted(entry)) buckets[index].committedCreditAmount += amount
+    }
+    if (type === 'Debit') {
+      buckets[index].debits += 1
+      buckets[index].debitAmount += amount
+      if (getEntryIsCommitted(entry)) buckets[index].committedDebitAmount += amount
+    }
   })
 
   return buckets
+}
+
+function buildValueBuckets(buckets, currentBalance) {
+  const committedDelta = buckets.reduce((sum, bucket) => sum + bucket.committedCreditAmount - bucket.committedDebitAmount, 0)
+  let runningBalance = currentBalance - committedDelta
+
+  return buckets.map((bucket) => {
+    runningBalance += bucket.committedCreditAmount - bucket.committedDebitAmount
+    return {
+      ...bucket,
+      value: runningBalance
+    }
+  })
 }
 
 function buildYAxisLabels(maxValue, maxLabels = 5) {
@@ -109,6 +139,50 @@ function buildYAxisLabels(maxValue, maxLabels = 5) {
   return labels
 }
 
+function buildLinearYAxisLabels(values, maxLabels = 5) {
+  const numericValues = values.filter((value) => Number.isFinite(value))
+  if (numericValues.length === 0) return [0, 1]
+
+  let minValue = Math.min(...numericValues)
+  let maxValue = Math.max(...numericValues)
+
+  if (minValue === maxValue) {
+    const pad = Math.max(1, Math.abs(maxValue) * 0.1)
+    minValue -= pad
+    maxValue += pad
+  }
+
+  const roughStep = (maxValue - minValue) / (maxLabels - 1)
+  const power = Math.pow(10, Math.floor(Math.log10(roughStep)))
+  const normalized = roughStep / power
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * power
+  const start = Math.floor(minValue / step) * step
+  const end = Math.ceil(maxValue / step) * step
+  const labels = []
+
+  for (let value = start; value <= end + step / 2 && labels.length < maxLabels + 1; value += step) {
+    labels.push(value)
+  }
+
+  if (!labels.includes(0) && start < 0 && end > 0) {
+    labels.push(0)
+    labels.sort((a, b) => a - b)
+  }
+
+  return labels
+}
+
+function formatAxisCurrency(value) {
+  const absolute = Math.abs(value)
+  const formatter = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    notation: absolute >= 1000 ? 'compact' : 'standard',
+    maximumFractionDigits: absolute >= 1000 ? 1 : 0
+  })
+  return formatter.format(value)
+}
+
 function shouldShowXAxisLabel(index, totalCount, maxLabels = 8) {
   if (totalCount <= maxLabels) return true
   if (index === 0 || index === totalCount - 1) return true
@@ -119,6 +193,31 @@ function formatChartLabel(timestamp) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatBucketTimestamp(bucket) {
+  return `${formatDate(bucket.startUtc)} - ${formatDate(bucket.endUtc)}`
+}
+
+function getBucketTimestampRows(bucket) {
+  return [
+    { label: 'Start', value: formatDate(bucket.startUtc) },
+    { label: 'End', value: formatDate(bucket.endUtc) }
+  ]
+}
+
+function buildChartTooltip(x, y, width, height, title, rows) {
+  const yPercent = (y / height) * 100
+  const estimatedHeight = 52 + rows.length * 20
+  const hasRoomAbove = y > estimatedHeight + 8
+  const hasRoomBelow = y < height - estimatedHeight - 8
+  return {
+    xPercent: (x / width) * 100,
+    yPercent,
+    placement: hasRoomAbove || !hasRoomBelow ? 'above' : 'below',
+    title,
+    rows
+  }
 }
 
 export default function Home() {
@@ -170,8 +269,15 @@ export default function Home() {
 
   const range = useMemo(() => buildRange(rangeKey), [rangeKey])
   const chartBuckets = useMemo(() => buildBuckets(entries, range), [entries, range])
+  const visibleCommittedBalance = useMemo(
+    () => visibleAccounts.reduce((sum, account) => sum + Number(account.committedBalance || 0), 0),
+    [visibleAccounts]
+  )
+  const valueBuckets = useMemo(() => buildValueBuckets(chartBuckets, visibleCommittedBalance), [chartBuckets, visibleCommittedBalance])
   const transactionTotal = entries.length
   const transactionAmount = entries.reduce((sum, entry) => sum + getEntryAmount(entry), 0)
+  const totalCreditAmount = chartBuckets.reduce((sum, bucket) => sum + bucket.creditAmount, 0)
+  const totalDebitAmount = chartBuckets.reduce((sum, bucket) => sum + bucket.debitAmount, 0)
   const totalPages = Math.ceil(stats.accounts.length / pageSize)
   const pagedAccounts = stats.accounts.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
 
@@ -351,15 +457,7 @@ export default function Home() {
         <StatCard iconClass="stat-icon-debits" label="Pending Debits" value={formatCurrency(stats.totalPendingDebits)} icon="debits" />
       </div>
 
-      <section className="transactions-chart-section">
-        <div className="chart-header">
-          <div>
-            <h3>Transactions over Time</h3>
-            <p>{transactionTotal} transactions, {formatCurrency(transactionAmount)} total amount</p>
-          </div>
-          {chartLoading && <span className="chart-loading">Loading...</span>}
-        </div>
-
+      <section className="dashboard-chart-controls">
         <div className="chart-controls">
           <div className="range-toggle">
             {Object.entries(TIME_RANGES).map(([key, item]) => (
@@ -407,9 +505,31 @@ export default function Home() {
             )}
           </div>
         </div>
-
-        <TransactionsChart buckets={chartBuckets} />
       </section>
+
+      <ChartPanel
+        title="Value Recorded"
+        summary={`${formatCurrency(visibleCommittedBalance)} current committed value`}
+        loading={chartLoading}
+      >
+        <ValueRecordedChart buckets={valueBuckets} />
+      </ChartPanel>
+
+      <ChartPanel
+        title="Transactions over Time"
+        summary={`${transactionTotal} transactions, ${formatCurrency(transactionAmount)} total amount`}
+        loading={chartLoading}
+      >
+        <TransactionsChart buckets={chartBuckets} />
+      </ChartPanel>
+
+      <ChartPanel
+        title="Amounts over Time"
+        summary={`${formatCurrency(totalCreditAmount)} credits, ${formatCurrency(totalDebitAmount)} debits`}
+        loading={chartLoading}
+      >
+        <AmountsChart buckets={chartBuckets} />
+      </ChartPanel>
 
       {stats.accounts.length > 0 && (
         <div className="recent-accounts card">
@@ -457,6 +577,43 @@ export default function Home() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ChartPanel({ title, summary, loading, children }) {
+  return (
+    <section className="transactions-chart-section">
+      <div className="chart-header">
+        <div>
+          <h3>{title}</h3>
+          <p>{summary}</p>
+        </div>
+        {loading && <span className="chart-loading">Loading...</span>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function ChartTooltip({ tooltip }) {
+  if (!tooltip) return null
+
+  return (
+    <div
+      className={`chart-tooltip ${tooltip.placement === 'below' ? 'chart-tooltip-below' : 'chart-tooltip-above'}`}
+      style={{
+        left: `clamp(8.5rem, ${tooltip.xPercent}%, calc(100% - 8.5rem))`,
+        top: `${tooltip.yPercent}%`
+      }}
+    >
+      <div className="chart-tooltip-title">{tooltip.title}</div>
+      {tooltip.rows.map((row) => (
+        <div key={row.label} className="chart-tooltip-row">
+          <span>{row.label}</span>
+          <strong>{row.value}</strong>
+        </div>
+      ))}
     </div>
   )
 }
@@ -523,7 +680,89 @@ function StatIcon({ icon }) {
   )
 }
 
+function ValueRecordedChart({ buckets }) {
+  const [tooltip, setTooltip] = useState(null)
+  const yLabels = buildLinearYAxisLabels(buckets.map((bucket) => bucket.value))
+  const yMin = yLabels[0] || 0
+  const yMax = yLabels[yLabels.length - 1] || 1
+  const width = 900
+  const height = 360
+  const padding = { top: 20, right: 18, bottom: 46, left: 58 }
+  const innerWidth = width - padding.left - padding.right
+  const innerHeight = height - padding.top - padding.bottom
+  const pointSlot = buckets.length > 1 ? innerWidth / (buckets.length - 1) : innerWidth
+  const valueRange = yMax - yMin || 1
+  const points = buckets.map((bucket, index) => {
+    const x = padding.left + (buckets.length > 1 ? index * pointSlot : innerWidth / 2)
+    const y = padding.top + innerHeight - ((bucket.value - yMin) / valueRange) * innerHeight
+    return { x, y, bucket }
+  })
+  const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1].x} ${padding.top + innerHeight} L ${points[0].x} ${padding.top + innerHeight} Z`
+    : ''
+
+  return (
+    <div className="transactions-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Value recorded over time chart">
+        {yLabels.map((label) => {
+          const y = padding.top + innerHeight - ((label - yMin) / valueRange) * innerHeight
+          return (
+            <g key={label}>
+              <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} className={`chart-grid-line ${label === 0 ? 'chart-axis' : ''}`} />
+              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{formatAxisCurrency(label)}</text>
+            </g>
+          )
+        })}
+        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={padding.top + innerHeight} className="chart-axis" />
+        {areaPath && <path className="chart-area-value" d={areaPath} />}
+        {linePath && <path className="chart-line-value" d={linePath} />}
+        {points.map(({ x, y, bucket }, index) => (
+          <g key={bucket.startUtc}>
+            <circle className="chart-point-value" cx={x} cy={y} r="2.5" />
+            {shouldShowXAxisLabel(index, buckets.length) && (
+              <text x={x} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
+            )}
+            <title>{`${formatDate(bucket.endUtc)}: ${formatCurrency(bucket.value)}`}</title>
+          </g>
+        ))}
+        {points.map(({ x, y, bucket }, index) => {
+          const hoverWidth = buckets.length > 1 ? pointSlot : innerWidth
+          const hoverX = Math.max(padding.left, Math.min(padding.left + innerWidth - hoverWidth, x - hoverWidth / 2))
+          return (
+            <rect
+              key={`hover-${bucket.startUtc}`}
+              className="chart-hover-target"
+              x={hoverX}
+              y={padding.top}
+              width={hoverWidth}
+              height={innerHeight}
+              tabIndex="0"
+              aria-label={`${formatDate(bucket.endUtc)} value recorded ${formatCurrency(bucket.value)}`}
+              onFocus={() => setTooltip(buildChartTooltip(x, y, width, height, 'Value Recorded', [
+                ...getBucketTimestampRows(bucket),
+                { label: 'Value', value: formatCurrency(bucket.value) }
+              ]))}
+              onMouseEnter={() => setTooltip(buildChartTooltip(x, y, width, height, 'Value Recorded', [
+                ...getBucketTimestampRows(bucket),
+                { label: 'Value', value: formatCurrency(bucket.value) }
+              ]))}
+              onBlur={() => setTooltip(null)}
+              onMouseLeave={() => setTooltip(null)}
+            />
+          )
+        })}
+      </svg>
+      <ChartTooltip tooltip={tooltip} />
+      <div className="chart-legend">
+        <span><i className="legend-value"></i>Committed value</span>
+      </div>
+    </div>
+  )
+}
+
 function TransactionsChart({ buckets }) {
+  const [tooltip, setTooltip] = useState(null)
   const highestCount = Math.max(0, ...buckets.map((bucket) => bucket.count))
   const yLabels = buildYAxisLabels(highestCount)
   const yMax = yLabels[yLabels.length - 1] || 1
@@ -552,6 +791,7 @@ function TransactionsChart({ buckets }) {
           const barHeight = bucket.count > 0 ? Math.max(2, (bucket.count / yMax) * innerHeight) : 0
           const x = padding.left + index * barSlot + (barSlot - barWidth) / 2
           const y = padding.top + innerHeight - barHeight
+          const tooltipY = bucket.count > 0 ? y : padding.top + innerHeight
           return (
             <g key={bucket.startUtc}>
               {bucket.count > 0 && (
@@ -564,10 +804,116 @@ function TransactionsChart({ buckets }) {
                 <text x={x + barWidth / 2} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
               )}
               <title>{`${formatDate(bucket.startUtc)}: ${bucket.count} transactions`}</title>
+              <rect
+                className="chart-hover-target"
+                x={padding.left + index * barSlot}
+                y={padding.top}
+                width={barSlot}
+                height={innerHeight}
+                tabIndex="0"
+                aria-label={`${formatBucketTimestamp(bucket)} ${bucket.count} transactions`}
+                onFocus={() => setTooltip(buildChartTooltip(x + barWidth / 2, tooltipY, width, height, 'Transactions', [
+                  ...getBucketTimestampRows(bucket),
+                  { label: 'Total', value: bucket.count },
+                  { label: 'Credits', value: bucket.credits },
+                  { label: 'Debits', value: bucket.debits }
+                ]))}
+                onMouseEnter={() => setTooltip(buildChartTooltip(x + barWidth / 2, tooltipY, width, height, 'Transactions', [
+                  ...getBucketTimestampRows(bucket),
+                  { label: 'Total', value: bucket.count },
+                  { label: 'Credits', value: bucket.credits },
+                  { label: 'Debits', value: bucket.debits }
+                ]))}
+                onBlur={() => setTooltip(null)}
+                onMouseLeave={() => setTooltip(null)}
+              />
             </g>
           )
         })}
       </svg>
+      <ChartTooltip tooltip={tooltip} />
+      <div className="chart-legend">
+        <span><i className="legend-credit"></i>Credits</span>
+        <span><i className="legend-debit"></i>Debits</span>
+      </div>
+    </div>
+  )
+}
+
+function AmountsChart({ buckets }) {
+  const [tooltip, setTooltip] = useState(null)
+  const highestAmount = Math.max(0, ...buckets.map((bucket) => bucket.creditAmount + bucket.debitAmount))
+  const yLabels = buildYAxisLabels(Math.ceil(highestAmount))
+  const yMax = yLabels[yLabels.length - 1] || 1
+  const width = 900
+  const height = 360
+  const padding = { top: 20, right: 18, bottom: 46, left: 58 }
+  const innerWidth = width - padding.left - padding.right
+  const innerHeight = height - padding.top - padding.bottom
+  const barSlot = innerWidth / Math.max(1, buckets.length)
+  const barWidth = Math.max(4, Math.min(26, barSlot - 4))
+
+  return (
+    <div className="transactions-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Debit and credit amounts over time chart">
+        {yLabels.map((label) => {
+          const y = padding.top + innerHeight - (label / yMax) * innerHeight
+          return (
+            <g key={label}>
+              <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} className={`chart-grid-line ${label === 0 ? 'chart-axis' : ''}`} />
+              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{formatAxisCurrency(label)}</text>
+            </g>
+          )
+        })}
+        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={padding.top + innerHeight} className="chart-axis" />
+        {buckets.map((bucket, index) => {
+          const totalAmount = bucket.creditAmount + bucket.debitAmount
+          const barHeight = totalAmount > 0 ? Math.max(2, (totalAmount / yMax) * innerHeight) : 0
+          const x = padding.left + index * barSlot + (barSlot - barWidth) / 2
+          const y = padding.top + innerHeight - barHeight
+          const creditHeight = barHeight * (bucket.creditAmount / Math.max(1, totalAmount))
+          const debitHeight = barHeight * (bucket.debitAmount / Math.max(1, totalAmount))
+          const tooltipY = totalAmount > 0 ? y : padding.top + innerHeight
+          return (
+            <g key={bucket.startUtc}>
+              {totalAmount > 0 && (
+                <>
+                  <rect className="chart-bar chart-bar-credit" x={x} y={y} width={barWidth} height={creditHeight} rx="2" />
+                  <rect className="chart-bar chart-bar-debit" x={x} y={y + creditHeight} width={barWidth} height={debitHeight} rx="2" />
+                </>
+              )}
+              {shouldShowXAxisLabel(index, buckets.length) && (
+                <text x={x + barWidth / 2} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
+              )}
+              <title>{`${formatDate(bucket.startUtc)}: ${formatCurrency(bucket.creditAmount)} credits, ${formatCurrency(bucket.debitAmount)} debits`}</title>
+              <rect
+                className="chart-hover-target"
+                x={padding.left + index * barSlot}
+                y={padding.top}
+                width={barSlot}
+                height={innerHeight}
+                tabIndex="0"
+                aria-label={`${formatBucketTimestamp(bucket)} ${formatCurrency(totalAmount)} total amount`}
+                onFocus={() => setTooltip(buildChartTooltip(x + barWidth / 2, tooltipY, width, height, 'Amounts', [
+                  ...getBucketTimestampRows(bucket),
+                  { label: 'Total', value: formatCurrency(totalAmount) },
+                  { label: 'Credits', value: formatCurrency(bucket.creditAmount) },
+                  { label: 'Debits', value: formatCurrency(bucket.debitAmount) }
+                ]))}
+                onMouseEnter={() => setTooltip(buildChartTooltip(x + barWidth / 2, tooltipY, width, height, 'Amounts', [
+                  ...getBucketTimestampRows(bucket),
+                  { label: 'Total', value: formatCurrency(totalAmount) },
+                  { label: 'Credits', value: formatCurrency(bucket.creditAmount) },
+                  { label: 'Debits', value: formatCurrency(bucket.debitAmount) }
+                ]))}
+                onBlur={() => setTooltip(null)}
+                onMouseLeave={() => setTooltip(null)}
+              />
+            </g>
+          )
+        })}
+      </svg>
+      <ChartTooltip tooltip={tooltip} />
       <div className="chart-legend">
         <span><i className="legend-credit"></i>Credits</span>
         <span><i className="legend-debit"></i>Debits</span>
