@@ -252,7 +252,20 @@ function xAxisLabelClass(index, totalCount) {
   return 'chart-x-label'
 }
 
-function formatChartLabel(timestamp, range) {
+function chartUsesDateOnlyLabels(range) {
+  const durationMs = range?.durationMs || TIME_RANGES.day.durationMs
+  return durationMs > TIME_RANGES.day.durationMs && durationMs <= TIME_RANGES.month.durationMs
+}
+
+function formatChartDateLabel(date) {
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function formatChartDateTimeLabel(date) {
+  return `${formatChartDateLabel(date)} ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+}
+
+function formatChartLabel(timestamp, range, includeTimestamp = false) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return ''
   const durationMs = range?.durationMs || TIME_RANGES.day.durationMs
@@ -260,9 +273,29 @@ function formatChartLabel(timestamp, range) {
     return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   }
   if (durationMs <= TIME_RANGES.month.durationMs) {
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    return includeTimestamp ? formatChartDateTimeLabel(date) : formatChartDateLabel(date)
   }
   return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+}
+
+function buildXAxisLabels(buckets, range) {
+  const visibleIndexes = buckets
+    .map((_, index) => index)
+    .filter((index) => shouldShowXAxisLabel(index, buckets.length))
+  const dateOnly = chartUsesDateOnlyLabels(range)
+  const baseLabels = visibleIndexes.map((index) => formatChartLabel(buckets[index].startUtc, range, false))
+  const labelCounts = baseLabels.reduce((result, label) => {
+    result[label] = (result[label] || 0) + 1
+    return result
+  }, {})
+
+  return visibleIndexes.reduce((result, index) => {
+    const baseLabel = formatChartLabel(buckets[index].startUtc, range, false)
+    result[index] = dateOnly && labelCounts[baseLabel] > 1
+      ? formatChartLabel(buckets[index].startUtc, range, true)
+      : baseLabel
+    return result
+  }, {})
 }
 
 function formatBucketTimestamp(bucket) {
@@ -791,6 +824,7 @@ function StatIcon({ icon }) {
 
 function ValueRecordedChart({ buckets, range }) {
   const [tooltip, setTooltip] = useState(null)
+  const xAxisLabels = buildXAxisLabels(buckets, range)
   const yLabels = buildLinearYAxisLabels(buckets.map((bucket) => bucket.value))
   const yMin = yLabels[0] || 0
   const yMax = yLabels[yLabels.length - 1] || 1
@@ -830,7 +864,7 @@ function ValueRecordedChart({ buckets, range }) {
           <g key={bucket.startUtc}>
             <circle className="chart-point-value" cx={x} cy={y} r="2.5" />
             {shouldShowXAxisLabel(index, buckets.length) && (
-              <text x={x} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{formatChartLabel(bucket.startUtc, range)}</text>
+              <text x={x} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{xAxisLabels[index]}</text>
             )}
             <title>{`${formatDate(bucket.endUtc)}: ${formatCurrency(bucket.value)}`}</title>
           </g>
@@ -872,6 +906,7 @@ function ValueRecordedChart({ buckets, range }) {
 
 function TransactionsChart({ buckets, range }) {
   const [tooltip, setTooltip] = useState(null)
+  const xAxisLabels = buildXAxisLabels(buckets, range)
   const highestCount = Math.max(0, ...buckets.map((bucket) => bucket.count))
   const yLabels = buildYAxisLabels(highestCount)
   const yMax = yLabels[yLabels.length - 1] || 1
@@ -910,7 +945,7 @@ function TransactionsChart({ buckets, range }) {
                 </>
               )}
               {shouldShowXAxisLabel(index, buckets.length) && (
-                <text x={x + barWidth / 2} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{formatChartLabel(bucket.startUtc, range)}</text>
+                <text x={x + barWidth / 2} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{xAxisLabels[index]}</text>
               )}
               <title>{`${formatDate(bucket.startUtc)}: ${bucket.count} transactions`}</title>
               <rect
@@ -951,6 +986,7 @@ function TransactionsChart({ buckets, range }) {
 
 function AmountsChart({ buckets, range }) {
   const [tooltip, setTooltip] = useState(null)
+  const xAxisLabels = buildXAxisLabels(buckets, range)
   const highestAmount = Math.max(0, ...buckets.map((bucket) => bucket.creditAmount + bucket.debitAmount))
   const yLabels = buildYAxisLabels(Math.ceil(highestAmount))
   const yMax = yLabels[yLabels.length - 1] || 1
@@ -992,7 +1028,7 @@ function AmountsChart({ buckets, range }) {
                 </>
               )}
               {shouldShowXAxisLabel(index, buckets.length) && (
-                <text x={x + barWidth / 2} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{formatChartLabel(bucket.startUtc, range)}</text>
+                <text x={x + barWidth / 2} y={height - 16} className={xAxisLabelClass(index, buckets.length)}>{xAxisLabels[index]}</text>
               )}
               <title>{`${formatDate(bucket.startUtc)}: ${formatCurrency(bucket.creditAmount)} credits, ${formatCurrency(bucket.debitAmount)} debits`}</title>
               <rect

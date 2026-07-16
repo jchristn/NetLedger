@@ -85,6 +85,30 @@ function formatChartLabel(timestamp) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+function formatChartLabelWithTimestamp(timestamp) {
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${formatChartLabel(timestamp)} ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`
+}
+
+function buildXAxisLabels(buckets) {
+  const visibleIndexes = buckets
+    .map((_, index) => index)
+    .filter((index) => shouldShowXAxisLabel(index, buckets.length))
+  const baseLabels = visibleIndexes.map((index) => formatChartLabel(valueOf(buckets[index], 'BucketStartUtc')))
+  const labelCounts = baseLabels.reduce((result, label) => {
+    result[label] = (result[label] || 0) + 1
+    return result
+  }, {})
+
+  return visibleIndexes.reduce((result, index) => {
+    const timestamp = valueOf(buckets[index], 'BucketStartUtc')
+    const baseLabel = formatChartLabel(timestamp)
+    result[index] = labelCounts[baseLabel] > 1 ? formatChartLabelWithTimestamp(timestamp) : baseLabel
+    return result
+  }, {})
+}
+
 function getBucketTimestampRows(bucket) {
   return [
     { label: 'Start', value: formatDate(valueOf(bucket, 'BucketStartUtc')) },
@@ -483,6 +507,7 @@ function TrafficChartPanel({ summary, loading }) {
 function SummaryChart({ buckets }) {
   const [tooltip, setTooltip] = useState(null)
   const visibleBuckets = buckets.slice(-48)
+  const xAxisLabels = buildXAxisLabels(visibleBuckets)
   const highestCount = Math.max(0, ...visibleBuckets.map((bucket) => (valueOf(bucket, 'SuccessCount') || 0) + (valueOf(bucket, 'FailureCount') || 0)))
   const yLabels = buildYAxisLabels(highestCount)
   const yMax = yLabels[yLabels.length - 1] || 1
@@ -527,7 +552,7 @@ function SummaryChart({ buckets }) {
                 </>
               )}
               {shouldShowXAxisLabel(index, visibleBuckets.length) && (
-                <text x={x + barWidth / 2} y={chartHeight - 15} className={xAxisLabelClass(index, visibleBuckets.length)}>{formatChartLabel(valueOf(bucket, 'BucketStartUtc'))}</text>
+                <text x={x + barWidth / 2} y={chartHeight - 15} className={xAxisLabelClass(index, visibleBuckets.length)}>{xAxisLabels[index]}</text>
               )}
               <title>{`${formatDate(valueOf(bucket, 'BucketStartUtc'))}: ${total} requests`}</title>
               <rect
