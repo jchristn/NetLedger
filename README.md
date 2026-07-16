@@ -8,6 +8,21 @@
 
 NetLedger is a thread-safe ledgering library for .NET 8.0 and .NET 10.0 that provides tenant-aware debit/credit workflows with auditable pending and committed entry lifecycles. It supports SQLite for embedded deployments and MySQL, PostgreSQL, and SQL Server for external database deployments.
 
+<details>
+<summary>Screenshots</summary>
+
+![Screenshot 1](Assets/ss1.png)
+
+![Screenshot 2](Assets/ss2.png)
+
+![Screenshot 3](Assets/ss3.png)
+
+![Screenshot 4](Assets/ss4.png)
+
+![Screenshot 5](Assets/ss5.png)
+
+</details>
+
 ## v3.0.0
 
 NetLedger v3.0.0 is the tenant-aware release. Public objects now use PrettyId string IDs such as `acct_...`, `ent_...`, `ten_...`, `usr_...`, and `cred_...`; accounts and entries carry `TenantId`; and account/entry metadata can be set with `Labels` and `Tags`.
