@@ -130,6 +130,39 @@
   position: relative;
 }
 
+.record-fields {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.record-field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.record-field > span {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.record-field-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 38px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
 .metadata-json {
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
@@ -140,10 +173,188 @@
   font-size: 0.8125rem;
   line-height: 1.5;
   overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: pre;
   max-height: 400px;
   color: var(--text-secondary);
+}
+
+.record-field-value span {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.record-metadata-value {
+  align-items: flex-start;
+  justify-content: flex-start;
+  font-family: inherit;
+  white-space: normal;
+  overflow-x: visible;
+}
+
+.record-metadata-value span {
+  overflow-x: visible;
+}
+
+.record-label-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.record-label-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 24px;
+  padding: 0.1875rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.record-tag-list {
+  display: grid;
+  gap: 0.375rem;
+  width: 100%;
+  margin: 0;
+}
+
+.record-tag-item {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.record-tag-item dt,
+.record-tag-item dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.record-tag-item dt {
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.record-tag-item dd {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.record-empty-value {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.record-field-id-value {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+}
+
+.record-hidden-value {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+}
+
+.record-field-value .hidden-value-control,
+.record-readonly-value .hidden-value-control {
+  width: 100%;
+}
+
+.record-field-value .hidden-value-display code,
+.record-field-value .hidden-value-display span,
+.record-readonly-value .hidden-value-display code,
+.record-readonly-value .hidden-value-display span {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.record-field-value .hidden-value-toggle,
+.record-readonly-value .hidden-value-toggle {
+  width: 32px;
+  min-width: 32px;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.record-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.record-input-row .form-input {
+  min-width: 0;
+  flex: 1;
+}
+
+.record-checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 38px;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.record-checkbox-field input {
+  width: 16px;
+  height: 16px;
+}
+
+.record-readonly-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.record-readonly-item {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.record-readonly-label {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.record-readonly-value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.record-readonly-value > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-timestamp-value,
+.record-timestamp-value > span {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  white-space: nowrap;
 }
 
 /* Responsive */
@@ -162,5 +373,14 @@
 
   .modal-footer .btn {
     width: 100%;
+  }
+
+  .record-tag-item {
+    grid-template-columns: 1fr;
+    gap: 0.125rem;
+  }
+
+  .record-readonly-summary {
+    grid-template-columns: 1fr;
   }
 }

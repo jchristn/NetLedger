@@ -8,14 +8,16 @@
 
 .server-info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem 1.5rem;
 }
 
 .server-info-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .server-info-label {
@@ -30,6 +32,9 @@
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Stats Grid */
@@ -100,6 +105,177 @@
   color: var(--text-muted);
 }
 
+/* Transactions Chart */
+.transactions-chart-section {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.chart-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.chart-header p {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.chart-loading {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.range-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.range-toggle button {
+  border: 0;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.range-toggle button:last-child {
+  border-right: 0;
+}
+
+.range-toggle button.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+.drilldown-controls {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.drilldown-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 180px;
+}
+
+.drilldown-controls label span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.transactions-chart {
+  width: 100%;
+  overflow: hidden;
+}
+
+.transactions-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 330px;
+}
+
+.chart-axis {
+  stroke: var(--border-color);
+  stroke-width: 1;
+}
+
+.chart-grid-line {
+  stroke: var(--border-color);
+  stroke-width: 0.75;
+  stroke-dasharray: 4 4;
+  opacity: 0.75;
+}
+
+.chart-bar-credit {
+  fill: var(--color-success);
+}
+
+.chart-bar-debit {
+  fill: var(--color-danger);
+}
+
+.chart-y-label,
+.chart-x-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+
+.chart-y-label {
+  text-anchor: end;
+}
+
+.chart-x-label {
+  text-anchor: middle;
+  font-size: 9px;
+}
+
+.chart-label-end {
+  text-anchor: end;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.chart-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-credit {
+  background: var(--color-success);
+}
+
+.legend-debit {
+  background: var(--color-danger);
+}
+
 /* Recent Accounts */
 .recent-accounts {
   margin-bottom: 1.5rem;
@@ -159,6 +335,26 @@
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .chart-controls,
+  .chart-header,
+  .drilldown-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .range-toggle {
+    width: 100%;
+  }
+
+  .range-toggle button {
+    flex: 1;
+    padding: 0.5rem 0.375rem;
+  }
+
+  .drilldown-controls label {
+    min-width: 100%;
   }
 
   .stat-card .card-body {

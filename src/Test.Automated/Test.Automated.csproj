@@ -24,7 +24,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Touchstone.Cli" Version="0.1.12" />
 		<ProjectReference Include="..\NetLedger\NetLedger.csproj" />
+		<ProjectReference Include="..\NetLedger.Server\NetLedger.Server.csproj" />
+		<ProjectReference Include="..\Test.Shared\Test.Shared.csproj" />
 	</ItemGroup>
 
 </Project>

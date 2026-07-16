@@ -5,8 +5,8 @@
   padding: 1rem;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
-  border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border-radius: var(--radius-lg);
+  margin-bottom: 0.75rem;
   flex-wrap: wrap;
   gap: 1rem;
 }

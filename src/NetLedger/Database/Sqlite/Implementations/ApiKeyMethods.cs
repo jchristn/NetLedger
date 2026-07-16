@@ -42,10 +42,14 @@ namespace NetLedger.Database.Sqlite.Implementations
             if (apiKey == null) throw new ArgumentNullException(nameof(apiKey));
 
             string query =
-                "INSERT INTO apikeys (guid, name, apikey, active, isadmin, createdutc) VALUES (" +
+                "INSERT INTO apikeys (guid, tenantid, userid, name, apikey, secretkeysha256, secretkeylast4, active, isadmin, createdutc) VALUES (" +
                 "'" + apiKey.GUID.ToString() + "', " +
+                "'" + Sanitize(apiKey.TenantId) + "', " +
+                "'" + Sanitize(apiKey.UserId) + "', " +
                 "'" + Sanitize(apiKey.Name) + "', " +
                 "'" + Sanitize(apiKey.Key) + "', " +
+                "'" + Sanitize(apiKey.SecretKeySha256) + "', " +
+                "'" + Sanitize(apiKey.SecretKeyLast4) + "', " +
                 (apiKey.Active ? "1" : "0") + ", " +
                 (apiKey.IsAdmin ? "1" : "0") + ", " +
                 "'" + apiKey.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'" +
@@ -55,16 +59,16 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             if (result != null && result.Rows.Count > 0)
             {
-                apiKey.Id = Convert.ToInt32(result.Rows[0][0]);
+                apiKey.RowId = Convert.ToInt32(result.Rows[0][0]);
             }
 
             return apiKey;
         }
 
         /// <inheritdoc />
-        public async Task<ApiKey> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<ApiKey> ReadByGuidAsync(string guid, CancellationToken token = default)
         {
-            string query = "SELECT * FROM apikeys WHERE guid = '" + guid.ToString() + "' LIMIT 1;";
+            string query = "SELECT * FROM apikeys WHERE guid = '" + Sanitize(guid) + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -113,11 +117,12 @@ namespace NetLedger.Database.Sqlite.Implementations
             result.MaxResults = query.MaxResults;
             result.Skip = query.Skip;
 
-            // Build filter
             FilterBuilder filter = FilterBuilder.FromEnumerationQuery(query);
+            string where = filter.BuildCredentialConditions(DatabaseTypeEnum.Sqlite);
+            string whereClause = String.IsNullOrEmpty(where) ? String.Empty : " WHERE " + where;
 
             // Get total count
-            string countQuery = "SELECT COUNT(*) FROM apikeys;";
+            string countQuery = "SELECT COUNT(*) FROM apikeys" + whereClause + ";";
             DataTable countResult = await _Driver.ExecuteQueryAsync(countQuery, false, token).ConfigureAwait(false);
             if (countResult != null && countResult.Rows.Count > 0)
             {
@@ -126,6 +131,7 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             // Build main query
             StringBuilder mainQuery = new StringBuilder("SELECT * FROM apikeys");
+            mainQuery.Append(whereClause);
             mainQuery.Append(" " + filter.GetOrderByClause(DatabaseTypeEnum.Sqlite));
             mainQuery.Append(" " + filter.GetLimitOffsetClause(DatabaseTypeEnum.Sqlite));
             mainQuery.Append(";");
@@ -160,11 +166,15 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             string query =
                 "UPDATE apikeys SET " +
+                "tenantid = '" + Sanitize(apiKey.TenantId) + "', " +
+                "userid = '" + Sanitize(apiKey.UserId) + "', " +
                 "name = '" + Sanitize(apiKey.Name) + "', " +
                 "apikey = '" + Sanitize(apiKey.Key) + "', " +
+                "secretkeysha256 = '" + Sanitize(apiKey.SecretKeySha256) + "', " +
+                "secretkeylast4 = '" + Sanitize(apiKey.SecretKeyLast4) + "', " +
                 "active = " + (apiKey.Active ? "1" : "0") + ", " +
                 "isadmin = " + (apiKey.IsAdmin ? "1" : "0") + " " +
-                "WHERE guid = '" + apiKey.GUID.ToString() + "';";
+                "WHERE guid = '" + Sanitize(apiKey.GUID) + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -172,9 +182,9 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
         {
-            string query = "DELETE FROM apikeys WHERE guid = '" + guid.ToString() + "';";
+            string query = "DELETE FROM apikeys WHERE guid = '" + Sanitize(guid) + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
@@ -220,10 +230,14 @@ namespace NetLedger.Database.Sqlite.Implementations
         private ApiKey DataRowToApiKey(DataRow row)
         {
             ApiKey apiKey = new ApiKey();
-            apiKey.Id = Convert.ToInt32(row["id"]);
-            apiKey.GUID = Guid.Parse(row["guid"].ToString());
+            apiKey.RowId = Convert.ToInt32(row["id"]);
+            apiKey.GUID = row["guid"].ToString();
+            apiKey.TenantId = HasColumn(row, "tenantid") ? row["tenantid"]?.ToString() ?? String.Empty : String.Empty;
+            apiKey.UserId = HasColumn(row, "userid") ? row["userid"]?.ToString() ?? String.Empty : String.Empty;
             apiKey.Name = row["name"]?.ToString() ?? String.Empty;
             apiKey.Key = row["apikey"]?.ToString() ?? String.Empty;
+            apiKey.SecretKeySha256 = HasColumn(row, "secretkeysha256") ? row["secretkeysha256"]?.ToString() ?? String.Empty : String.Empty;
+            apiKey.SecretKeyLast4 = HasColumn(row, "secretkeylast4") ? row["secretkeylast4"]?.ToString() ?? String.Empty : String.Empty;
             apiKey.Active = Convert.ToInt32(row["active"]) == 1;
             apiKey.IsAdmin = Convert.ToInt32(row["isadmin"]) == 1;
             apiKey.CreatedUtc = DateTime.Parse(
@@ -233,6 +247,14 @@ namespace NetLedger.Database.Sqlite.Implementations
             return apiKey;
         }
 
+        private bool HasColumn(DataRow row, string columnName)
+        {
+            return row.Table.Columns.Contains(columnName);
+        }
+
         #endregion
     }
 }
+
+
+

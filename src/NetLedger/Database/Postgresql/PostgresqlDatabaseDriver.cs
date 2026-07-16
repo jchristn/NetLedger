@@ -9,6 +9,7 @@ namespace NetLedger.Database.Postgresql
     using AsyncKeyedLock;
     using NetLedger.Database.Postgresql.Implementations;
     using NetLedger.Database.Postgresql.Queries;
+    using NetLedger.Database.Portable;
     using Npgsql;
 
     /// <summary>
@@ -42,7 +43,7 @@ namespace NetLedger.Database.Postgresql
             NpgsqlConnectionStringBuilder builder = new NpgsqlConnectionStringBuilder
             {
                 Host = settings.Hostname,
-                Port = settings.Port,
+                Port = settings.GetEffectivePort(),
                 Database = settings.DatabaseName,
                 Username = settings.Username ?? String.Empty,
                 Password = settings.Password ?? String.Empty,
@@ -60,11 +61,19 @@ namespace NetLedger.Database.Postgresql
 
             _ConnectionString = builder.ConnectionString;
 
-            Accounts = new AccountMethods(this);
-            Entries = new EntryMethods(this);
-            ApiKeys = new ApiKeyMethods(this);
+            Accounts = new PortableSqlAccountMethods(this, DatabaseTypeEnum.Postgresql);
+            Entries = new PortableSqlEntryMethods(this, DatabaseTypeEnum.Postgresql);
+            ApiKeys = new PortableSqlApiKeyMethods(this, DatabaseTypeEnum.Postgresql);
+            Tenants = new PortableSqlTenantMethods(this, DatabaseTypeEnum.Postgresql);
+            Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.Postgresql);
+            AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.Postgresql);
+            AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.Postgresql);
+            AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.Postgresql);
+            RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Postgresql);
+            Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.Postgresql);
 
             InitializeDatabaseAsync().GetAwaiter().GetResult();
+            Rbac.SeedBuiltInsAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
         #endregion
@@ -212,3 +221,6 @@ namespace NetLedger.Database.Postgresql
         #endregion
     }
 }
+
+
+

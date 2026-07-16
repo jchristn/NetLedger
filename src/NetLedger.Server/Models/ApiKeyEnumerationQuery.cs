@@ -51,7 +51,7 @@ namespace NetLedger.Server.Models
         /// Continuation token for pagination.
         /// When provided, skip should not be used.
         /// </summary>
-        public Guid? ContinuationToken { get; set; } = null;
+        public string? ContinuationToken { get; set; } = null;
 
         /// <summary>
         /// Order by.
@@ -63,6 +63,16 @@ namespace NetLedger.Server.Models
         /// Search term to filter API keys by name.
         /// </summary>
         public string? SearchTerm { get; set; } = null;
+
+        /// <summary>
+        /// Tenant identifier.
+        /// </summary>
+        public string? TenantId { get; set; } = null;
+
+        /// <summary>
+        /// User identifier.
+        /// </summary>
+        public string? UserId { get; set; } = null;
 
         /// <summary>
         /// Only include API keys created on or after this timestamp UTC.
@@ -95,3 +105,7 @@ namespace NetLedger.Server.Models
         #endregion
     }
 }
+
+
+
+

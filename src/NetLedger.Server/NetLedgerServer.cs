@@ -4,6 +4,7 @@ namespace NetLedger.Server
     using NetLedger.Server.API.REST;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
     using SyslogLogging;
     using System;
@@ -32,6 +33,8 @@ namespace NetLedger.Server
         private static LoggingModule _Logging = null!;
         private static Ledger _Ledger = null!;
         private static AuthService _AuthService = null!;
+        private static AuthorizationService _AuthorizationService = null!;
+        private static RequestHistoryService _RequestHistoryService = null!;
         private static Webserver _Webserver = null!;
 
         private static ServiceHandler _ServiceHandler = null!;
@@ -40,12 +43,15 @@ namespace NetLedger.Server
         private static BalanceHandler _BalanceHandler = null!;
 
         private static ApiKeyHandler _ApiKeyHandler = null!;
+        private static IdentityHandler _IdentityHandler = null!;
 
         private static RestServiceHandler _RestServiceHandler = null!;
         private static RestAccountHandler _RestAccountHandler = null!;
         private static RestEntryHandler _RestEntryHandler = null!;
         private static RestBalanceHandler _RestBalanceHandler = null!;
         private static RestApiKeyHandler _RestApiKeyHandler = null!;
+        private static RestIdentityHandler _RestIdentityHandler = null!;
+        private static RestRequestHistoryHandler _RestRequestHistoryHandler = null!;
 
         /// <summary>
         /// Main entry point.
@@ -175,20 +181,25 @@ namespace NetLedger.Server
 
             // Initialize authentication
             _AuthService = new AuthService(_Settings, _Logging, _Ledger.Driver);
+            _AuthorizationService = new AuthorizationService(_Ledger.Driver, _Logging);
+            _RequestHistoryService = new RequestHistoryService(_Ledger.Driver, _Settings.RequestHistory, _Logging);
 
             // Initialize agnostic handlers
             _ServiceHandler = new ServiceHandler(_Settings, _Logging);
-            _AccountHandler = new AccountHandler(_Settings, _Logging, _Ledger);
-            _EntryHandler = new EntryHandler(_Settings, _Logging, _Ledger);
-            _BalanceHandler = new BalanceHandler(_Settings, _Logging, _Ledger);
+            _AccountHandler = new AccountHandler(_Settings, _Logging, _Ledger, _AuthorizationService);
+            _EntryHandler = new EntryHandler(_Settings, _Logging, _Ledger, _AuthorizationService);
+            _BalanceHandler = new BalanceHandler(_Settings, _Logging, _Ledger, _AuthorizationService);
             _ApiKeyHandler = new ApiKeyHandler(_Settings, _Logging, _AuthService);
+            _IdentityHandler = new IdentityHandler(_Settings, _Logging, _Ledger.Driver, _AuthService, _AuthorizationService);
 
             // Initialize REST handlers
             _RestServiceHandler = new RestServiceHandler(_Settings, _Logging, _ServiceHandler);
-            _RestAccountHandler = new RestAccountHandler(_Settings, _Logging, _AccountHandler);
-            _RestEntryHandler = new RestEntryHandler(_Settings, _Logging, _EntryHandler);
-            _RestBalanceHandler = new RestBalanceHandler(_Settings, _Logging, _BalanceHandler);
-            _RestApiKeyHandler = new RestApiKeyHandler(_Settings, _Logging, _ApiKeyHandler, _AuthService);
+            _RestAccountHandler = new RestAccountHandler(_Settings, _Logging, _AccountHandler, _AuthService, _RequestHistoryService);
+            _RestEntryHandler = new RestEntryHandler(_Settings, _Logging, _EntryHandler, _AuthService, _RequestHistoryService);
+            _RestBalanceHandler = new RestBalanceHandler(_Settings, _Logging, _BalanceHandler, _AuthService, _RequestHistoryService);
+            _RestApiKeyHandler = new RestApiKeyHandler(_Settings, _Logging, _ApiKeyHandler, _AuthService, _RequestHistoryService);
+            _RestIdentityHandler = new RestIdentityHandler(_Settings, _Logging, _IdentityHandler, _AuthService, _RequestHistoryService);
+            _RestRequestHistoryHandler = new RestRequestHistoryHandler(_Ledger.Driver, _AuthService, _Logging);
 
             // Initialize webserver
             WatsonWebserver.Core.WebserverSettings wsSettings = new WatsonWebserver.Core.WebserverSettings(
@@ -263,6 +274,32 @@ namespace NetLedger.Server
             // Service endpoints (unauthenticated)
             _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.HEAD, "/", _RestServiceHandler.ExistsAsync);
             _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.GET, "/", _RestServiceHandler.GetInfoAsync);
+            _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.GET, "/openapi.json", OpenApiAsync);
+            _Webserver.Routes.PreAuthentication.Parameter.Add(HttpMethod.POST, "/v1/auth/tenants", _RestIdentityHandler.DiscoverTenantsAsync, ExceptionHandler);
+            _Webserver.Routes.PreAuthentication.Parameter.Add(HttpMethod.POST, "/v1/auth/login", _RestIdentityHandler.LoginAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.POST, "/v1/auth/logout", _RestIdentityHandler.LogoutAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/me/permissions", _RestIdentityHandler.GetEffectivePermissionsAsync, ExceptionHandler);
+
+            // Tenant and security administration
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants", _RestIdentityHandler.EnumerateTenantsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants", _RestIdentityHandler.CreateTenantAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}", _RestIdentityHandler.ReadTenantAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}", _RestIdentityHandler.DeleteTenantAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/users", _RestIdentityHandler.EnumerateUsersAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/users", _RestIdentityHandler.CreateUserAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/users/{userId}", _RestIdentityHandler.ReadUserAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/users", _RestIdentityHandler.EnumerateAccountUsersAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts/{accountGuid}/users/{userId}", _RestIdentityHandler.MapAccountUserAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/accounts/{accountGuid}/users/{userId}", _RestIdentityHandler.DeleteAccountUserAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/sessions", _RestIdentityHandler.EnumerateSessionsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/sessions/{sessionId}", _RestIdentityHandler.RevokeSessionAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/audit", _RestIdentityHandler.EnumerateAuditAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/roles", _RestIdentityHandler.EnumerateRolesAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/roles", _RestIdentityHandler.CreateRoleAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/permissions", _RestIdentityHandler.EnumeratePermissionsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/permissions", _RestIdentityHandler.CreatePermissionAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/users/{userId}/roles", _RestIdentityHandler.AssignUserRoleAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/roles/{roleId}/permissions/{permissionId}", _RestIdentityHandler.MapRolePermissionAsync, ExceptionHandler);
 
             // Account endpoints
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts", _RestAccountHandler.EnumerateAsync, ExceptionHandler);
@@ -271,6 +308,12 @@ namespace NetLedger.Server
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/{accountGuid}", _RestAccountHandler.ReadAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/accounts/{accountGuid}", _RestAccountHandler.DeleteAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/byname/{accountName}", _RestAccountHandler.ReadByNameAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts", _RestAccountHandler.EnumerateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts", _RestAccountHandler.CreateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.HEAD, "/v1/tenants/{tenantId}/accounts/{accountGuid}", _RestAccountHandler.ExistsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}", _RestAccountHandler.ReadAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/accounts/{accountGuid}", _RestAccountHandler.DeleteAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/byname/{accountName}", _RestAccountHandler.ReadByNameAsync, ExceptionHandler);
 
             // Entry endpoints
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/{accountGuid}/entries", _RestEntryHandler.GetEntriesAsync, ExceptionHandler);
@@ -281,6 +324,14 @@ namespace NetLedger.Server
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/accounts/{accountGuid}/credits", _RestEntryHandler.AddCreditsAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/accounts/{accountGuid}/debits", _RestEntryHandler.AddDebitsAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/accounts/{accountGuid}/entries/{entryGuid}", _RestEntryHandler.CancelEntryAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/entries", _RestEntryHandler.GetEntriesAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/entries/pending", _RestEntryHandler.GetPendingEntriesAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/entries/pending/credits", _RestEntryHandler.GetPendingCreditsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/entries/pending/debits", _RestEntryHandler.GetPendingDebitsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.POST, "/v1/tenants/{tenantId}/accounts/{accountGuid}/entries/enumerate", _RestEntryHandler.EnumerateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts/{accountGuid}/credits", _RestEntryHandler.AddCreditsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts/{accountGuid}/debits", _RestEntryHandler.AddDebitsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/accounts/{accountGuid}/entries/{entryGuid}", _RestEntryHandler.CancelEntryAsync, ExceptionHandler);
 
             // Balance and commit endpoints
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/{accountGuid}/balance", _RestBalanceHandler.GetBalanceAsync, ExceptionHandler);
@@ -288,11 +339,30 @@ namespace NetLedger.Server
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/balances", _RestBalanceHandler.GetAllBalancesAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.POST, "/v1/accounts/{accountGuid}/commit", _RestBalanceHandler.CommitAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/{accountGuid}/verify", _RestBalanceHandler.VerifyBalanceChainAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/balance", _RestBalanceHandler.GetBalanceAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/balance/asof", _RestBalanceHandler.GetBalanceAsOfAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.POST, "/v1/tenants/{tenantId}/accounts/{accountGuid}/commit", _RestBalanceHandler.CommitAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountGuid}/verify", _RestBalanceHandler.VerifyBalanceChainAsync, ExceptionHandler);
 
-            // API key management endpoints
-            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/apikeys", _RestApiKeyHandler.EnumerateAsync, ExceptionHandler);
-            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/apikeys", _RestApiKeyHandler.CreateAsync, ExceptionHandler);
-            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/apikeys/{apiKeyGuid}", _RestApiKeyHandler.RevokeAsync, ExceptionHandler);
+            // Credential management endpoints
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/credentials", _RestApiKeyHandler.EnumerateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/credentials", _RestApiKeyHandler.CreateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/credentials/{credentialId}", _RestApiKeyHandler.RevokeAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/credentials", _RestApiKeyHandler.EnumerateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/credentials", _RestApiKeyHandler.CreateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/credentials/{credentialId}", _RestApiKeyHandler.RevokeAsync, ExceptionHandler);
+
+            // Request history endpoints
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/request-history", _RestRequestHistoryHandler.EnumerateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/request-history/summary", _RestRequestHistoryHandler.SummarizeAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/request-history", _RestRequestHistoryHandler.DeleteManyAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/request-history/{id}", _RestRequestHistoryHandler.ReadAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/request-history/{id}", _RestRequestHistoryHandler.DeleteAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1.0/api/request-history", _RestRequestHistoryHandler.EnumerateAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1.0/api/request-history/summary", _RestRequestHistoryHandler.SummarizeAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1.0/api/request-history", _RestRequestHistoryHandler.DeleteManyAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1.0/api/request-history/{id}", _RestRequestHistoryHandler.ReadAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1.0/api/request-history/{id}", _RestRequestHistoryHandler.DeleteAsync, ExceptionHandler);
 
             _Logging.Debug(_Header + "routes registered");
         }
@@ -304,7 +374,14 @@ namespace NetLedger.Server
             ctx.Response.ContentType = Constants.JsonContentType;
 
             // Authenticate requests to PostAuthentication routes
-            if (!ctx.Request.Url.RawWithoutQuery.Equals("/"))
+            string path = ctx.Request.Url.RawWithoutQuery;
+            bool preAuthRoute =
+                path.Equals("/", StringComparison.Ordinal) ||
+                path.Equals("/openapi.json", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/v1/auth/tenants", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/v1/auth/login", StringComparison.OrdinalIgnoreCase);
+
+            if (!preAuthRoute)
             {
                 AuthContext auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
                 if (!auth.IsAuthenticated)
@@ -312,8 +389,9 @@ namespace NetLedger.Server
                     _Logging.Warn(_Header + "authentication failed from " + ctx.Request.Source.IpAddress + ": " + auth.Result);
                     ctx.Response.StatusCode = 401;
                     await ctx.Response.Send(JsonSerializer.Serialize(
-                        new ApiErrorResponse(ApiErrorEnum.Unauthorized, null, auth.ErrorMessage),
+                        new NetLedger.Server.Models.ApiErrorResponse(ApiErrorEnum.Unauthorized, null, auth.ErrorMessage),
                         Constants.JsonOptions)).ConfigureAwait(false);
+                    return;
                 }
             }
         }
@@ -334,12 +412,183 @@ namespace NetLedger.Server
             await Task.CompletedTask.ConfigureAwait(false);
         }
 
+        private static async Task OpenApiAsync(HttpContextBase ctx)
+        {
+            Dictionary<string, object> paths = new Dictionary<string, object>(StringComparer.Ordinal);
+            List<OpenApiRouteDescriptor> routes = BuildOpenApiRoutes();
+
+            foreach (OpenApiRouteDescriptor route in routes)
+            {
+                if (!paths.ContainsKey(route.Path))
+                {
+                    paths[route.Path] = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                }
+
+                Dictionary<string, object> pathItem = (Dictionary<string, object>)paths[route.Path];
+                pathItem[route.Method.ToLowerInvariant()] = new Dictionary<string, object>
+                {
+                    ["summary"] = route.Summary,
+                    ["tags"] = new List<string> { route.Tag },
+                    ["parameters"] = BuildOpenApiParameters(route.Path, route.Method),
+                    ["responses"] = new Dictionary<string, object>
+                    {
+                        ["200"] = new Dictionary<string, object>
+                        {
+                            ["description"] = "Success"
+                        },
+                        ["400"] = new Dictionary<string, object>
+                        {
+                            ["description"] = "Bad request"
+                        },
+                        ["401"] = new Dictionary<string, object>
+                        {
+                            ["description"] = "Unauthorized"
+                        },
+                        ["403"] = new Dictionary<string, object>
+                        {
+                            ["description"] = "Forbidden"
+                        }
+                    }
+                };
+            }
+
+            Dictionary<string, object> document = new Dictionary<string, object>
+            {
+                ["openapi"] = "3.0.3",
+                ["info"] = new Dictionary<string, object>
+                {
+                    ["title"] = "NetLedger API",
+                    ["version"] = Constants.CurrentApiVersion
+                },
+                ["paths"] = paths
+            };
+
+            ctx.Response.StatusCode = 200;
+            ctx.Response.ContentType = Constants.JsonContentType;
+            await ctx.Response.Send(JsonSerializer.Serialize(document, Constants.JsonOptions)).ConfigureAwait(false);
+        }
+
+        private static List<OpenApiRouteDescriptor> BuildOpenApiRoutes()
+        {
+            List<OpenApiRouteDescriptor> routes = new List<OpenApiRouteDescriptor>();
+            AddRoute(routes, "GET", "/", "Get service information", "Service");
+            AddRoute(routes, "POST", "/v1/auth/tenants", "Discover tenants for an email address", "Identity");
+            AddRoute(routes, "POST", "/v1/auth/login", "Authenticate a user", "Identity");
+            AddRoute(routes, "POST", "/v1/auth/logout", "Logout the current session", "Identity");
+            AddRoute(routes, "GET", "/v1/me/permissions", "Get effective permissions", "Identity");
+            AddRoute(routes, "GET", "/v1/tenants", "List tenants", "Tenants");
+            AddRoute(routes, "PUT", "/v1/tenants", "Create tenant", "Tenants");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}", "Read tenant", "Tenants");
+            AddRoute(routes, "DELETE", "/v1/tenants/{tenantId}", "Delete tenant", "Tenants");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/users", "List users", "Users");
+            AddRoute(routes, "PUT", "/v1/tenants/{tenantId}/users", "Create user", "Users");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/users/{userId}", "Read user", "Users");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/sessions", "List sessions", "Security");
+            AddRoute(routes, "DELETE", "/v1/tenants/{tenantId}/sessions/{sessionId}", "Revoke session", "Security");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/audit", "List audit records", "Security");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/roles", "List roles", "Security");
+            AddRoute(routes, "PUT", "/v1/tenants/{tenantId}/roles", "Create role", "Security");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/permissions", "List permissions", "Security");
+            AddRoute(routes, "PUT", "/v1/tenants/{tenantId}/permissions", "Create permission", "Security");
+            AddRoute(routes, "GET", "/v1/accounts", "List accounts", "Accounts");
+            AddRoute(routes, "PUT", "/v1/accounts", "Create account", "Accounts");
+            AddRoute(routes, "GET", "/v1/accounts/{accountGuid}", "Read account", "Accounts");
+            AddRoute(routes, "DELETE", "/v1/accounts/{accountGuid}", "Delete account", "Accounts");
+            AddRoute(routes, "GET", "/v1/accounts/byname/{accountName}", "Read account by name", "Accounts");
+            AddRoute(routes, "GET", "/v1/accounts/{accountGuid}/entries", "List entries", "Entries");
+            AddRoute(routes, "GET", "/v1/accounts/{accountGuid}/entries/pending", "List pending entries", "Entries");
+            AddRoute(routes, "POST", "/v1/accounts/{accountGuid}/entries/enumerate", "Enumerate entries", "Entries");
+            AddRoute(routes, "PUT", "/v1/accounts/{accountGuid}/credits", "Add credits", "Entries");
+            AddRoute(routes, "PUT", "/v1/accounts/{accountGuid}/debits", "Add debits", "Entries");
+            AddRoute(routes, "DELETE", "/v1/accounts/{accountGuid}/entries/{entryGuid}", "Cancel entry", "Entries");
+            AddRoute(routes, "GET", "/v1/accounts/{accountGuid}/balance", "Get account balance", "Balances");
+            AddRoute(routes, "GET", "/v1/accounts/{accountGuid}/balance/asof", "Get account balance as of time", "Balances");
+            AddRoute(routes, "GET", "/v1/balances", "List balances", "Balances");
+            AddRoute(routes, "POST", "/v1/accounts/{accountGuid}/commit", "Commit pending entries", "Balances");
+            AddRoute(routes, "GET", "/v1/accounts/{accountGuid}/verify", "Verify balance chain", "Balances");
+            AddRoute(routes, "GET", "/v1/credentials", "List credentials", "Credentials");
+            AddRoute(routes, "PUT", "/v1/credentials", "Create credential", "Credentials");
+            AddRoute(routes, "DELETE", "/v1/credentials/{credentialId}", "Revoke credential", "Credentials");
+            AddRoute(routes, "GET", "/v1/request-history", "List request history", "Request History");
+            AddRoute(routes, "GET", "/v1/request-history/summary", "Summarize request history", "Request History");
+            AddRoute(routes, "DELETE", "/v1/request-history", "Delete matching request history", "Request History");
+            AddRoute(routes, "GET", "/v1/request-history/{id}", "Read request history entry", "Request History");
+            AddRoute(routes, "DELETE", "/v1/request-history/{id}", "Delete request history entry", "Request History");
+            AddRoute(routes, "GET", "/v1.0/api/request-history", "List request history", "Request History");
+            AddRoute(routes, "GET", "/v1.0/api/request-history/summary", "Summarize request history", "Request History");
+            AddRoute(routes, "DELETE", "/v1.0/api/request-history", "Delete matching request history", "Request History");
+            AddRoute(routes, "GET", "/v1.0/api/request-history/{id}", "Read request history entry", "Request History");
+            AddRoute(routes, "DELETE", "/v1.0/api/request-history/{id}", "Delete request history entry", "Request History");
+            return routes;
+        }
+
+        private static void AddRoute(List<OpenApiRouteDescriptor> routes, string method, string path, string summary, string tag)
+        {
+            routes.Add(new OpenApiRouteDescriptor
+            {
+                Method = method,
+                Path = path,
+                Summary = summary,
+                Tag = tag
+            });
+        }
+
+        private static List<Dictionary<string, object>> BuildOpenApiParameters(string path, string method)
+        {
+            List<Dictionary<string, object>> parameters = new List<Dictionary<string, object>>();
+            string[] parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            foreach (string part in parts)
+            {
+                if (part.StartsWith("{", StringComparison.Ordinal) && part.EndsWith("}", StringComparison.Ordinal))
+                {
+                    parameters.Add(new Dictionary<string, object>
+                    {
+                        ["name"] = part.Substring(1, part.Length - 2),
+                        ["in"] = "path",
+                        ["required"] = true,
+                        ["schema"] = new Dictionary<string, object> { ["type"] = "string" }
+                    });
+                }
+            }
+
+            if (method.Equals("GET", StringComparison.OrdinalIgnoreCase) || path.Contains("request-history", StringComparison.OrdinalIgnoreCase))
+            {
+                AddQueryParameter(parameters, "tenantId", "string");
+                AddQueryParameter(parameters, "maxResults", "integer");
+                AddQueryParameter(parameters, "skip", "integer");
+            }
+
+            if (path.Contains("request-history", StringComparison.OrdinalIgnoreCase))
+            {
+                AddQueryParameter(parameters, "principalId", "string");
+                AddQueryParameter(parameters, "method", "string");
+                AddQueryParameter(parameters, "statusCode", "integer");
+                AddQueryParameter(parameters, "pathContains", "string");
+                AddQueryParameter(parameters, "fromUtc", "string");
+                AddQueryParameter(parameters, "toUtc", "string");
+                AddQueryParameter(parameters, "bucketMinutes", "integer");
+            }
+
+            return parameters;
+        }
+
+        private static void AddQueryParameter(List<Dictionary<string, object>> parameters, string name, string type)
+        {
+            parameters.Add(new Dictionary<string, object>
+            {
+                ["name"] = name,
+                ["in"] = "query",
+                ["required"] = false,
+                ["schema"] = new Dictionary<string, object> { ["type"] = type }
+            });
+        }
+
         private static async Task DefaultRoute(HttpContextBase ctx)
         {
             _Logging.Warn(_Header + "default route: " + ctx.Request.Method + " " + ctx.Request.Url.RawWithQuery);
             ctx.Response.StatusCode = 404;
             await ctx.Response.Send(JsonSerializer.Serialize(
-                new ApiErrorResponse(ApiErrorEnum.NotFound, null, "Route not found"),
+                new NetLedger.Server.Models.ApiErrorResponse(ApiErrorEnum.NotFound, null, "Route not found"),
                 Constants.JsonOptions)).ConfigureAwait(false);
         }
 
@@ -389,7 +638,7 @@ namespace NetLedger.Server
 
             ctx.Response.StatusCode = statusCode;
             await ctx.Response.Send(JsonSerializer.Serialize(
-                new ApiErrorResponse(errorCode, null, e.Message),
+                new NetLedger.Server.Models.ApiErrorResponse(errorCode, null, e.Message),
                 Constants.JsonOptions)).ConfigureAwait(false);
         }
 
@@ -459,3 +708,7 @@ namespace NetLedger.Server
         }
     }
 }
+
+
+
+

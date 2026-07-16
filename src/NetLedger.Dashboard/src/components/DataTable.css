@@ -140,7 +140,9 @@
 }
 
 .data-table .col-date {
-  width: 180px;
+  min-width: 230px;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  font-size: 0.8125rem;
   white-space: nowrap;
 }
 

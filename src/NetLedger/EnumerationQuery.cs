@@ -1,6 +1,7 @@
-﻿namespace NetLedger
+namespace NetLedger
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Object used to request enumeration of accounts or entries.
@@ -16,7 +17,32 @@
         /// Required when enumerating entries within an account.
         /// Should be null when enumerating accounts.
         /// </summary>
-        public Guid? AccountGUID { get; set; } = null;
+        public string? AccountId { get; set; } = null;
+
+        /// <summary>
+        /// Tenant identifier.
+        /// </summary>
+        public string? TenantId { get; set; } = null;
+
+        /// <summary>
+        /// User identifier used to restrict account enumeration to mapped accounts.
+        /// Applicable only when enumerating accounts.
+        /// </summary>
+        public string? MappedUserId { get; set; } = null;
+
+        /// <summary>
+        /// User identifier used to restrict user-owned resources.
+        /// </summary>
+        public string? UserId { get; set; } = null;
+
+        /// <summary>
+        /// Legacy account identifier alias.
+        /// </summary>
+        public string? AccountGUID
+        {
+            get { return AccountId; }
+            set { AccountId = value; }
+        }
 
         /// <summary>
         /// Maximum number of results to retrieve.
@@ -59,7 +85,7 @@
         /// Continuation token for pagination.
         /// When provided, Skip should not be used.
         /// </summary>
-        public Guid? ContinuationToken { get; set; } = null;
+        public string? ContinuationToken { get; set; } = null;
 
         /// <summary>
         /// Order by.
@@ -97,6 +123,44 @@
         public decimal? AmountMaximum { get; set; } = null;
 
         /// <summary>
+        /// Only include credit entries with an amount greater than or equal to this value.
+        /// </summary>
+        public decimal? CreditMinimum { get; set; } = null;
+
+        /// <summary>
+        /// Only include credit entries with an amount less than or equal to this value.
+        /// </summary>
+        public decimal? CreditMaximum { get; set; } = null;
+
+        /// <summary>
+        /// Only include debit entries with an amount greater than or equal to this value.
+        /// </summary>
+        public decimal? DebitMinimum { get; set; } = null;
+
+        /// <summary>
+        /// Only include debit entries with an amount less than or equal to this value.
+        /// </summary>
+        public decimal? DebitMaximum { get; set; } = null;
+
+        /// <summary>
+        /// Labels that must all exist on the returned object.
+        /// </summary>
+        public List<string> Labels
+        {
+            get { return _Labels; }
+            set { _Labels = MetadataValidator.NormalizeLabels(value); }
+        }
+
+        /// <summary>
+        /// Tags that must all match on the returned object.
+        /// </summary>
+        public Dictionary<string, string> Tags
+        {
+            get { return _Tags; }
+            set { _Tags = MetadataValidator.NormalizeTags(value); }
+        }
+
+        /// <summary>
         /// Only include accounts with a committed balance greater than or equal to this value.
         /// Applicable only when enumerating accounts.
         /// </summary>
@@ -114,6 +178,8 @@
 
         private int _MaxResults = 1000;
         private int _Skip = 0;
+        private List<string> _Labels = new List<string>();
+        private Dictionary<string, string> _Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -137,3 +203,4 @@
         #endregion
     }
 }
+

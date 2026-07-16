@@ -31,6 +31,41 @@ namespace NetLedger.Database
         public IApiKeyMethods ApiKeys { get; protected set; }
 
         /// <summary>
+        /// Tenant methods.
+        /// </summary>
+        public ITenantMethods Tenants { get; protected set; }
+
+        /// <summary>
+        /// User methods.
+        /// </summary>
+        public IUserMethods Users { get; protected set; }
+
+        /// <summary>
+        /// Authentication session methods.
+        /// </summary>
+        public IAuthSessionMethods AuthSessions { get; protected set; }
+
+        /// <summary>
+        /// Account-user map methods.
+        /// </summary>
+        public IAccountUserMapMethods AccountUserMaps { get; protected set; }
+
+        /// <summary>
+        /// Audit record methods.
+        /// </summary>
+        public IAuditRecordMethods AuditRecords { get; protected set; }
+
+        /// <summary>
+        /// Request history methods.
+        /// </summary>
+        public IRequestHistoryMethods RequestHistory { get; protected set; }
+
+        /// <summary>
+        /// Role-based access control methods.
+        /// </summary>
+        public IRbacMethods Rbac { get; protected set; }
+
+        /// <summary>
         /// Database settings.
         /// </summary>
         public DatabaseSettings Settings { get; protected set; }
@@ -172,3 +207,6 @@ namespace NetLedger.Database
         #endregion
     }
 }
+
+
+

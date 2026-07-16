@@ -5,11 +5,15 @@ from .account import AccountMethods
 from .entry import EntryMethods
 from .balance import BalanceMethods
 from .apikey import ApiKeyMethods
+from .identity import IdentityMethods
+from .request_history import RequestHistoryMethods
 
 __all__ = [
     'ServiceMethods',
     'AccountMethods',
     'EntryMethods',
     'BalanceMethods',
-    'ApiKeyMethods'
+    'ApiKeyMethods',
+    'IdentityMethods',
+    'RequestHistoryMethods'
 ]

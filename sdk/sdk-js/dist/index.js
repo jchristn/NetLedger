@@ -21,6 +21,8 @@ const account_1 = require("./methods/account");
 const entry_1 = require("./methods/entry");
 const balance_1 = require("./methods/balance");
 const apikey_1 = require("./methods/apikey");
+const identity_1 = require("./methods/identity");
+const request_history_1 = require("./methods/request-history");
 // Re-export models and errors
 __exportStar(require("./models"), exports);
 __exportStar(require("./errors"), exports);
@@ -61,12 +63,28 @@ class NetLedgerClient {
         }
         this.baseUrl = baseUrl.replace(/\/$/, '');
         const timeoutMs = options?.timeoutMs || 30000;
-        this.httpClient = new http_client_1.HttpClient(this.baseUrl, apiKey, timeoutMs);
+        this.httpClient = new http_client_1.HttpClient(this.baseUrl, apiKey, timeoutMs, options?.tenantId);
         this.service = new service_1.ServiceMethods(this.httpClient);
         this.account = new account_1.AccountMethods(this.httpClient);
         this.entry = new entry_1.EntryMethods(this.httpClient);
         this.balance = new balance_1.BalanceMethods(this.httpClient);
         this.apiKey = new apikey_1.ApiKeyMethods(this.httpClient);
+        this.identity = new identity_1.IdentityMethods(this.httpClient);
+        this.requestHistory = new request_history_1.RequestHistoryMethods(this.httpClient);
+    }
+    static async discoverTenants(baseUrl, email) {
+        const client = new http_client_1.HttpClient(baseUrl.replace(/\/$/, ''), '');
+        const response = await client.post('/v1/auth/tenants', { Email: email });
+        return response.Data || [];
+    }
+    static async login(baseUrl, tenantId, email, password) {
+        const normalizedBaseUrl = baseUrl.replace(/\/$/, '');
+        const client = new http_client_1.HttpClient(normalizedBaseUrl, '');
+        const response = await client.post('/v1/auth/login', { TenantId: tenantId, Email: email, Password: password });
+        const token = response.Data?.Session?.Token;
+        if (!token)
+            throw new Error('Login response did not include a session token');
+        return new NetLedgerClient(normalizedBaseUrl, token, { tenantId });
     }
 }
 exports.NetLedgerClient = NetLedgerClient;

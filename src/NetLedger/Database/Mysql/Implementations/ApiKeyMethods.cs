@@ -54,14 +54,14 @@ namespace NetLedger.Database.Mysql.Implementations
 
             if (result != null && result.Rows.Count > 0)
             {
-                apiKey.Id = Convert.ToInt32(result.Rows[0][0]);
+                apiKey.RowId = Convert.ToInt32(result.Rows[0][0]);
             }
 
             return apiKey;
         }
 
         /// <inheritdoc />
-        public async Task<ApiKey> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<ApiKey> ReadByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT * FROM `apikeys` WHERE `guid` = '" + guid.ToString() + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -171,7 +171,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "DELETE FROM `apikeys` WHERE `guid` = '" + guid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
@@ -219,8 +219,8 @@ namespace NetLedger.Database.Mysql.Implementations
         private ApiKey DataRowToApiKey(DataRow row)
         {
             ApiKey apiKey = new ApiKey();
-            apiKey.Id = Convert.ToInt32(row["id"]);
-            apiKey.GUID = Guid.Parse(row["guid"].ToString()!);
+            apiKey.RowId = Convert.ToInt32(row["id"]);
+            apiKey.GUID = row["guid"].ToString()!;
             apiKey.Name = row["name"]?.ToString() ?? String.Empty;
             apiKey.Key = row["apikey"]?.ToString() ?? String.Empty;
             apiKey.Active = Convert.ToBoolean(row["active"]);
@@ -232,3 +232,6 @@ namespace NetLedger.Database.Mysql.Implementations
         #endregion
     }
 }
+
+
+

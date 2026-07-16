@@ -3,6 +3,8 @@ import { AccountMethods } from './methods/account';
 import { EntryMethods } from './methods/entry';
 import { BalanceMethods } from './methods/balance';
 import { ApiKeyMethods } from './methods/apikey';
+import { IdentityMethods } from './methods/identity';
+import { RequestHistoryMethods } from './methods/request-history';
 export * from './models';
 export * from './errors';
 /**
@@ -11,6 +13,8 @@ export * from './errors';
 export interface NetLedgerClientOptions {
     /** Request timeout in milliseconds. Default: 30000. */
     timeoutMs?: number;
+    /** Tenant identifier sent as x-tenant-id. */
+    tenantId?: string;
 }
 /**
  * Client for interacting with the NetLedger Server REST API.
@@ -44,6 +48,10 @@ export declare class NetLedgerClient {
     readonly balance: BalanceMethods;
     /** API key management operations. */
     readonly apiKey: ApiKeyMethods;
+    /** Identity and security administration operations. */
+    readonly identity: IdentityMethods;
+    /** Request history operations. */
+    readonly requestHistory: RequestHistoryMethods;
     /** The base URL of the NetLedger server. */
     readonly baseUrl: string;
     /**
@@ -54,6 +62,8 @@ export declare class NetLedgerClient {
      * @throws Error if baseUrl or apiKey is empty.
      */
     constructor(baseUrl: string, apiKey: string, options?: NetLedgerClientOptions);
+    static discoverTenants(baseUrl: string, email: string): Promise<import('./models').TenantInfo[]>;
+    static login(baseUrl: string, tenantId: string, email: string, password: string): Promise<NetLedgerClient>;
 }
 export default NetLedgerClient;
 //# sourceMappingURL=index.d.ts.map

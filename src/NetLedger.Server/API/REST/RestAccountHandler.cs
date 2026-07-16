@@ -7,7 +7,9 @@ namespace NetLedger.Server.API.REST
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Server.API.Agnostic;
+    using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
     using SyslogLogging;
     using WatsonWebserver.Core;
@@ -23,6 +25,8 @@ namespace NetLedger.Server.API.REST
         private readonly ServerSettings _Settings;
         private readonly LoggingModule _Logging;
         private readonly AccountHandler _AccountHandler;
+        private readonly AuthService _AuthService;
+        private readonly RequestHistoryService _RequestHistory;
 
         #endregion
 
@@ -34,11 +38,20 @@ namespace NetLedger.Server.API.REST
         /// <param name="settings">Server settings.</param>
         /// <param name="logging">Logging module.</param>
         /// <param name="accountHandler">Account handler.</param>
-        internal RestAccountHandler(ServerSettings settings, LoggingModule logging, AccountHandler accountHandler)
+        /// <param name="authService">Authentication service.</param>
+        /// <param name="requestHistory">Request history service.</param>
+        internal RestAccountHandler(
+            ServerSettings settings,
+            LoggingModule logging,
+            AccountHandler accountHandler,
+            AuthService authService,
+            RequestHistoryService requestHistory)
         {
             _Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _Logging = logging ?? throw new ArgumentNullException(nameof(logging));
             _AccountHandler = accountHandler ?? throw new ArgumentNullException(nameof(accountHandler));
+            _AuthService = authService ?? throw new ArgumentNullException(nameof(authService));
+            _RequestHistory = requestHistory ?? throw new ArgumentNullException(nameof(requestHistory));
 
             _Logging.Debug(_Header + "initialized");
         }
@@ -55,8 +68,9 @@ namespace NetLedger.Server.API.REST
         internal async Task ExistsAsync(HttpContextBase ctx)
         {
             RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
             ResponseContext resp = await _AccountHandler.ExistsAsync(req).ConfigureAwait(false);
-            await SendResponseAsync(ctx, resp).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -67,8 +81,9 @@ namespace NetLedger.Server.API.REST
         internal async Task EnumerateAsync(HttpContextBase ctx)
         {
             RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
             ResponseContext resp = await _AccountHandler.EnumerateAsync(req).ConfigureAwait(false);
-            await SendResponseAsync(ctx, resp).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -79,8 +94,9 @@ namespace NetLedger.Server.API.REST
         internal async Task ReadAsync(HttpContextBase ctx)
         {
             RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
             ResponseContext resp = await _AccountHandler.ReadAsync(req).ConfigureAwait(false);
-            await SendResponseAsync(ctx, resp).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -91,8 +107,9 @@ namespace NetLedger.Server.API.REST
         internal async Task ReadByNameAsync(HttpContextBase ctx)
         {
             RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
             ResponseContext resp = await _AccountHandler.ReadByNameAsync(req).ConfigureAwait(false);
-            await SendResponseAsync(ctx, resp).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -103,8 +120,9 @@ namespace NetLedger.Server.API.REST
         internal async Task CreateAsync(HttpContextBase ctx)
         {
             RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
             ResponseContext resp = await _AccountHandler.CreateAsync(req).ConfigureAwait(false);
-            await SendResponseAsync(ctx, resp).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -115,15 +133,16 @@ namespace NetLedger.Server.API.REST
         internal async Task DeleteAsync(HttpContextBase ctx)
         {
             RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
             ResponseContext resp = await _AccountHandler.DeleteAsync(req).ConfigureAwait(false);
-            await SendResponseAsync(ctx, resp).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
         }
 
         #endregion
 
         #region Private-Methods
 
-        private async Task SendResponseAsync(HttpContextBase ctx, ResponseContext resp)
+        private async Task SendResponseAsync(HttpContextBase ctx, RequestContext req, ResponseContext resp)
         {
             ctx.Response.StatusCode = resp.StatusCode;
             ctx.Response.ContentType = Constants.JsonContentType;
@@ -131,12 +150,14 @@ namespace NetLedger.Server.API.REST
 
             if (ctx.Request.Method == HttpMethod.HEAD)
             {
+                _RequestHistory.Capture(ctx, req, resp, null);
                 await ctx.Response.Send().ConfigureAwait(false);
             }
             else
             {
                 object? body = resp.Success ? resp.Data : (object?)resp.Error;
                 string json = JsonSerializer.Serialize(body, Constants.JsonOptions);
+                _RequestHistory.Capture(ctx, req, resp, json);
                 await ctx.Response.Send(Encoding.UTF8.GetBytes(json)).ConfigureAwait(false);
             }
         }
@@ -144,3 +165,7 @@ namespace NetLedger.Server.API.REST
         #endregion
     }
 }
+
+
+
+

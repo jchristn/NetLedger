@@ -54,14 +54,14 @@ namespace NetLedger.Database.SqlServer.Implementations
 
             if (result != null && result.Rows.Count > 0)
             {
-                account.Id = Convert.ToInt32(result.Rows[0][0]);
+                account.RowId = Convert.ToInt32(result.Rows[0][0]);
             }
 
             return account;
         }
 
         /// <inheritdoc />
-        public async Task<Account> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<Account> ReadByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT TOP 1 * FROM [accounts] WHERE [guid] = '" + guid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -190,14 +190,14 @@ namespace NetLedger.Database.SqlServer.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "DELETE FROM [accounts] WHERE [guid] = '" + guid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT COUNT(*) FROM [accounts] WHERE [guid] = '" + guid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -253,8 +253,8 @@ namespace NetLedger.Database.SqlServer.Implementations
         private Account DataRowToAccount(DataRow row)
         {
             Account account = new Account();
-            account.Id = Convert.ToInt32(row["id"]);
-            account.GUID = Guid.Parse(row["guid"].ToString()!);
+            account.RowId = Convert.ToInt32(row["id"]);
+            account.GUID = row["guid"].ToString()!;
             account.Name = row["name"]?.ToString() ?? String.Empty;
             account.Notes = row["notes"] != DBNull.Value ? row["notes"]?.ToString() : null;
             account.CreatedUtc = DateTime.Parse(row["createdutc"].ToString()!);
@@ -264,3 +264,6 @@ namespace NetLedger.Database.SqlServer.Implementations
         #endregion
     }
 }
+
+
+

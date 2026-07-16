@@ -8,6 +8,7 @@ namespace NetLedger.Database.Sqlite
     using System.Threading;
     using System.Threading.Tasks;
     using AsyncKeyedLock;
+    using NetLedger.Database.Portable;
     using Microsoft.Data.Sqlite;
     using NetLedger.Database.Sqlite.Implementations;
     using NetLedger.Database.Sqlite.Queries;
@@ -45,13 +46,22 @@ namespace NetLedger.Database.Sqlite
             Accounts = new AccountMethods(this);
             Entries = new EntryMethods(this);
             ApiKeys = new ApiKeyMethods(this);
+            Tenants = new TenantMethods(this);
+            Users = new UserMethods(this);
+            AuthSessions = new AuthSessionMethods(this);
+            AccountUserMaps = new AccountUserMapMethods(this);
+            AuditRecords = new AuditRecordMethods(this);
+            RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Sqlite);
+            Rbac = new RbacMethods(this);
 
             // Initialize database
             InitializeDatabaseAsync(CancellationToken.None).Wait();
 
             // Create tables and indices
             ExecuteQueryAsync(SetupQueries.CreateTables()).Wait();
+            EnsureV3ColumnsAsync(CancellationToken.None).Wait();
             ExecuteQueryAsync(SetupQueries.CreateIndices()).Wait();
+            Rbac.SeedBuiltInsAsync(CancellationToken.None).Wait();
         }
 
         #endregion
@@ -289,6 +299,64 @@ namespace NetLedger.Database.Sqlite
             await ExecuteQueryAsync("PRAGMA foreign_keys = ON;", false, token).ConfigureAwait(false);
         }
 
+        private async Task EnsureV3ColumnsAsync(CancellationToken token)
+        {
+            await EnsureColumnAsync("accounts", "tenantid", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+            await EnsureColumnAsync("accounts", "owneruserid", "TEXT", token).ConfigureAwait(false);
+            await EnsureColumnAsync("accounts", "labels", "TEXT NOT NULL DEFAULT '[]'", token).ConfigureAwait(false);
+            await EnsureColumnAsync("accounts", "tags", "TEXT NOT NULL DEFAULT '{}'", token).ConfigureAwait(false);
+            await EnsureColumnAsync("accounts", "active", "INTEGER NOT NULL DEFAULT 1", token).ConfigureAwait(false);
+            await EnsureColumnAsync("accounts", "lastupdateutc", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+
+            await EnsureColumnAsync("entries", "tenantid", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+            await EnsureColumnAsync("entries", "labels", "TEXT NOT NULL DEFAULT '[]'", token).ConfigureAwait(false);
+            await EnsureColumnAsync("entries", "tags", "TEXT NOT NULL DEFAULT '{}'", token).ConfigureAwait(false);
+            await EnsureColumnAsync("entries", "lastupdateutc", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+
+            await EnsureColumnAsync("apikeys", "tenantid", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+            await EnsureColumnAsync("apikeys", "userid", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+            await EnsureColumnAsync("apikeys", "secretkeysha256", "TEXT", token).ConfigureAwait(false);
+            await EnsureColumnAsync("apikeys", "secretkeylast4", "TEXT", token).ConfigureAwait(false);
+
+            await EnsureColumnAsync("accountusermaps", "id", "TEXT NOT NULL DEFAULT ''", token).ConfigureAwait(false);
+            await EnsureTableAsync("auditrecords", SetupQueries.CreateAuditRecordsTable(), token).ConfigureAwait(false);
+        }
+
+        private async Task EnsureTableAsync(string tableName, string createTableQuery, CancellationToken token)
+        {
+            DataTable tables = await ExecuteQueryAsync("SELECT name FROM sqlite_master WHERE type='table' AND name='" + tableName + "';", false, token).ConfigureAwait(false);
+            if (tables == null || tables.Rows.Count == 0)
+            {
+                await ExecuteQueryAsync(createTableQuery, true, token).ConfigureAwait(false);
+            }
+        }
+
+        private async Task EnsureColumnAsync(string tableName, string columnName, string columnDefinition, CancellationToken token)
+        {
+            DataTable columns = await ExecuteQueryAsync("PRAGMA table_info(" + tableName + ");", false, token).ConfigureAwait(false);
+            bool exists = false;
+
+            if (columns != null && columns.Rows.Count > 0)
+            {
+                foreach (DataRow row in columns.Rows)
+                {
+                    if (String.Compare(row["name"]?.ToString(), columnName, StringComparison.OrdinalIgnoreCase) == 0)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!exists)
+            {
+                await ExecuteQueryAsync("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + columnDefinition + ";", true, token).ConfigureAwait(false);
+            }
+        }
+
         #endregion
     }
 }
+
+
+

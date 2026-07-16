@@ -1,18 +1,20 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { NetLedgerApi } from '../api/api'
-
-const AppContext = createContext(null)
+import { AppContext } from './AppContextInstance'
 
 // Local storage keys
 const STORAGE_KEY_SERVER_URL = 'netledger_server_url'
-const STORAGE_KEY_API_KEY = 'netledger_api_key'
+const STORAGE_KEY_SESSION_TOKEN = 'netledger_session_token'
+const STORAGE_KEY_LEGACY_API_KEY = 'netledger_api_key'
+const STORAGE_KEY_TENANT_ID = 'netledger_tenant_id'
 const STORAGE_KEY_THEME = 'netledger_theme'
 
 export function AppProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const [serverUrl, setServerUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
+  const [sessionToken, setSessionToken] = useState('')
+  const [tenantId, setTenantId] = useState('')
   const [api, setApi] = useState(null)
   const [theme, setTheme] = useState(() => {
     // Load theme from localStorage on initial render
@@ -20,7 +22,41 @@ export function AppProvider({ children }) {
   })
   const [error, setError] = useState(null)
   const [serverInfo, setServerInfo] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+  const [currentTenant, setCurrentTenant] = useState(null)
+  const [effectivePermissions, setEffectivePermissions] = useState(null)
   const hasAttemptedAutoLogin = useRef(false)
+
+  const clearStoredCredentials = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY_SERVER_URL)
+    localStorage.removeItem(STORAGE_KEY_SESSION_TOKEN)
+    localStorage.removeItem(STORAGE_KEY_LEGACY_API_KEY)
+    localStorage.removeItem(STORAGE_KEY_TENANT_ID)
+  }, [])
+
+  const clearAuthenticatedState = useCallback(() => {
+    setIsAuthenticated(false)
+    setServerUrl('')
+    setSessionToken('')
+    setTenantId('')
+    setApi(null)
+    setServerInfo(null)
+    setCurrentUser(null)
+    setCurrentTenant(null)
+    setEffectivePermissions(null)
+  }, [])
+
+  const handleAuthenticationFailed = useCallback(() => {
+    clearStoredCredentials()
+    clearAuthenticatedState()
+    setError('Your session has expired. Sign in again.')
+  }, [clearAuthenticatedState, clearStoredCredentials])
+
+  const createAuthenticatedClient = useCallback((url, token, tenant) => {
+    return new NetLedgerApi(url, token, tenant, {
+      onAuthenticationFailed: handleAuthenticationFailed
+    })
+  }, [handleAuthenticationFailed])
 
   // Apply theme to document
   useEffect(() => {
@@ -34,24 +70,56 @@ export function AppProvider({ children }) {
     hasAttemptedAutoLogin.current = true
 
     const savedServerUrl = localStorage.getItem(STORAGE_KEY_SERVER_URL)
-    const savedApiKey = localStorage.getItem(STORAGE_KEY_API_KEY)
+    const savedSessionToken = localStorage.getItem(STORAGE_KEY_SESSION_TOKEN)
+    const savedTenantId = localStorage.getItem(STORAGE_KEY_TENANT_ID) || ''
+    localStorage.removeItem(STORAGE_KEY_LEGACY_API_KEY)
 
-    if (savedServerUrl && savedApiKey) {
+    if (savedServerUrl && savedSessionToken) {
       // Attempt to restore session
       const restoreSession = async () => {
         try {
-          const apiClient = new NetLedgerApi(savedServerUrl, savedApiKey)
+          const apiClient = createAuthenticatedClient(savedServerUrl, savedSessionToken, savedTenantId)
           const info = await apiClient.getServerInfo()
 
           setServerUrl(savedServerUrl)
-          setApiKey(savedApiKey)
+          setSessionToken(savedSessionToken)
+          setTenantId(savedTenantId)
           setApi(apiClient)
           setServerInfo(info)
+          try {
+            const permissions = await apiClient.getEffectivePermissions()
+            setEffectivePermissions(permissions)
+            const principalId = permissions?.PrincipalId || permissions?.principalId
+            const permissionTenantId = permissions?.TenantId || permissions?.tenantId || savedTenantId
+
+            if (permissionTenantId) {
+              try {
+                const tenant = await apiClient.readTenant(permissionTenantId)
+                setCurrentTenant(tenant)
+              } catch (err) {
+                if (err?.status === 401) throw err
+                setCurrentTenant(null)
+              }
+            }
+
+            if (permissionTenantId && principalId) {
+              try {
+                const user = await apiClient.readUser(permissionTenantId, principalId)
+                setCurrentUser(user)
+              } catch (err) {
+                if (err?.status === 401) throw err
+                setCurrentUser(null)
+              }
+            }
+          } catch (err) {
+            if (err?.status === 401) throw err
+            setEffectivePermissions(null)
+          }
           setIsAuthenticated(true)
         } catch (err) {
           // Clear invalid credentials
-          localStorage.removeItem(STORAGE_KEY_SERVER_URL)
-          localStorage.removeItem(STORAGE_KEY_API_KEY)
+          clearStoredCredentials()
+          clearAuthenticatedState()
         } finally {
           setIsInitializing(false)
         }
@@ -60,49 +128,69 @@ export function AppProvider({ children }) {
     } else {
       setIsInitializing(false)
     }
+  }, [clearAuthenticatedState, clearStoredCredentials, createAuthenticatedClient])
+
+  const discoverTenants = useCallback(async (url, email) => {
+    const normalizedUrl = url.replace(/\/+$/, '')
+    const apiClient = new NetLedgerApi(normalizedUrl, '')
+    return await apiClient.discoverTenants(email)
   }, [])
 
-  // Login function
-  const login = useCallback(async (url, key) => {
+  const loginWithPassword = useCallback(async (url, tenant, email, password) => {
     try {
       setError(null)
       const normalizedUrl = url.replace(/\/+$/, '')
-      const apiClient = new NetLedgerApi(normalizedUrl, key)
+      const unauthenticatedClient = new NetLedgerApi(normalizedUrl, '')
+      const loginResponse = await unauthenticatedClient.loginWithPassword(tenant, email, password)
+      const session = loginResponse?.Session || loginResponse?.session
+      const user = loginResponse?.User || loginResponse?.user || null
+      const tenantInfo = loginResponse?.Tenant || loginResponse?.tenant || null
+      const token = session?.Token || session?.token
 
-      // Test the connection by fetching server info
+      if (!token) {
+        throw new Error('Login response did not include a session token')
+      }
+
+      const apiClient = createAuthenticatedClient(normalizedUrl, token, tenant)
       const info = await apiClient.getServerInfo()
+      let permissions = null
+      try {
+        permissions = await apiClient.getEffectivePermissions()
+      } catch (err) {
+        if (err?.status === 401) throw err
+        permissions = null
+      }
 
-      // Save credentials to localStorage
       localStorage.setItem(STORAGE_KEY_SERVER_URL, normalizedUrl)
-      localStorage.setItem(STORAGE_KEY_API_KEY, key)
+      localStorage.setItem(STORAGE_KEY_SESSION_TOKEN, token)
+      localStorage.setItem(STORAGE_KEY_TENANT_ID, tenant)
+      localStorage.removeItem(STORAGE_KEY_LEGACY_API_KEY)
 
       setServerUrl(normalizedUrl)
-      setApiKey(key)
+      setSessionToken(token)
+      setTenantId(tenant)
       setApi(apiClient)
       setServerInfo(info)
+      setCurrentUser(user)
+      setCurrentTenant(tenantInfo)
+      setEffectivePermissions(permissions)
       setIsAuthenticated(true)
 
       return { success: true }
     } catch (err) {
-      const message = err.message || 'Failed to connect to server'
+      const message = err.message || 'Failed to login'
       setError(message)
       return { success: false, error: message }
     }
-  }, [])
+  }, [createAuthenticatedClient])
 
   // Logout function
   const logout = useCallback(() => {
     // Clear credentials from localStorage
-    localStorage.removeItem(STORAGE_KEY_SERVER_URL)
-    localStorage.removeItem(STORAGE_KEY_API_KEY)
-
-    setIsAuthenticated(false)
-    setServerUrl('')
-    setApiKey('')
-    setApi(null)
-    setServerInfo(null)
+    clearStoredCredentials()
+    clearAuthenticatedState()
     setError(null)
-  }, [])
+  }, [clearAuthenticatedState, clearStoredCredentials])
 
   // Toggle theme
   const toggleTheme = useCallback(() => {
@@ -127,12 +215,17 @@ export function AppProvider({ children }) {
     isAuthenticated,
     isInitializing,
     serverUrl,
-    apiKey,
+    sessionToken,
+    tenantId,
     api,
     theme,
     error,
     serverInfo,
-    login,
+    currentUser,
+    currentTenant,
+    effectivePermissions,
+    discoverTenants,
+    loginWithPassword,
     logout,
     toggleTheme,
     clearError,
@@ -144,12 +237,4 @@ export function AppProvider({ children }) {
       {children}
     </AppContext.Provider>
   )
-}
-
-export function useApp() {
-  const context = useContext(AppContext)
-  if (!context) {
-    throw new Error('useApp must be used within an AppProvider')
-  }
-  return context
 }

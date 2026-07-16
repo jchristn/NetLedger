@@ -3,7 +3,7 @@
 from typing import Optional
 
 from ..http_client import HttpClient
-from ..models import ApiKeyInfo, ApiKeyEnumerationQuery, EnumerationResult
+from ..models import ApiKeyInfo, ApiKeyEnumerationQuery, CredentialCreateResponse, EnumerationResult
 from ..exceptions import NetLedgerValidationError
 
 
@@ -19,7 +19,7 @@ class ApiKeyMethods:
         """
         self._client = client
 
-    def create(self, name: str, is_admin: bool = False) -> ApiKeyInfo:
+    def create(self, name: str, is_admin: bool = False) -> CredentialCreateResponse:
         """
         Create a new API key.
 
@@ -28,7 +28,7 @@ class ApiKeyMethods:
             is_admin: Whether the key has admin privileges.
 
         Returns:
-            The created API key info (includes the key value).
+            The created credential and one-time secret key.
 
         Raises:
             NetLedgerValidationError: If the name is empty.
@@ -39,10 +39,10 @@ class ApiKeyMethods:
             raise NetLedgerValidationError('API key name cannot be empty', 'name')
 
         body = {'name': name, 'isAdmin': is_admin}
-        response = self._client.put('/v1/apikeys', body)
+        response = self._client.put('/v1/credentials', body)
         if not response.data:
             raise ValueError('No data returned from server')
-        return ApiKeyInfo.from_dict(response.data)
+        return CredentialCreateResponse.from_dict(response.data)
 
     def enumerate(self, query: Optional[ApiKeyEnumerationQuery] = None) -> EnumerationResult:
         """
@@ -61,7 +61,9 @@ class ApiKeyMethods:
         if query is None:
             query = ApiKeyEnumerationQuery()
 
-        path = f'/v1/apikeys?maxResults={query.max_results}&skip={query.skip}'
+        path = f'/v1/credentials?maxResults={query.max_results}&skip={query.skip}'
+        if query.tenant_id:
+            path += f'&tenantId={query.tenant_id}'
         response = self._client.get(path)
 
         if not response.data:
@@ -80,4 +82,4 @@ class ApiKeyMethods:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error (401 if not authorized, 404 if not found).
         """
-        self._client.delete(f'/v1/apikeys/{api_key_guid}')
+        self._client.delete(f'/v1/credentials/{api_key_guid}')

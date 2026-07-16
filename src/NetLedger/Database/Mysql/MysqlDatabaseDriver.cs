@@ -10,6 +10,7 @@ namespace NetLedger.Database.Mysql
     using MySqlConnector;
     using NetLedger.Database.Mysql.Implementations;
     using NetLedger.Database.Mysql.Queries;
+    using NetLedger.Database.Portable;
 
     /// <summary>
     /// MySQL database driver.
@@ -42,7 +43,7 @@ namespace NetLedger.Database.Mysql
             MySqlConnectionStringBuilder builder = new MySqlConnectionStringBuilder
             {
                 Server = settings.Hostname,
-                Port = (uint)settings.Port,
+                Port = (uint)settings.GetEffectivePort(),
                 Database = settings.DatabaseName,
                 UserID = settings.Username ?? String.Empty,
                 Password = settings.Password ?? String.Empty,
@@ -55,11 +56,19 @@ namespace NetLedger.Database.Mysql
 
             _ConnectionString = builder.ConnectionString;
 
-            Accounts = new AccountMethods(this);
-            Entries = new EntryMethods(this);
-            ApiKeys = new ApiKeyMethods(this);
+            Accounts = new PortableSqlAccountMethods(this, DatabaseTypeEnum.Mysql);
+            Entries = new PortableSqlEntryMethods(this, DatabaseTypeEnum.Mysql);
+            ApiKeys = new PortableSqlApiKeyMethods(this, DatabaseTypeEnum.Mysql);
+            Tenants = new PortableSqlTenantMethods(this, DatabaseTypeEnum.Mysql);
+            Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.Mysql);
+            AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.Mysql);
+            AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.Mysql);
+            AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.Mysql);
+            RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Mysql);
+            Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.Mysql);
 
             InitializeDatabaseAsync().GetAwaiter().GetResult();
+            Rbac.SeedBuiltInsAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
         #endregion
@@ -252,3 +261,6 @@ namespace NetLedger.Database.Mysql
         #endregion
     }
 }
+
+
+

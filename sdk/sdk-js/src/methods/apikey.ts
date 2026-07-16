@@ -1,4 +1,4 @@
-import { ApiKeyInfo, ApiKeyEnumerationQuery, EnumerationResult } from '../models';
+import { ApiKeyInfo, ApiKeyEnumerationQuery, CredentialCreateResponse, EnumerationResult } from '../models';
 import { HttpClient } from '../http-client';
 import { NetLedgerValidationError } from '../errors';
 
@@ -16,14 +16,14 @@ export class ApiKeyMethods {
      * Create a new API key.
      * @param name Display name for the key.
      * @param isAdmin Whether the key has admin privileges.
-     * @returns The created API key info (includes the key value).
+     * @returns The created credential and one-time secret key.
      */
-    async create(name: string, isAdmin: boolean = false): Promise<ApiKeyInfo> {
+    async create(name: string, isAdmin: boolean = false): Promise<CredentialCreateResponse> {
         if (!name || name.trim() === '') {
             throw new NetLedgerValidationError('API key name cannot be empty', 'name');
         }
-        const response = await this.client.put<ApiKeyInfo>(
-            '/v1/apikeys',
+        const response = await this.client.put<CredentialCreateResponse>(
+            '/v1/credentials',
             { Name: name, IsAdmin: isAdmin }
         );
         if (!response.Data) {
@@ -42,9 +42,10 @@ export class ApiKeyMethods {
         if (query) {
             if (query.MaxResults !== undefined) params.append('maxResults', query.MaxResults.toString());
             if (query.Skip !== undefined) params.append('skip', query.Skip.toString());
+            if (query.TenantId !== undefined) params.append('tenantId', query.TenantId);
         }
         const queryString = params.toString();
-        const path = queryString ? `/v1/apikeys?${queryString}` : '/v1/apikeys';
+        const path = queryString ? `/v1/credentials?${queryString}` : '/v1/credentials';
         const response = await this.client.get<EnumerationResult<ApiKeyInfo>>(path);
         return response.Data || { TotalRecords: 0, RecordsRemaining: 0, EndOfResults: true };
     }
@@ -54,6 +55,6 @@ export class ApiKeyMethods {
      * @param apiKeyGuid The API key GUID.
      */
     async revoke(apiKeyGuid: string): Promise<void> {
-        await this.client.delete(`/v1/apikeys/${apiKeyGuid}`);
+        await this.client.delete(`/v1/credentials/${apiKeyGuid}`);
     }
 }

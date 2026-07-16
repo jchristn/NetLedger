@@ -152,20 +152,20 @@
         </member>
         <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.CreateAsync(NetLedger.Sdk.Account,System.Threading.CancellationToken)">
             <summary>
-            Create a new account with a specific GUID.
+            Create a new account with a specific Id.
             </summary>
-            <param name="account">The account to create (GUID will be used if provided).</param>
+            <param name="account">The account to create (Id will be used if provided).</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The created account.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when account is null.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.GetAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.GetAsync(System.String,System.Threading.CancellationToken)">
             <summary>
-            Get an account by its GUID.
+            Get an account by its Id.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The account.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
@@ -182,20 +182,20 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (404 if not found).</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.ExistsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.ExistsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Check if an account exists.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>True if the account exists, false otherwise.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.DeleteAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.DeleteAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Delete an account.
             </summary>
-            <param name="accountGuid">The GUID of the account to delete.</param>
+            <param name="accountId">The Id of the account to delete.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>Task representing the async operation.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
@@ -224,7 +224,7 @@
             <param name="name">The display name for the API key.</param>
             <param name="isAdmin">Whether the API key should have admin privileges.</param>
             <param name="cancellationToken">Cancellation token.</param>
-            <returns>The created API key info (includes the API key value).</returns>
+            <returns>The created credential and one-time secret key.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (401 if not authorized).</exception>
@@ -235,7 +235,7 @@
             </summary>
             <param name="apiKey">The API key info to create.</param>
             <param name="cancellationToken">Cancellation token.</param>
-            <returns>The created API key info (includes the API key value).</returns>
+            <returns>The created credential and one-time secret key.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when apiKey is null.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (401 if not authorized).</exception>
@@ -250,11 +250,11 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (401 if not authorized).</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IApiKeyMethods.RevokeAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IApiKeyMethods.RevokeAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Revoke (delete) an API key.
             </summary>
-            <param name="apiKeyGuid">The GUID of the API key to revoke.</param>
+            <param name="apiKeyId">The Id of the API key to revoke.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>Task representing the async operation.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
@@ -265,21 +265,21 @@
             Balance operations for the NetLedger API.
             </summary>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.GetAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.GetAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get the current balance for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The account balance including pending transactions.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (404 if account not found).</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.GetAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.GetAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <summary>
             Get the historical balance for an account as of a specific date/time.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="asOfUtc">The UTC timestamp to get the balance as of.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The account balance as of the specified time.</returns>
@@ -291,37 +291,37 @@
             Get balances for all accounts.
             </summary>
             <param name="cancellationToken">Cancellation token.</param>
-            <returns>Dictionary mapping account GUIDs to their balances.</returns>
+            <returns>Dictionary mapping account Ids to their balances.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.CommitAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.CommitAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Commit all pending entries for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The result of the commit operation.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (404 if account not found).</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.CommitAsync(System.Guid,System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.CommitAsync(System.String,System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <summary>
             Commit specific pending entries for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
-            <param name="entryGuids">The GUIDs of the entries to commit.</param>
+            <param name="accountId">The Id of the account.</param>
+            <param name="entryIds">The Ids of the entries to commit.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The result of the commit operation.</returns>
-            <exception cref="T:System.ArgumentNullException">Thrown when entryGuids is null.</exception>
+            <exception cref="T:System.ArgumentNullException">Thrown when entryIds is null.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (404 if account not found).</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.VerifyAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IBalanceMethods.VerifyAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Verify the balance chain integrity for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>True if the balance chain is valid, false otherwise.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
@@ -332,11 +332,11 @@
             Entry operations for the NetLedger API.
             </summary>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddCreditAsync(System.Guid,System.Decimal,System.String,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddCreditAsync(System.String,System.Decimal,System.String,System.Threading.CancellationToken)">
             <summary>
             Add a credit entry to an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="amount">The credit amount (must be greater than zero).</param>
             <param name="description">Optional description for the entry.</param>
             <param name="cancellationToken">Cancellation token.</param>
@@ -345,11 +345,11 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddCreditsAsync(System.Guid,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddCreditsAsync(System.String,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
             <summary>
             Add multiple credit entries to an account in a single operation.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="entries">The list of credit entries to add.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The list of created credit entries.</returns>
@@ -358,11 +358,11 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddDebitAsync(System.Guid,System.Decimal,System.String,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddDebitAsync(System.String,System.Decimal,System.String,System.Threading.CancellationToken)">
             <summary>
             Add a debit entry to an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="amount">The debit amount (must be greater than zero).</param>
             <param name="description">Optional description for the entry.</param>
             <param name="cancellationToken">Cancellation token.</param>
@@ -371,11 +371,11 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddDebitsAsync(System.Guid,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.AddDebitsAsync(System.String,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
             <summary>
             Add multiple debit entries to an account in a single operation.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="entries">The list of debit entries to add.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>The list of created debit entries.</returns>
@@ -384,67 +384,167 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetAllAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetAllAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get all entries for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>List of all entries for the account.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.EnumerateAsync(System.Guid,NetLedger.Sdk.EntryEnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.EnumerateAsync(System.String,NetLedger.Sdk.EntryEnumerationQuery,System.Threading.CancellationToken)">
             <summary>
             Enumerate entries for an account with filtering and pagination.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="query">Query parameters for filtering and pagination.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>Enumeration result containing entries.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetPendingAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetPendingAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get all pending (uncommitted) entries for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>List of pending entries.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get pending credit entries for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>List of pending credit entries.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.GetPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get pending debit entries for an account.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
+            <param name="accountId">The Id of the account.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>List of pending debit entries.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
-        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.CancelAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Interfaces.IEntryMethods.CancelAsync(System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Cancel (delete) a pending entry.
             </summary>
-            <param name="accountGuid">The GUID of the account.</param>
-            <param name="entryGuid">The GUID of the entry to cancel.</param>
+            <param name="accountId">The Id of the account.</param>
+            <param name="entryId">The Id of the entry to cancel.</param>
             <param name="cancellationToken">Cancellation token.</param>
             <returns>Task representing the async operation.</returns>
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (404 if not found, 409 if already committed).</exception>
+        </member>
+        <member name="T:NetLedger.Sdk.Interfaces.IIdentityMethods">
+            <summary>
+            Identity and security administration methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.GetEffectivePermissionsAsync(System.Threading.CancellationToken)">
+            <summary>
+            Get effective permissions for the current principal.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.EnumerateTenantsAsync(System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate tenants.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.CreateTenantAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Create a tenant.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.EnumerateUsersAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate tenant users.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.CreateUserAsync(System.String,NetLedger.Sdk.CreateUserInfo,System.Threading.CancellationToken)">
+            <summary>
+            Create a tenant user.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.EnumerateRolesAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate roles.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.CreateRoleAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Create a custom role.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.EnumeratePermissionsAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate permissions.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.CreatePermissionAsync(System.String,NetLedger.Sdk.PermissionInfo,System.Threading.CancellationToken)">
+            <summary>
+            Create a custom permission.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IIdentityMethods.AssignUserRoleAsync(System.String,System.String,NetLedger.Sdk.UserRoleAssignmentInfo,System.Threading.CancellationToken)">
+            <summary>
+            Assign a role to a user.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.Interfaces.IRequestHistoryMethods">
+            <summary>
+            Request history operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IRequestHistoryMethods.EnumerateAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate request history entries.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Paginated request history result.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IRequestHistoryMethods.SummarizeAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Summarize request history entries.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Request history summary.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IRequestHistoryMethods.ReadAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read one request history entry.
+            </summary>
+            <param name="id">Request history identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Request history entry.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IRequestHistoryMethods.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Delete one request history entry.
+            </summary>
+            <param name="id">Request history identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Delete result.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IRequestHistoryMethods.DeleteManyAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Delete matching request history entries.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Delete result.</returns>
         </member>
         <member name="T:NetLedger.Sdk.Interfaces.IServiceMethods">
             <summary>
@@ -467,6 +567,13 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IServiceMethods.GetOpenApiJsonAsync(System.Threading.CancellationToken)">
+            <summary>
+            Get the OpenAPI document JSON.
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>OpenAPI JSON document.</returns>
+        </member>
         <member name="T:NetLedger.Sdk.Methods.AccountMethods">
             <summary>
             Implementation of account management operations for the NetLedger API.
@@ -484,16 +591,16 @@
         <member name="M:NetLedger.Sdk.Methods.AccountMethods.CreateAsync(NetLedger.Sdk.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.AccountMethods.GetAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.AccountMethods.GetAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Sdk.Methods.AccountMethods.GetByNameAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.AccountMethods.ExistsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.AccountMethods.ExistsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.AccountMethods.DeleteAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.AccountMethods.DeleteAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Sdk.Methods.AccountMethods.EnumerateAsync(NetLedger.Sdk.AccountEnumerationQuery,System.Threading.CancellationToken)">
@@ -519,7 +626,7 @@
         <member name="M:NetLedger.Sdk.Methods.ApiKeyMethods.EnumerateAsync(NetLedger.Sdk.ApiKeyEnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.ApiKeyMethods.RevokeAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.ApiKeyMethods.RevokeAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Sdk.Methods.BalanceMethods">
@@ -533,22 +640,22 @@
             </summary>
             <param name="client">The NetLedger client.</param>
         </member>
-        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.GetAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.GetAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.GetAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.GetAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Sdk.Methods.BalanceMethods.GetAllAsync(System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.CommitAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.CommitAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.CommitAsync(System.Guid,System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.CommitAsync(System.String,System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.VerifyAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.BalanceMethods.VerifyAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Sdk.Methods.EntryMethods">
@@ -562,34 +669,101 @@
             </summary>
             <param name="client">The NetLedger client.</param>
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddCreditAsync(System.Guid,System.Decimal,System.String,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddCreditAsync(System.String,System.Decimal,System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddCreditsAsync(System.Guid,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddCreditsAsync(System.String,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddDebitAsync(System.Guid,System.Decimal,System.String,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddDebitAsync(System.String,System.Decimal,System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddDebitsAsync(System.Guid,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.AddDebitsAsync(System.String,System.Collections.Generic.List{NetLedger.Sdk.EntryInput},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetAllAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetAllAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.EnumerateAsync(System.Guid,NetLedger.Sdk.EntryEnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.EnumerateAsync(System.String,NetLedger.Sdk.EntryEnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetPendingAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetPendingAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.GetPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Sdk.Methods.EntryMethods.CancelAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Sdk.Methods.EntryMethods.CancelAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Sdk.Methods.IdentityMethods">
+            <summary>
+            Identity and security administration methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.#ctor(NetLedger.Sdk.NetLedgerClient)">
+            <summary>
+            Instantiate identity methods.
+            </summary>
+            <param name="client">NetLedger client.</param>
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.GetEffectivePermissionsAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.EnumerateTenantsAsync(System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.CreateTenantAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.EnumerateUsersAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.CreateUserAsync(System.String,NetLedger.Sdk.CreateUserInfo,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.EnumerateRolesAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.CreateRoleAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.EnumeratePermissionsAsync(System.String,System.Int32,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.CreatePermissionAsync(System.String,NetLedger.Sdk.PermissionInfo,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.IdentityMethods.AssignUserRoleAsync(System.String,System.String,NetLedger.Sdk.UserRoleAssignmentInfo,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Sdk.Methods.RequestHistoryMethods">
+            <summary>
+            Implementation of request history operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.RequestHistoryMethods.#ctor(NetLedger.Sdk.NetLedgerClient)">
+            <summary>
+            Instantiate request history methods.
+            </summary>
+            <param name="client">NetLedger client.</param>
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.RequestHistoryMethods.EnumerateAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.RequestHistoryMethods.SummarizeAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.RequestHistoryMethods.ReadAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.RequestHistoryMethods.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.RequestHistoryMethods.DeleteManyAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Sdk.Methods.ServiceMethods">
@@ -609,14 +783,22 @@
         <member name="M:NetLedger.Sdk.Methods.ServiceMethods.GetInfoAsync(System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="M:NetLedger.Sdk.Methods.ServiceMethods.GetOpenApiJsonAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
         <member name="T:NetLedger.Sdk.Account">
             <summary>
             Represents a ledger account.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.Account.GUID">
+        <member name="P:NetLedger.Sdk.Account.Id">
             <summary>
             The unique identifier for the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Account.TenantId">
+            <summary>
+            The tenant identifier for the account.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.Account.Name">
@@ -629,9 +811,29 @@
             Optional notes associated with the account.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.Account.Labels">
+            <summary>
+            Account labels.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Account.Tags">
+            <summary>
+            Account tags.
+            </summary>
+        </member>
         <member name="P:NetLedger.Sdk.Account.CreatedUtc">
             <summary>
             The UTC timestamp when the account was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Account.LastUpdateUtc">
+            <summary>
+            The UTC timestamp when the account was last updated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Account.Active">
+            <summary>
+            Indicates whether the account is active.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.Account.#ctor">
@@ -657,9 +859,19 @@
             Represents an API key for authentication.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.ApiKeyInfo.GUID">
+        <member name="P:NetLedger.Sdk.ApiKeyInfo.Id">
             <summary>
             The unique identifier for the API key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ApiKeyInfo.TenantId">
+            <summary>
+            The tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ApiKeyInfo.UserId">
+            <summary>
+            The owning user identifier.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.ApiKeyInfo.Name">
@@ -670,6 +882,11 @@
         <member name="P:NetLedger.Sdk.ApiKeyInfo.Key">
             <summary>
             The API key value (only returned when created).
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ApiKeyInfo.SecretKeyLast4">
+            <summary>
+            The last four characters of the credential secret key.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.ApiKeyInfo.Active">
@@ -721,7 +938,7 @@
             The HTTP status code of the response.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.ApiResponse`1.RequestGuid">
+        <member name="P:NetLedger.Sdk.ApiResponse`1.RequestId">
             <summary>
             The unique identifier for this request.
             </summary>
@@ -773,9 +990,9 @@
             Represents the balance state of an account at a point in time.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.Balance.AccountGUID">
+        <member name="P:NetLedger.Sdk.Balance.AccountId">
             <summary>
-            The GUID of the account.
+            The Id of the account.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.Balance.CommittedBalance">
@@ -843,6 +1060,16 @@
             Optional notes for the entry.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.EntryInput.Labels">
+            <summary>
+            Labels to attach to the entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryInput.Tags">
+            <summary>
+            Tags to attach to the entry.
+            </summary>
+        </member>
         <member name="M:NetLedger.Sdk.EntryInput.#ctor">
             <summary>
             Instantiate a new entry input.
@@ -866,9 +1093,9 @@
             Request to commit pending entries for an account.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.CommitRequest.EntryGuids">
+        <member name="P:NetLedger.Sdk.CommitRequest.EntryIds">
             <summary>
-            The GUIDs of specific entries to commit. If null or empty, all pending entries will be committed.
+            The Ids of specific entries to commit. If null or empty, all pending entries will be committed.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.CommitRequest.#ctor">
@@ -876,17 +1103,17 @@
             Instantiate a new commit request that will commit all pending entries.
             </summary>
         </member>
-        <member name="M:NetLedger.Sdk.CommitRequest.#ctor(System.Collections.Generic.List{System.Guid})">
+        <member name="M:NetLedger.Sdk.CommitRequest.#ctor(System.Collections.Generic.List{System.String})">
             <summary>
             Instantiate a new commit request for specific entries.
             </summary>
-            <param name="entryGuids">The GUIDs of entries to commit.</param>
+            <param name="entryIds">The Ids of entries to commit.</param>
         </member>
-        <member name="M:NetLedger.Sdk.CommitRequest.#ctor(System.Guid[])">
+        <member name="M:NetLedger.Sdk.CommitRequest.#ctor(System.String[])">
             <summary>
             Instantiate a new commit request for specific entries.
             </summary>
-            <param name="entryGuids">The GUIDs of entries to commit.</param>
+            <param name="entryIds">The Ids of entries to commit.</param>
         </member>
         <member name="T:NetLedger.Sdk.CommitResult">
             <summary>
@@ -911,6 +1138,96 @@
         <member name="M:NetLedger.Sdk.CommitResult.#ctor">
             <summary>
             Instantiate a new commit result.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.CreateUserInfo">
+            <summary>
+            Create user request.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CreateUserInfo.Email">
+            <summary>
+            Email address.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CreateUserInfo.Password">
+            <summary>
+            Password.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CreateUserInfo.FirstName">
+            <summary>
+            First name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CreateUserInfo.LastName">
+            <summary>
+            Last name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CreateUserInfo.IsAdmin">
+            <summary>
+            Whether the user is a system admin.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CreateUserInfo.IsTenantAdmin">
+            <summary>
+            Whether the user is a tenant admin.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.CredentialCreateResponse">
+            <summary>
+            Credential creation response with one-time secret.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CredentialCreateResponse.Credential">
+            <summary>
+            Created credential.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.CredentialCreateResponse.SecretKey">
+            <summary>
+            Raw secret key shown only once.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.EffectivePermissionInfo">
+            <summary>
+            Effective permission tuple.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EffectivePermissionInfo.ResourceType">
+            <summary>
+            Resource type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EffectivePermissionInfo.OperationType">
+            <summary>
+            Operation type.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.EffectivePermissionsInfo">
+            <summary>
+            Effective permissions response.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EffectivePermissionsInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EffectivePermissionsInfo.PrincipalId">
+            <summary>
+            Principal identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EffectivePermissionsInfo.PrincipalType">
+            <summary>
+            Principal type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EffectivePermissionsInfo.Permissions">
+            <summary>
+            Permission tuples.
             </summary>
         </member>
         <member name="T:NetLedger.Sdk.EntryType">
@@ -938,14 +1255,19 @@
             Represents a ledger entry (credit, debit, or balance snapshot).
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.Entry.GUID">
+        <member name="P:NetLedger.Sdk.Entry.Id">
             <summary>
             The unique identifier for the entry.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.Entry.AccountGUID">
+        <member name="P:NetLedger.Sdk.Entry.TenantId">
             <summary>
-            The GUID of the account this entry belongs to.
+            The tenant identifier for the entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Entry.AccountId">
+            <summary>
+            The Id of the account this entry belongs to.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.Entry.Type">
@@ -965,7 +1287,7 @@
         </member>
         <member name="P:NetLedger.Sdk.Entry.Replaces">
             <summary>
-            For balance entries, the GUID of the previous balance entry this replaces.
+            For balance entries, the Id of the previous balance entry this replaces.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.Entry.IsCommitted">
@@ -973,9 +1295,19 @@
             Indicates whether the entry has been committed.
             </summary>
         </member>
-        <member name="P:NetLedger.Sdk.Entry.CommittedByGUID">
+        <member name="P:NetLedger.Sdk.Entry.CommittedById">
             <summary>
-            The GUID of the balance entry that committed this entry.
+            The Id of the balance entry that committed this entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Entry.Labels">
+            <summary>
+            Entry labels.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Entry.Tags">
+            <summary>
+            Entry tags.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.Entry.CommittedUtc">
@@ -986,6 +1318,11 @@
         <member name="P:NetLedger.Sdk.Entry.CreatedUtc">
             <summary>
             The UTC timestamp when the entry was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Entry.LastUpdateUtc">
+            <summary>
+            The UTC timestamp when the entry was last updated.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.Entry.#ctor">
@@ -1033,9 +1370,19 @@
             Number of results to skip for pagination.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.TenantId">
+            <summary>
+            Optional tenant identifier.
+            </summary>
+        </member>
         <member name="P:NetLedger.Sdk.EntryEnumerationQuery.ContinuationToken">
             <summary>
             Continuation token from a previous query for pagination.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.SearchTerm">
+            <summary>
+            Search term to filter entries by description.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.EntryEnumerationQuery.CreatedAfterUtc">
@@ -1056,6 +1403,36 @@
         <member name="P:NetLedger.Sdk.EntryEnumerationQuery.AmountMaximum">
             <summary>
             Filter for entries with amount less than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.CreditMinimum">
+            <summary>
+            Filter for credit entries with amount greater than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.CreditMaximum">
+            <summary>
+            Filter for credit entries with amount less than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.DebitMinimum">
+            <summary>
+            Filter for debit entries with amount greater than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.DebitMaximum">
+            <summary>
+            Filter for debit entries with amount less than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.Labels">
+            <summary>
+            Labels that must all exist on returned entries.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.EntryEnumerationQuery.Tags">
+            <summary>
+            Tags that must all match on returned entries.
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.EntryEnumerationQuery.Ordering">
@@ -1088,6 +1465,16 @@
             Search term to filter accounts by name.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.AccountEnumerationQuery.Labels">
+            <summary>
+            Labels that must all exist on returned accounts.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.AccountEnumerationQuery.Tags">
+            <summary>
+            Tags that must all match on returned accounts.
+            </summary>
+        </member>
         <member name="M:NetLedger.Sdk.AccountEnumerationQuery.#ctor">
             <summary>
             Instantiate a new account enumeration query with default values.
@@ -1106,6 +1493,11 @@
         <member name="P:NetLedger.Sdk.ApiKeyEnumerationQuery.Skip">
             <summary>
             Number of results to skip for pagination.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ApiKeyEnumerationQuery.TenantId">
+            <summary>
+            Optional tenant identifier.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.ApiKeyEnumerationQuery.#ctor">
@@ -1149,6 +1541,336 @@
             Instantiate a new enumeration result.
             </summary>
         </member>
+        <member name="T:NetLedger.Sdk.PermissionInfo">
+            <summary>
+            Permission information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.Id">
+            <summary>
+            Permission identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.Name">
+            <summary>
+            Permission name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.ResourceTypes">
+            <summary>
+            Resource types.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.OperationTypes">
+            <summary>
+            Operation types.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.PermissionType">
+            <summary>
+            Permission type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.Active">
+            <summary>
+            Whether the permission is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.IsProtected">
+            <summary>
+            Whether the permission is protected.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.PermissionInfo.LastUpdateUtc">
+            <summary>
+            Last update timestamp UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.RequestHistoryDeleteResult">
+            <summary>
+            Delete request history result.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryDeleteResult.DeletedCount">
+            <summary>
+            Number of deleted records.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.RequestHistoryEntry">
+            <summary>
+            Captured REST request and response metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.Id">
+            <summary>
+            Request history identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.TenantId">
+            <summary>
+            Tenant identifier associated with the request.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.PrincipalId">
+            <summary>
+            User or credential principal identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.PrincipalType">
+            <summary>
+            Principal type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.Method">
+            <summary>
+            HTTP method.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.Path">
+            <summary>
+            Request path without query string.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.Url">
+            <summary>
+            Request URL including query string.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.StatusCode">
+            <summary>
+            Response status code.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.DurationMs">
+            <summary>
+            Request duration in milliseconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.SourceIp">
+            <summary>
+            Source IP address.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.RequestHeaders">
+            <summary>
+            Redacted request headers.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.RequestBody">
+            <summary>
+            Captured request body.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.RequestBodyBytes">
+            <summary>
+            Original request body byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.RequestBodyTruncated">
+            <summary>
+            Whether request body capture was truncated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.ResponseHeaders">
+            <summary>
+            Response headers.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.ResponseBody">
+            <summary>
+            Captured response body.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.ResponseBodyBytes">
+            <summary>
+            Original response body byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.ResponseBodyTruncated">
+            <summary>
+            Whether response body capture was truncated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.CreatedUtc">
+            <summary>
+            UTC timestamp when request started.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryEntry.CompletedUtc">
+            <summary>
+            UTC timestamp when response completed.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.RequestHistoryQuery">
+            <summary>
+            Query parameters for request history enumeration and summaries.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.TenantId">
+            <summary>
+            Optional tenant filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.PrincipalId">
+            <summary>
+            Optional principal filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.Method">
+            <summary>
+            Optional HTTP method filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.StatusCode">
+            <summary>
+            Optional exact status code filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.PathContains">
+            <summary>
+            Optional request path substring filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.FromUtc">
+            <summary>
+            Optional lower created timestamp bound.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.ToUtc">
+            <summary>
+            Optional upper created timestamp bound.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.MaxResults">
+            <summary>
+            Maximum records to return.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.Skip">
+            <summary>
+            Number of records to skip.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.BucketMinutes">
+            <summary>
+            Summary bucket size in minutes.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.RequestHistorySummary">
+            <summary>
+            Request history summary.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummary.TotalCount">
+            <summary>
+            Total matching request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummary.TotalSuccess">
+            <summary>
+            Total successful request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummary.TotalFailure">
+            <summary>
+            Total failed request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummary.AverageDurationMs">
+            <summary>
+            Average request duration in milliseconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummary.Buckets">
+            <summary>
+            Summary buckets.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.RequestHistorySummaryBucket">
+            <summary>
+            Request history summary bucket.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummaryBucket.BucketStartUtc">
+            <summary>
+            Bucket start timestamp in UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummaryBucket.BucketEndUtc">
+            <summary>
+            Bucket end timestamp in UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummaryBucket.SuccessCount">
+            <summary>
+            Successful request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummaryBucket.FailureCount">
+            <summary>
+            Failed request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistorySummaryBucket.AverageDurationMs">
+            <summary>
+            Average request duration in milliseconds.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.RoleInfo">
+            <summary>
+            Role information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.Id">
+            <summary>
+            Role identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.Name">
+            <summary>
+            Role name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.IsBuiltIn">
+            <summary>
+            Whether the role is built in.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.Active">
+            <summary>
+            Whether the role is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.IsProtected">
+            <summary>
+            Whether the role is protected.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RoleInfo.LastUpdateUtc">
+            <summary>
+            Last update timestamp UTC.
+            </summary>
+        </member>
         <member name="T:NetLedger.Sdk.ServiceInfo">
             <summary>
             Information about the NetLedger service.
@@ -1184,6 +1906,126 @@
             Instantiate a new service info.
             </summary>
         </member>
+        <member name="T:NetLedger.Sdk.TenantInfo">
+            <summary>
+            Tenant information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.TenantInfo.Id">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.TenantInfo.Name">
+            <summary>
+            Tenant name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.TenantInfo.Active">
+            <summary>
+            Whether the tenant is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.TenantInfo.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.UserInfo">
+            <summary>
+            User information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.Id">
+            <summary>
+            User identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.Email">
+            <summary>
+            Email address.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.FirstName">
+            <summary>
+            First name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.LastName">
+            <summary>
+            Last name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.IsAdmin">
+            <summary>
+            Whether the user is a system admin.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.IsTenantAdmin">
+            <summary>
+            Whether the user is a tenant admin.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserInfo.Active">
+            <summary>
+            Whether the user is active.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.UserRoleAssignmentInfo">
+            <summary>
+            User role assignment information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.Id">
+            <summary>
+            Assignment identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.UserId">
+            <summary>
+            User identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.RoleId">
+            <summary>
+            Role identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.RoleName">
+            <summary>
+            Role name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.ResourceScope">
+            <summary>
+            Resource scope.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.ResourceId">
+            <summary>
+            Resource identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.InheritsToChildren">
+            <summary>
+            Whether tenant grants inherit to child resources.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.UserRoleAssignmentInfo.Active">
+            <summary>
+            Whether the assignment is active.
+            </summary>
+        </member>
         <member name="T:NetLedger.Sdk.NetLedgerClient">
              <summary>
              Client for interacting with the NetLedger Server REST API.
@@ -1195,7 +2037,7 @@
              </remarks>
              <example>
              <code>
-             using var client = new NetLedgerClient("http://localhost:8080", "your-api-key");
+             using NetLedgerClient client = new NetLedgerClient("http://localhost:8080", "your-api-key");
             
              // Check service health
              bool isHealthy = await client.Service.HealthCheckAsync();
@@ -1204,10 +2046,10 @@
              Account account = await client.Account.CreateAsync("My Account");
             
              // Add a credit
-             Entry credit = await client.Entry.AddCreditAsync(account.GUID, 100.00m, "Initial deposit");
+             Entry credit = await client.Entry.AddCreditAsync(account.Id, 100.00m, "Initial deposit");
             
              // Get balance
-             Balance balance = await client.Balance.GetAsync(account.GUID);
+             Balance balance = await client.Balance.GetAsync(account.Id);
              </code>
              </example>
         </member>
@@ -1236,6 +2078,16 @@
             API key management operations including create, enumerate, and revoke.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.NetLedgerClient.Identity">
+            <summary>
+            Identity and security administration operations.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.NetLedgerClient.RequestHistory">
+            <summary>
+            Request history operations.
+            </summary>
+        </member>
         <member name="P:NetLedger.Sdk.NetLedgerClient.BaseUrl">
             <summary>
             The base URL of the NetLedger server.
@@ -1255,6 +2107,15 @@
             <param name="apiKey">The API key for authentication.</param>
             <exception cref="T:System.ArgumentNullException">Thrown when baseUrl or apiKey is null or empty.</exception>
         </member>
+        <member name="M:NetLedger.Sdk.NetLedgerClient.#ctor(System.String,System.String,System.String)">
+            <summary>
+            Instantiate a new tenant-scoped NetLedger client.
+            </summary>
+            <param name="baseUrl">The base URL of the NetLedger server.</param>
+            <param name="apiKey">The API key or credential access key for authentication.</param>
+            <param name="tenantId">Tenant identifier for x-tenant-id.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when baseUrl or apiKey is null or empty.</exception>
+        </member>
         <member name="M:NetLedger.Sdk.NetLedgerClient.Dispose">
             <summary>
             Releases all resources used by the NetLedgerClient.
@@ -1268,6 +2129,11 @@
         <member name="M:NetLedger.Sdk.NetLedgerClient.HeadAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Send an HTTP HEAD request to check if a resource exists.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.NetLedgerClient.SendRawStringAsync(System.Net.Http.HttpMethod,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Send an HTTP request and return the raw response body.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.NetLedgerClient.GetJsonOptions">

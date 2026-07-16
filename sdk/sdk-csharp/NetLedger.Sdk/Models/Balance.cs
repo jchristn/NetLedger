@@ -11,9 +11,9 @@ namespace NetLedger.Sdk
         #region Public-Members
 
         /// <summary>
-        /// The GUID of the account.
+        /// The Id of the account.
         /// </summary>
-        public Guid AccountGUID { get; set; }
+        public string AccountId { get; set; } = string.Empty;
 
         /// <summary>
         /// The committed balance (finalized from the latest balance entry).
@@ -85,3 +85,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

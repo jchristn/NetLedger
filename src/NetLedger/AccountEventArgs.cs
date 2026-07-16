@@ -10,7 +10,16 @@ namespace NetLedger
         /// <summary>
         /// Globally-unique identifier for the account.
         /// </summary>
-        public Guid GUID { get; private set; }
+        public string Id { get; private set; } = String.Empty;
+
+        /// <summary>
+        /// Legacy account identifier alias.
+        /// </summary>
+        public string GUID
+        {
+            get { return Id; }
+            private set { Id = value; }
+        }
 
         /// <summary>
         /// Name of the account.
@@ -38,3 +47,4 @@ namespace NetLedger
         }
     }
 }
+

@@ -1,11 +1,140 @@
-import React, { useState, useEffect } from 'react'
-import { useApp } from '../context/AppContext'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useApp } from '../context/useApp'
+import Pagination from '../components/Pagination'
 import { formatCurrency, formatDate, normalizeEnumerationResult, normalizeBalances } from '../api/api'
+import { getRoleFlags, getTenantId, valueOf } from '../utils/roles'
 import './Home.css'
 
+const TIME_RANGES = {
+  hour: { label: 'Last Hour', durationMs: 60 * 60 * 1000, buckets: 60 },
+  day: { label: 'Last Day', durationMs: 24 * 60 * 60 * 1000, buckets: 96 },
+  week: { label: 'Last Week', durationMs: 7 * 24 * 60 * 60 * 1000, buckets: 84 },
+  month: { label: 'Last Month', durationMs: 30 * 24 * 60 * 60 * 1000, buckets: 90 }
+}
+
+function getObjectId(obj) {
+  return valueOf(obj, 'Id') || valueOf(obj, 'GUID') || valueOf(obj, 'Guid') || valueOf(obj, 'AccountGuid') || ''
+}
+
+function getAccountTenantId(account) {
+  return valueOf(account, 'TenantId') || ''
+}
+
+function getAccountName(account) {
+  return valueOf(account, 'Name') || getObjectId(account)
+}
+
+function getEntryType(entry) {
+  return valueOf(entry, 'Type') || ''
+}
+
+function getEntryAmount(entry) {
+  return Number(valueOf(entry, 'Amount') || 0)
+}
+
+function getEntryCreatedUtc(entry) {
+  return valueOf(entry, 'CreatedUtc')
+}
+
+function getTenantLabel(tenant) {
+  const id = getObjectId(tenant)
+  const name = valueOf(tenant, 'Name') || id
+  return id && name !== id ? `${name} (${id})` : name
+}
+
+function getUserLabel(user) {
+  const email = valueOf(user, 'Email') || getObjectId(user)
+  const name = [valueOf(user, 'FirstName'), valueOf(user, 'LastName')].filter(Boolean).join(' ')
+  return name ? `${name} (${email})` : email
+}
+
+function buildRange(rangeKey) {
+  const definition = TIME_RANGES[rangeKey] || TIME_RANGES.day
+  const end = new Date()
+  const start = new Date(end.getTime() - definition.durationMs)
+  return { ...definition, key: rangeKey, start, end }
+}
+
+function buildBuckets(entries, range) {
+  const bucketMs = range.durationMs / range.buckets
+  const buckets = Array.from({ length: range.buckets }, (_, index) => {
+    const startMs = range.start.getTime() + index * bucketMs
+    return {
+      startUtc: new Date(startMs).toISOString(),
+      endUtc: new Date(startMs + bucketMs).toISOString(),
+      credits: 0,
+      debits: 0,
+      count: 0,
+      amount: 0
+    }
+  })
+
+  entries.forEach((entry) => {
+    const created = new Date(getEntryCreatedUtc(entry)).getTime()
+    if (Number.isNaN(created) || created < range.start.getTime() || created > range.end.getTime()) return
+
+    const index = Math.min(range.buckets - 1, Math.max(0, Math.floor((created - range.start.getTime()) / bucketMs)))
+    const amount = getEntryAmount(entry)
+    const type = getEntryType(entry)
+    buckets[index].count += 1
+    buckets[index].amount += amount
+    if (type === 'Credit') buckets[index].credits += 1
+    if (type === 'Debit') buckets[index].debits += 1
+  })
+
+  return buckets
+}
+
+function buildYAxisLabels(maxValue, maxLabels = 5) {
+  if (maxValue <= 0) return [0, 1]
+  if (maxValue <= 4) {
+    return Array.from({ length: maxValue + 1 }, (_, index) => index)
+  }
+
+  const roughStep = maxValue / (maxLabels - 1)
+  const power = Math.pow(10, Math.floor(Math.log10(roughStep)))
+  const normalized = roughStep / power
+  const step = (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) * power
+  const ceiling = Math.ceil(maxValue / step) * step
+  const labels = []
+
+  for (let value = 0; value <= ceiling && labels.length < maxLabels; value += step) {
+    labels.push(value)
+  }
+
+  if (labels[labels.length - 1] < maxValue) {
+    labels[labels.length - 1] = ceiling
+  }
+
+  return labels
+}
+
+function shouldShowXAxisLabel(index, totalCount, maxLabels = 8) {
+  if (totalCount <= maxLabels) return true
+  if (index === 0 || index === totalCount - 1) return true
+  return index % Math.ceil(totalCount / maxLabels) === 0
+}
+
+function formatChartLabel(timestamp) {
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 export default function Home() {
-  const { api, setError, serverInfo } = useApp()
+  const { api, setError, serverInfo, tenantId, currentUser, currentTenant, effectivePermissions } = useApp()
+  const { isSystemAdmin, isTenantAdmin, isRegularUser } = getRoleFlags(currentUser, effectivePermissions)
+  const resolvedTenantId = getTenantId(currentUser, effectivePermissions, tenantId)
   const [loading, setLoading] = useState(true)
+  const [chartLoading, setChartLoading] = useState(false)
+  const [tenants, setTenants] = useState([])
+  const [users, setUsers] = useState([])
+  const [accountUserMaps, setAccountUserMaps] = useState({})
+  const [rangeKey, setRangeKey] = useState('day')
+  const [selectedTenantId, setSelectedTenantId] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [entries, setEntries] = useState([])
   const [stats, setStats] = useState({
     totalAccounts: 0,
     totalCommittedBalance: 0,
@@ -14,33 +143,70 @@ export default function Home() {
     totalPendingDebits: 0,
     accounts: []
   })
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageSize, setPageSize] = useState(5)
 
-  useEffect(() => {
-    loadStats()
-  }, [])
+  const visibleAccounts = useMemo(() => {
+    let accounts = stats.accounts
 
-  const loadStats = async () => {
+    if (isSystemAdmin && selectedTenantId) {
+      accounts = accounts.filter((account) => getAccountTenantId(account) === selectedTenantId)
+    }
+
+    if ((isTenantAdmin || isRegularUser) && selectedAccountId) {
+      accounts = accounts.filter((account) => getObjectId(account) === selectedAccountId)
+    }
+
+    if (isTenantAdmin && selectedUserId) {
+      accounts = accounts.filter((account) => {
+        const accountId = getObjectId(account)
+        const mappings = accountUserMaps[accountId] || []
+        return mappings.some((mapping) => valueOf(mapping, 'UserId') === selectedUserId)
+      })
+    }
+
+    return accounts
+  }, [accountUserMaps, isRegularUser, isSystemAdmin, isTenantAdmin, selectedAccountId, selectedTenantId, selectedUserId, stats.accounts])
+
+  const range = useMemo(() => buildRange(rangeKey), [rangeKey])
+  const chartBuckets = useMemo(() => buildBuckets(entries, range), [entries, range])
+  const transactionTotal = entries.length
+  const transactionAmount = entries.reduce((sum, entry) => sum + getEntryAmount(entry), 0)
+  const totalPages = Math.ceil(stats.accounts.length / pageSize)
+  const pagedAccounts = stats.accounts.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
+
+  const loadStats = useCallback(async () => {
     try {
       setLoading(true)
 
-      // Fetch accounts and balances
-      const [accountsResult, balancesResult] = await Promise.all([
-        api.listAccounts({ maxResults: 1000 }),
-        api.getAllBalances()
+      const tenantList = isSystemAdmin
+        ? normalizeEnumerationResult(await api.listTenants({ maxResults: 1000, ordering: 'CreatedDescending' })).objects
+        : currentTenant ? [currentTenant] : []
+      setTenants(tenantList)
+
+      const tenantForScopedLists = isSystemAdmin ? selectedTenantId : resolvedTenantId
+      const [accountsResult, balancesResult, usersResult] = await Promise.all([
+        api.listAccounts({ maxResults: 1000, tenantId: tenantForScopedLists || null }),
+        api.getAllBalances(),
+        tenantForScopedLists && (isTenantAdmin || isRegularUser)
+          ? api.listUsers(tenantForScopedLists, { maxResults: 1000, ordering: 'CreatedDescending' }).catch(() => null)
+          : Promise.resolve(null)
       ])
 
-      const { objects: accounts } = normalizeEnumerationResult(accountsResult)
+      const accounts = normalizeEnumerationResult(accountsResult).objects
       const balanceList = normalizeBalances(balancesResult)
+      const userList = usersResult ? normalizeEnumerationResult(usersResult).objects : []
+      setUsers(userList)
 
-      // Calculate totals
       let totalCommitted = 0
       let totalPending = 0
       let totalPendingCredits = 0
       let totalPendingDebits = 0
 
       const accountsWithBalances = accounts.map(account => {
-        const balance = balanceList.find(b =>
-          b.accountGuid === account.guid || b.AccountGuid === account.guid
+        const accountId = getObjectId(account)
+        const balance = balanceList.find(balanceItem =>
+          balanceItem.accountGuid === accountId || balanceItem.AccountGuid === accountId
         )
 
         const committedBalance = balance?.committedBalance ?? balance?.CommittedBalance ?? 0
@@ -62,19 +228,83 @@ export default function Home() {
         }
       })
 
+      if (isTenantAdmin && tenantForScopedLists) {
+        const mapPairs = await Promise.all(accountsWithBalances.map(async (account) => {
+          try {
+            const accountId = getObjectId(account)
+            const mapResult = await api.listAccountUsers(tenantForScopedLists, accountId, { maxResults: 1000 })
+            return [accountId, normalizeEnumerationResult(mapResult).objects]
+          } catch {
+            return [getObjectId(account), []]
+          }
+        }))
+        setAccountUserMaps(Object.fromEntries(mapPairs))
+      } else {
+        setAccountUserMaps({})
+      }
+
       setStats({
         totalAccounts: accounts.length,
         totalCommittedBalance: totalCommitted,
         totalPendingBalance: totalPending,
         totalPendingCredits,
         totalPendingDebits,
-        accounts: accountsWithBalances.slice(0, 5) // Top 5 accounts
+        accounts: accountsWithBalances
       })
     } catch (err) {
       setError(err.message || 'Failed to load statistics')
     } finally {
       setLoading(false)
     }
+  }, [api, currentTenant, isRegularUser, isSystemAdmin, isTenantAdmin, resolvedTenantId, selectedTenantId, setError])
+
+  const loadChart = useCallback(async () => {
+    try {
+      setChartLoading(true)
+      const accountList = visibleAccounts
+      const rangeForQuery = buildRange(rangeKey)
+      const entryGroups = await Promise.all(accountList.map(async (account) => {
+        const accountId = getObjectId(account)
+        const accountTenantId = getAccountTenantId(account) || selectedTenantId || resolvedTenantId
+        try {
+          const result = await api.listEntries(accountId, {
+            maxResults: 1000,
+            ordering: 'CreatedAscending',
+            startTime: rangeForQuery.start.toISOString(),
+            endTime: rangeForQuery.end.toISOString(),
+            tenantId: accountTenantId || null
+          })
+          return normalizeEnumerationResult(result).objects
+        } catch {
+          return []
+        }
+      }))
+      setEntries(entryGroups.flat())
+    } catch (err) {
+      setError(err.message || 'Failed to load transaction chart')
+    } finally {
+      setChartLoading(false)
+    }
+  }, [api, rangeKey, resolvedTenantId, selectedTenantId, setError, visibleAccounts])
+
+  useEffect(() => {
+    loadStats()
+  }, [loadStats])
+
+  useEffect(() => {
+    if (!loading) {
+      loadChart()
+    }
+  }, [loadChart, loading])
+
+  useEffect(() => {
+    setSelectedUserId('')
+    setSelectedAccountId('')
+  }, [selectedTenantId])
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size)
+    setCurrentPage(0)
   }
 
   if (loading) {
@@ -88,7 +318,6 @@ export default function Home() {
 
   return (
     <div className="home-page">
-      {/* Server Info */}
       {serverInfo && (
         <div className="server-info-card card">
           <div className="card-body">
@@ -114,94 +343,89 @@ export default function Home() {
         </div>
       )}
 
-      {/* Stats Cards */}
       <div className="stats-grid">
-        <div className="stat-card card">
-          <div className="card-body">
-            <div className="stat-icon stat-icon-accounts">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              </svg>
-            </div>
-            <div className="stat-content">
-              <span className="stat-value">{stats.totalAccounts}</span>
-              <span className="stat-label">Total Accounts</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card card">
-          <div className="card-body">
-            <div className="stat-icon stat-icon-balance">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="1" x2="12" y2="23"/>
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
-            </div>
-            <div className="stat-content">
-              <span className={`stat-value ${stats.totalCommittedBalance >= 0 ? 'amount-positive' : 'amount-negative'}`}>
-                {formatCurrency(stats.totalCommittedBalance)}
-              </span>
-              <span className="stat-label">Committed Balance</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card card">
-          <div className="card-body">
-            <div className="stat-icon stat-icon-pending">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-            </div>
-            <div className="stat-content">
-              <span className={`stat-value ${stats.totalPendingBalance >= 0 ? 'amount-positive' : 'amount-negative'}`}>
-                {formatCurrency(stats.totalPendingBalance)}
-              </span>
-              <span className="stat-label">Pending Balance</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card card">
-          <div className="card-body">
-            <div className="stat-icon stat-icon-credits">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </div>
-            <div className="stat-content">
-              <span className="stat-value amount-positive">{formatCurrency(stats.totalPendingCredits)}</span>
-              <span className="stat-label">Pending Credits</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card card">
-          <div className="card-body">
-            <div className="stat-icon stat-icon-debits">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </div>
-            <div className="stat-content">
-              <span className="stat-value amount-negative">{formatCurrency(stats.totalPendingDebits)}</span>
-              <span className="stat-label">Pending Debits</span>
-            </div>
-          </div>
-        </div>
+        <StatCard iconClass="stat-icon-accounts" label="Total Accounts" value={stats.totalAccounts} icon="accounts" />
+        <StatCard iconClass="stat-icon-balance" label="Committed Balance" value={formatCurrency(stats.totalCommittedBalance)} amount={stats.totalCommittedBalance} icon="balance" />
+        <StatCard iconClass="stat-icon-pending" label="Pending Balance" value={formatCurrency(stats.totalPendingBalance)} amount={stats.totalPendingBalance} icon="pending" />
+        <StatCard iconClass="stat-icon-credits" label="Pending Credits" value={formatCurrency(stats.totalPendingCredits)} icon="credits" />
+        <StatCard iconClass="stat-icon-debits" label="Pending Debits" value={formatCurrency(stats.totalPendingDebits)} icon="debits" />
       </div>
 
-      {/* Recent Accounts */}
+      <section className="transactions-chart-section">
+        <div className="chart-header">
+          <div>
+            <h3>Transactions over Time</h3>
+            <p>{transactionTotal} transactions, {formatCurrency(transactionAmount)} total amount</p>
+          </div>
+          {chartLoading && <span className="chart-loading">Loading...</span>}
+        </div>
+
+        <div className="chart-controls">
+          <div className="range-toggle">
+            {Object.entries(TIME_RANGES).map(([key, item]) => (
+              <button key={key} className={rangeKey === key ? 'active' : ''} onClick={() => setRangeKey(key)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="drilldown-controls">
+            {isSystemAdmin && (
+              <label>
+                <span>Tenant</span>
+                <select value={selectedTenantId} onChange={(event) => setSelectedTenantId(event.target.value)}>
+                  <option value="">All visible tenants</option>
+                  {tenants.map((tenant) => (
+                    <option key={getObjectId(tenant)} value={getObjectId(tenant)}>{getTenantLabel(tenant)}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {isTenantAdmin && (
+              <label>
+                <span>User</span>
+                <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+                  <option value="">All tenant users</option>
+                  {users.map((user) => (
+                    <option key={getObjectId(user)} value={getObjectId(user)}>{getUserLabel(user)}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {(isTenantAdmin || isRegularUser) && (
+              <label>
+                <span>Account</span>
+                <select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)}>
+                  <option value="">All visible accounts</option>
+                  {stats.accounts.map((account) => (
+                    <option key={getObjectId(account)} value={getObjectId(account)}>{getAccountName(account)}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        </div>
+
+        <TransactionsChart buckets={chartBuckets} />
+      </section>
+
       {stats.accounts.length > 0 && (
         <div className="recent-accounts card">
           <div className="card-header">
             <h3>Account Summary</h3>
           </div>
           <div className="card-body">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={stats.accounts.length}
+              pageSize={pageSize}
+              pageSizeOptions={[5, 10, 25, 50]}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={handlePageSizeChange}
+            />
             <table className="accounts-summary-table">
               <thead>
                 <tr>
@@ -211,10 +435,10 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {stats.accounts.map(account => (
-                  <tr key={account.guid || account.Guid}>
+                {pagedAccounts.map(account => (
+                  <tr key={getObjectId(account)}>
                     <td>
-                      <span className="account-name">{account.name || account.Name}</span>
+                      <span className="account-name">{getAccountName(account)}</span>
                     </td>
                     <td className="text-right">
                       <span className={`amount ${account.committedBalance >= 0 ? 'amount-positive' : 'amount-negative'}`}>
@@ -233,6 +457,121 @@ export default function Home() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function StatCard({ iconClass, label, value, amount = null, icon }) {
+  return (
+    <div className="stat-card card">
+      <div className="card-body">
+        <div className={`stat-icon ${iconClass}`}>
+          <StatIcon icon={icon} />
+        </div>
+        <div className="stat-content">
+          <span className={`stat-value ${amount === null ? '' : amount >= 0 ? 'amount-positive' : 'amount-negative'}`}>
+            {value}
+          </span>
+          <span className="stat-label">{label}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatIcon({ icon }) {
+  if (icon === 'accounts') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    )
+  }
+
+  if (icon === 'balance') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <line x1="12" y1="1" x2="12" y2="23"/>
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+    )
+  }
+
+  if (icon === 'pending') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+    )
+  }
+
+  if (icon === 'credits') {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    )
+  }
+
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  )
+}
+
+function TransactionsChart({ buckets }) {
+  const highestCount = Math.max(0, ...buckets.map((bucket) => bucket.count))
+  const yLabels = buildYAxisLabels(highestCount)
+  const yMax = yLabels[yLabels.length - 1] || 1
+  const width = 900
+  const height = 360
+  const padding = { top: 20, right: 18, bottom: 46, left: 46 }
+  const innerWidth = width - padding.left - padding.right
+  const innerHeight = height - padding.top - padding.bottom
+  const barSlot = innerWidth / Math.max(1, buckets.length)
+  const barWidth = Math.max(4, Math.min(26, barSlot - 4))
+
+  return (
+    <div className="transactions-chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Transactions over time chart">
+        {yLabels.map((label) => {
+          const y = padding.top + innerHeight - (label / yMax) * innerHeight
+          return (
+            <g key={label}>
+              <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} className={`chart-grid-line ${label === 0 ? 'chart-axis' : ''}`} />
+              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{label}</text>
+            </g>
+          )
+        })}
+        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={padding.top + innerHeight} className="chart-axis" />
+        {buckets.map((bucket, index) => {
+          const barHeight = bucket.count > 0 ? Math.max(2, (bucket.count / yMax) * innerHeight) : 0
+          const x = padding.left + index * barSlot + (barSlot - barWidth) / 2
+          const y = padding.top + innerHeight - barHeight
+          return (
+            <g key={bucket.startUtc}>
+              {bucket.count > 0 && (
+                <>
+                  <rect className="chart-bar chart-bar-credit" x={x} y={y} width={barWidth} height={barHeight * (bucket.credits / Math.max(1, bucket.count))} rx="2" />
+                  <rect className="chart-bar chart-bar-debit" x={x} y={y + barHeight * (bucket.credits / Math.max(1, bucket.count))} width={barWidth} height={barHeight * (bucket.debits / Math.max(1, bucket.count))} rx="2" />
+                </>
+              )}
+              {shouldShowXAxisLabel(index, buckets.length) && (
+                <text x={x + barWidth / 2} y={height - 16} className="chart-x-label">{formatChartLabel(bucket.startUtc)}</text>
+              )}
+              <title>{`${formatDate(bucket.startUtc)}: ${bucket.count} transactions`}</title>
+            </g>
+          )
+        })}
+      </svg>
+      <div className="chart-legend">
+        <span><i className="legend-credit"></i>Credits</span>
+        <span><i className="legend-debit"></i>Debits</span>
+      </div>
     </div>
   )
 }

@@ -3,10 +3,29 @@
  * Handles all communication with the NetLedger.Server backend
  */
 
+export class NetLedgerApiError extends Error {
+  constructor(message, options = {}) {
+    super(message)
+    this.name = 'NetLedgerApiError'
+    this.status = options.status || 0
+    this.statusText = options.statusText || ''
+    this.data = options.data || null
+    this.path = options.path || ''
+  }
+}
+
 export class NetLedgerApi {
-  constructor(baseUrl, apiKey) {
+  constructor(baseUrl, apiKey, tenantId = '', options = {}) {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
     this.apiKey = apiKey
+    this.tenantId = tenantId
+    this.onAuthenticationFailed = typeof options.onAuthenticationFailed === 'function' ? options.onAuthenticationFailed : null
+  }
+
+  handleAuthenticationFailure(error) {
+    if (this.apiKey && error?.status === 401 && this.onAuthenticationFailed) {
+      this.onAuthenticationFailed(error)
+    }
   }
 
   /**
@@ -35,6 +54,9 @@ export class NetLedgerApi {
     if (this.apiKey) {
       headers['Authorization'] = `Bearer ${this.apiKey}`
     }
+    if (this.tenantId) {
+      headers['x-tenant-id'] = this.tenantId
+    }
 
     const options = {
       method,
@@ -58,15 +80,28 @@ export class NetLedgerApi {
       data = await response.json()
     } catch {
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const error = new NetLedgerApiError(`HTTP ${response.status}: ${response.statusText}`, {
+          status: response.status,
+          statusText: response.statusText,
+          path
+        })
+        this.handleAuthenticationFailure(error)
+        throw error
       }
       return null
     }
 
     // Check for API-level errors
     if (!response.ok) {
-      const errorMessage = data?.Error?.Message || data?.error?.message || data?.message || `HTTP ${response.status}`
-      throw new Error(errorMessage)
+      const errorMessage = data?.Error?.Message || data?.error?.message || data?.message || data?.Description || data?.description || `HTTP ${response.status}`
+      const error = new NetLedgerApiError(errorMessage, {
+        status: response.status,
+        statusText: response.statusText,
+        data,
+        path
+      })
+      this.handleAuthenticationFailure(error)
+      throw error
     }
 
     // Return data from response wrapper if present (handle both PascalCase and camelCase)
@@ -99,6 +134,83 @@ export class NetLedgerApi {
     return this.request('DELETE', path, null, queryParams)
   }
 
+  async requestRaw(method, path, options = {}) {
+    let url = `${this.baseUrl}${path}`
+    const {
+      body = null,
+      headers: extraHeaders = {},
+      queryParams = null,
+      signal = null
+    } = options
+
+    if (queryParams) {
+      const params = new URLSearchParams()
+      Object.entries(queryParams).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          params.append(key, value)
+        }
+      })
+      const queryString = params.toString()
+      if (queryString) {
+        url += url.includes('?') ? `&${queryString}` : `?${queryString}`
+      }
+    }
+
+    const headers = { ...extraHeaders }
+    if (body !== null && body !== undefined && body !== '' && !headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json'
+    }
+    if (this.apiKey && !headers.Authorization && !headers.authorization) {
+      headers.Authorization = `Bearer ${this.apiKey}`
+    }
+    if (this.tenantId && !headers['x-tenant-id'] && !headers['X-Tenant-Id']) {
+      headers['x-tenant-id'] = this.tenantId
+    }
+
+    const started = performance.now()
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body !== null && body !== undefined && method !== 'GET' && method !== 'HEAD' ? body : undefined,
+      signal
+    })
+    const text = await response.text()
+    const responseHeaders = {}
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value
+    })
+
+    let json = null
+    try {
+      json = text ? JSON.parse(text) : null
+    } catch {
+      json = null
+    }
+
+    const result = {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      text,
+      json,
+      contentType: response.headers.get('content-type') || '',
+      durationMs: performance.now() - started,
+      requestId: response.headers.get('x-request-id') || response.headers.get('x-netledger-request-id') || ''
+    }
+
+    if (!result.ok && result.status === 401) {
+      this.handleAuthenticationFailure(new NetLedgerApiError('Authentication failed', {
+        status: result.status,
+        statusText: result.statusText,
+        data: json,
+        path
+      }))
+    }
+
+    return result
+  }
+
   // ==================== Service Endpoints ====================
 
   /**
@@ -108,12 +220,43 @@ export class NetLedgerApi {
     return this.get('/')
   }
 
+  async getOpenApiSpec() {
+    const response = await this.requestRaw('GET', '/openapi.json')
+    if (!response.ok) {
+      throw new NetLedgerApiError(`HTTP ${response.status}: ${response.statusText}`, {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.json,
+        path: '/openapi.json'
+      })
+    }
+    return response.json
+  }
+
+  // ==================== Authentication Endpoints ====================
+
+  async discoverTenants(email) {
+    return this.post('/v1/auth/tenants', { Email: email })
+  }
+
+  async loginWithPassword(tenantId, email, password) {
+    return this.post('/v1/auth/login', { TenantId: tenantId, Email: email, Password: password })
+  }
+
+  async logoutSession() {
+    return this.post('/v1/auth/logout')
+  }
+
+  async getEffectivePermissions() {
+    return this.get('/v1/me/permissions')
+  }
+
   // ==================== Account Endpoints ====================
 
   /**
    * Create a new account
    */
-  async createAccount(name, initialBalance = null, notes = null) {
+  async createAccount(name, initialBalance = null, notes = null, labels = [], tags = {}, tenantId = null) {
     const body = { Name: name }
     if (initialBalance !== null) {
       body.InitialBalance = initialBalance
@@ -121,7 +264,10 @@ export class NetLedgerApi {
     if (notes !== null) {
       body.Notes = notes
     }
-    return this.put('/v1/accounts', body)
+    body.Labels = labels
+    body.Tags = tags
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts` : '/v1/accounts'
+    return this.put(path, body)
   }
 
   /**
@@ -134,16 +280,22 @@ export class NetLedgerApi {
       ordering = 'CreatedDescending',
       search = null,
       startTime = null,
-      endTime = null
+      endTime = null,
+      labels = null,
+      tags = null,
+      tenantId = null
     } = options
 
-    return this.get('/v1/accounts', {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts` : '/v1/accounts'
+    return this.get(path, {
       maxResults,
       skip,
       ordering,
       search,
       startTime,
-      endTime
+      endTime,
+      labels: Array.isArray(labels) ? labels.join(',') : labels,
+      tags: tags && typeof tags === 'object' ? Object.entries(tags).map(([key, value]) => `${key}=${value}`).join(',') : tags
     })
   }
 
@@ -166,6 +318,14 @@ export class NetLedgerApi {
    */
   async deleteAccount(accountGuid) {
     return this.delete(`/v1/accounts/${accountGuid}`)
+  }
+
+  async mapAccountUser(tenantId, accountGuid, userId) {
+    return this.put(`/v1/tenants/${tenantId}/accounts/${accountGuid}/users/${userId}`)
+  }
+
+  async listAccountUsers(tenantId, accountGuid, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/accounts/${accountGuid}/users`, options)
   }
 
   // ==================== Balance Endpoints ====================
@@ -208,7 +368,9 @@ export class NetLedgerApi {
     const body = {
       Entries: entries.map(e => ({
         Amount: e.amount || e.Amount,
-        Notes: e.description || e.Description || e.notes || e.Notes || ''
+        Notes: e.description || e.Description || e.notes || e.Notes || '',
+        Labels: e.labels || e.Labels || [],
+        Tags: e.tags || e.Tags || {}
       })),
       IsCommitted: isCommitted
     }
@@ -223,7 +385,9 @@ export class NetLedgerApi {
     const body = {
       Entries: entries.map(e => ({
         Amount: e.amount || e.Amount,
-        Notes: e.description || e.Description || e.notes || e.Notes || ''
+        Notes: e.description || e.Description || e.notes || e.Notes || '',
+        Labels: e.labels || e.Labels || [],
+        Tags: e.tags || e.Tags || {}
       })),
       IsCommitted: isCommitted
     }
@@ -238,20 +402,36 @@ export class NetLedgerApi {
       maxResults = 50,
       skip = 0,
       ordering = 'CreatedDescending',
+      search = null,
       startTime = null,
       endTime = null,
       amountMin = null,
-      amountMax = null
+      amountMax = null,
+      creditMin = null,
+      creditMax = null,
+      debitMin = null,
+      debitMax = null,
+      labels = null,
+      tags = null,
+      tenantId = null
     } = options
 
-    return this.get(`/v1/accounts/${accountGuid}/entries`, {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountGuid}/entries` : `/v1/accounts/${accountGuid}/entries`
+    return this.get(path, {
       maxResults,
       skip,
       ordering,
+      search,
       startTime,
       endTime,
       amountMin,
-      amountMax
+      amountMax,
+      creditMin,
+      creditMax,
+      debitMin,
+      debitMax,
+      labels: Array.isArray(labels) ? labels.join(',') : labels,
+      tags: tags && typeof tags === 'object' ? Object.entries(tags).map(([key, value]) => `${key}=${value}`).join(',') : tags
     })
   }
 
@@ -312,7 +492,7 @@ export class NetLedgerApi {
     return this.post(`/v1/accounts/${accountGuid}/commit`, body)
   }
 
-  // ==================== API Key Endpoints ====================
+  // ==================== Credential Endpoints ====================
 
   /**
    * List API keys (admin only)
@@ -327,7 +507,7 @@ export class NetLedgerApi {
       createdBeforeUtc = null
     } = options
 
-    return this.get('/v1/apikeys', {
+    return this.get('/v1/credentials', {
       maxResults,
       skip,
       ordering,
@@ -340,10 +520,9 @@ export class NetLedgerApi {
   /**
    * Create a new API key (admin only)
    */
-  async createApiKey(name, isAdmin = false) {
-    return this.put('/v1/apikeys', {
-      Name: name,
-      IsAdmin: isAdmin
+  async createApiKey(name) {
+    return this.put('/v1/credentials', {
+      Name: name
     })
   }
 
@@ -351,7 +530,79 @@ export class NetLedgerApi {
    * Revoke an API key (admin only)
    */
   async revokeApiKey(apiKeyGuid) {
-    return this.delete(`/v1/apikeys/${apiKeyGuid}`)
+    return this.delete(`/v1/credentials/${apiKeyGuid}`)
+  }
+
+  async listTenants(options = {}) {
+    return this.get('/v1/tenants', options)
+  }
+
+  async readTenant(tenantId) {
+    return this.get(`/v1/tenants/${tenantId}`)
+  }
+
+  async createTenant(tenant) {
+    return this.put('/v1/tenants', tenant)
+  }
+
+  async listUsers(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/users`, options)
+  }
+
+  async readUser(tenantId, userId) {
+    return this.get(`/v1/tenants/${tenantId}/users/${userId}`)
+  }
+
+  async createUser(tenantId, user) {
+    return this.put(`/v1/tenants/${tenantId}/users`, user)
+  }
+
+  async listSessions(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/sessions`, options)
+  }
+
+  async listAudit(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/audit`, options)
+  }
+
+  async listRoles(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/roles`, options)
+  }
+
+  async createRole(tenantId, role) {
+    return this.put(`/v1/tenants/${tenantId}/roles`, role)
+  }
+
+  async listPermissions(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/permissions`, options)
+  }
+
+  async createPermission(tenantId, permission) {
+    return this.put(`/v1/tenants/${tenantId}/permissions`, permission)
+  }
+
+  async assignUserRole(tenantId, userId, assignment) {
+    return this.put(`/v1/tenants/${tenantId}/users/${userId}/roles`, assignment)
+  }
+
+  async listRequestHistory(options = {}) {
+    return this.get('/v1.0/api/request-history', options)
+  }
+
+  async summarizeRequestHistory(options = {}) {
+    return this.get('/v1.0/api/request-history/summary', options)
+  }
+
+  async readRequestHistoryEntry(id) {
+    return this.get(`/v1.0/api/request-history/${encodeURIComponent(id)}`)
+  }
+
+  async deleteRequestHistoryEntry(id) {
+    return this.delete(`/v1.0/api/request-history/${encodeURIComponent(id)}`)
+  }
+
+  async deleteRequestHistory(options = {}) {
+    return this.delete('/v1.0/api/request-history', options)
   }
 }
 
@@ -427,13 +678,22 @@ export function formatDate(dateString) {
   if (!dateString) return '-'
 
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  if (Number.isNaN(date.getTime())) return '-'
+
+  const text = String(dateString)
+  const fractionalMatch = text.match(/\.(\d+)/)
+  const fractionalSeconds = fractionalMatch
+    ? fractionalMatch[1].slice(0, 6).padEnd(6, '0')
+    : String(date.getUTCMilliseconds()).padStart(3, '0').padEnd(6, '0')
+
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const hours = String(date.getUTCHours()).padStart(2, '0')
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${fractionalSeconds}Z`
 }
 
 /**

@@ -63,6 +63,7 @@ namespace NetLedger.Sdk.Test
                 await RunEnumerationTests().ConfigureAwait(false);
                 await RunBalanceTests().ConfigureAwait(false);
                 await RunApiKeyTests().ConfigureAwait(false);
+                await RunRequestHistoryTests().ConfigureAwait(false);
                 await CleanupTests().ConfigureAwait(false);
             }
             finally
@@ -97,6 +98,14 @@ namespace NetLedger.Sdk.Test
                 if (string.IsNullOrEmpty(info.Name)) throw new Exception("Service name is empty");
             }).ConfigureAwait(false);
 
+            await RunTest("Get OpenAPI Spec", async () =>
+            {
+                string openApiJson = await _Client.Service.GetOpenApiJsonAsync().ConfigureAwait(false);
+                if (!openApiJson.Contains("\"openapi\":\"3.0.3\"", StringComparison.Ordinal) &&
+                    !openApiJson.Contains("\"openapi\": \"3.0.3\"", StringComparison.Ordinal))
+                    throw new Exception("OpenAPI version mismatch");
+            }).ConfigureAwait(false);
+
             Console.WriteLine();
         }
 
@@ -110,29 +119,29 @@ namespace NetLedger.Sdk.Test
             await RunTest("Create Account", async () =>
             {
                 createdAccount = await _Client.Account.CreateAsync(testAccountName, "Test notes").ConfigureAwait(false);
-                if (createdAccount.GUID == Guid.Empty) throw new Exception("Account GUID is empty");
+                if (createdAccount.Id == String.Empty) throw new Exception("Account GUID is empty");
                 if (createdAccount.Name != testAccountName) throw new Exception("Account name mismatch");
             }).ConfigureAwait(false);
 
             await RunTest("Check Account Exists", async () =>
             {
                 if (createdAccount == null) throw new Exception("No account to check");
-                bool exists = await _Client.Account.ExistsAsync(createdAccount.GUID).ConfigureAwait(false);
+                bool exists = await _Client.Account.ExistsAsync(createdAccount.Id).ConfigureAwait(false);
                 if (!exists) throw new Exception("Account should exist");
             }).ConfigureAwait(false);
 
             await RunTest("Get Account by GUID", async () =>
             {
                 if (createdAccount == null) throw new Exception("No account to get");
-                Account account = await _Client.Account.GetAsync(createdAccount.GUID).ConfigureAwait(false);
-                if (account.GUID != createdAccount.GUID) throw new Exception("Account GUID mismatch");
+                Account account = await _Client.Account.GetAsync(createdAccount.Id).ConfigureAwait(false);
+                if (account.Id != createdAccount.Id) throw new Exception("Account GUID mismatch");
             }).ConfigureAwait(false);
 
             await RunTest("Get Account by Name", async () =>
             {
                 if (createdAccount == null) throw new Exception("No account to get");
                 Account account = await _Client.Account.GetByNameAsync(testAccountName).ConfigureAwait(false);
-                if (account.GUID != createdAccount.GUID) throw new Exception("Account GUID mismatch");
+                if (account.Id != createdAccount.Id) throw new Exception("Account GUID mismatch");
             }).ConfigureAwait(false);
 
             await RunTest("Enumerate Accounts", async () =>
@@ -157,20 +166,20 @@ namespace NetLedger.Sdk.Test
             // Store for later tests
             if (createdAccount != null)
             {
-                _TestAccountGuid = createdAccount.GUID;
+                _TestAccountGuid = createdAccount.Id;
             }
 
             Console.WriteLine();
         }
 
-        private static Guid _TestAccountGuid = Guid.Empty;
-        private static List<Guid> _TestEntryGuids = new List<Guid>();
+        private static string _TestAccountGuid = String.Empty;
+        private static List<string> _TestEntryGuids = new List<string>();
 
         private static async Task RunEntryTests()
         {
             PrintSectionHeader("ENTRY TESTS");
 
-            if (_TestAccountGuid == Guid.Empty)
+            if (_TestAccountGuid == String.Empty)
             {
                 Console.WriteLine("  SKIPPED: No test account available");
                 Console.WriteLine();
@@ -180,19 +189,19 @@ namespace NetLedger.Sdk.Test
             await RunTest("Add Single Credit", async () =>
             {
                 Entry entry = await _Client.Entry.AddCreditAsync(_TestAccountGuid, 100.00m, "Test credit").ConfigureAwait(false);
-                if (entry.GUID == Guid.Empty) throw new Exception("Entry GUID is empty");
+                if (entry.Id == String.Empty) throw new Exception("Entry GUID is empty");
                 if (entry.Amount != 100.00m) throw new Exception("Amount mismatch");
                 if (entry.Type != EntryType.Credit) throw new Exception("Type should be Credit");
-                _TestEntryGuids.Add(entry.GUID);
+                _TestEntryGuids.Add(entry.Id);
             }).ConfigureAwait(false);
 
             await RunTest("Add Single Debit", async () =>
             {
                 Entry entry = await _Client.Entry.AddDebitAsync(_TestAccountGuid, 25.50m, "Test debit").ConfigureAwait(false);
-                if (entry.GUID == Guid.Empty) throw new Exception("Entry GUID is empty");
+                if (entry.Id == String.Empty) throw new Exception("Entry GUID is empty");
                 if (entry.Amount != 25.50m) throw new Exception("Amount mismatch");
                 if (entry.Type != EntryType.Debit) throw new Exception("Type should be Debit");
-                _TestEntryGuids.Add(entry.GUID);
+                _TestEntryGuids.Add(entry.Id);
             }).ConfigureAwait(false);
 
             await RunTest("Add Multiple Credits (Batch)", async () =>
@@ -207,7 +216,7 @@ namespace NetLedger.Sdk.Test
                 if (entries.Count != 3) throw new Exception($"Expected 3 entries, got {entries.Count}");
                 foreach (Entry entry in entries)
                 {
-                    _TestEntryGuids.Add(entry.GUID);
+                    _TestEntryGuids.Add(entry.Id);
                 }
             }).ConfigureAwait(false);
 
@@ -222,7 +231,7 @@ namespace NetLedger.Sdk.Test
                 if (entries.Count != 2) throw new Exception($"Expected 2 entries, got {entries.Count}");
                 foreach (Entry entry in entries)
                 {
-                    _TestEntryGuids.Add(entry.GUID);
+                    _TestEntryGuids.Add(entry.Id);
                 }
             }).ConfigureAwait(false);
 
@@ -281,13 +290,13 @@ namespace NetLedger.Sdk.Test
             await RunTest("Cancel Entry", async () =>
             {
                 if (entryToCancel == null) throw new Exception("No entry to cancel");
-                await _Client.Entry.CancelAsync(_TestAccountGuid, entryToCancel.GUID).ConfigureAwait(false);
+                await _Client.Entry.CancelAsync(_TestAccountGuid, entryToCancel.Id).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
             Console.WriteLine();
         }
 
-        private static Guid _EnumTestAccountGuid = Guid.Empty;
+        private static string _EnumTestAccountGuid = String.Empty;
         private static List<Entry> _EnumTestEntries = new List<Entry>();
 
         private static async Task RunEnumerationTests()
@@ -300,10 +309,10 @@ namespace NetLedger.Sdk.Test
             await RunTest("Create Enumeration Test Account", async () =>
             {
                 Account account = await _Client.Account.CreateAsync(enumAccountName, "Account for enumeration tests").ConfigureAwait(false);
-                _EnumTestAccountGuid = account.GUID;
+                _EnumTestAccountGuid = account.Id;
             }).ConfigureAwait(false);
 
-            if (_EnumTestAccountGuid == Guid.Empty)
+            if (_EnumTestAccountGuid == String.Empty)
             {
                 Console.WriteLine("  SKIPPED: Could not create test account");
                 Console.WriteLine();
@@ -615,7 +624,7 @@ namespace NetLedger.Sdk.Test
         {
             PrintSectionHeader("BALANCE TESTS");
 
-            if (_TestAccountGuid == Guid.Empty)
+            if (_TestAccountGuid == String.Empty)
             {
                 Console.WriteLine("  SKIPPED: No test account available");
                 Console.WriteLine();
@@ -665,7 +674,7 @@ namespace NetLedger.Sdk.Test
                 List<Entry> pending = await _Client.Entry.GetPendingAsync(_TestAccountGuid).ConfigureAwait(false);
                 if (pending.Count > 0)
                 {
-                    List<Guid> guids = new List<Guid> { pending[0].GUID };
+                    List<string> guids = new List<string> { pending[0].Id };
                     CommitResult result = await _Client.Balance.CommitAsync(_TestAccountGuid, guids).ConfigureAwait(false);
                 }
             }).ConfigureAwait(false);
@@ -683,13 +692,14 @@ namespace NetLedger.Sdk.Test
         {
             PrintSectionHeader("API KEY TESTS");
 
-            ApiKeyInfo? createdKey = null;
+            CredentialCreateResponse? createdKey = null;
 
             await RunTest("Create API Key", async () =>
             {
                 createdKey = await _Client.ApiKey.CreateAsync("Test SDK Key", isAdmin: false).ConfigureAwait(false);
-                if (createdKey.GUID == Guid.Empty) throw new Exception("API key GUID is empty");
-                if (string.IsNullOrEmpty(createdKey.Key)) throw new Exception("API key value should be returned on creation");
+                if (String.IsNullOrEmpty(createdKey.Credential?.Id)) throw new Exception("API key ID is empty");
+                if (string.IsNullOrEmpty(createdKey.Credential.Key)) throw new Exception("API key value should be returned on creation");
+                if (string.IsNullOrEmpty(createdKey.SecretKey)) throw new Exception("Secret key should be returned on creation");
             }).ConfigureAwait(false);
 
             await RunTest("Enumerate API Keys", async () =>
@@ -704,7 +714,33 @@ namespace NetLedger.Sdk.Test
             await RunTest("Revoke API Key", async () =>
             {
                 if (createdKey == null) throw new Exception("No API key to revoke");
-                await _Client.ApiKey.RevokeAsync(createdKey.GUID).ConfigureAwait(false);
+                await _Client.ApiKey.RevokeAsync(createdKey.Credential?.Id ?? String.Empty).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+            Console.WriteLine();
+        }
+
+        private static async Task RunRequestHistoryTests()
+        {
+            PrintSectionHeader("REQUEST HISTORY TESTS");
+
+            await RunTest("Enumerate Request History", async () =>
+            {
+                EnumerationResult<RequestHistoryEntry> result = await _Client.RequestHistory.EnumerateAsync(new RequestHistoryQuery
+                {
+                    MaxResults = 10
+                }).ConfigureAwait(false);
+                if (result.TotalRecords < 0) throw new Exception("Request history total records invalid");
+            }).ConfigureAwait(false);
+
+            await RunTest("Summarize Request History", async () =>
+            {
+                RequestHistorySummary summary = await _Client.RequestHistory.SummarizeAsync(new RequestHistoryQuery
+                {
+                    MaxResults = 100,
+                    BucketMinutes = 15
+                }).ConfigureAwait(false);
+                if (summary.TotalCount < 0) throw new Exception("Request history summary total count invalid");
             }).ConfigureAwait(false);
 
             Console.WriteLine();
@@ -714,7 +750,7 @@ namespace NetLedger.Sdk.Test
         {
             PrintSectionHeader("CLEANUP");
 
-            if (_TestAccountGuid != Guid.Empty)
+            if (_TestAccountGuid != String.Empty)
             {
                 await RunTest("Delete Test Account", async () =>
                 {
@@ -722,7 +758,7 @@ namespace NetLedger.Sdk.Test
                 }).ConfigureAwait(false);
             }
 
-            if (_EnumTestAccountGuid != Guid.Empty)
+            if (_EnumTestAccountGuid != String.Empty)
             {
                 await RunTest("Delete Enumeration Test Account", async () =>
                 {

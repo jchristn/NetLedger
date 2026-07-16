@@ -11,15 +11,35 @@ namespace NetLedger
         #region Public-Members
 
         /// <summary>
-        /// Database row ID.
+        /// Internal provider row ID.
         /// </summary>
         [JsonIgnore]
-        public int Id { get; set; } = 0;
+        public int RowId { get; set; } = 0;
 
         /// <summary>
         /// Unique identifier for the API key.
         /// </summary>
-        public Guid GUID { get; set; } = Guid.NewGuid();
+        public string Id { get; set; } = NetLedgerId.Generate(IdentifierPrefixes.Credential);
+
+        /// <summary>
+        /// Tenant identifier.
+        /// </summary>
+        public string TenantId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// User identifier.
+        /// </summary>
+        public string UserId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Legacy API key identifier alias.
+        /// </summary>
+        [JsonIgnore]
+        public string GUID
+        {
+            get { return Id; }
+            set { Id = value; }
+        }
 
         /// <summary>
         /// Display name for the API key.
@@ -30,6 +50,23 @@ namespace NetLedger
         /// The API key value. This is the Bearer token.
         /// </summary>
         public string Key { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Secret key verifier material.
+        /// </summary>
+        [JsonIgnore]
+        public string SecretKeySha256 { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Last four characters of the secret key.
+        /// </summary>
+        public string SecretKeyLast4 { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Raw secret key shown only at creation time.
+        /// </summary>
+        [JsonIgnore]
+        public string? RawSecretKey { get; set; }
 
         /// <summary>
         /// Whether the API key is active.
@@ -78,10 +115,10 @@ namespace NetLedger
         /// <summary>
         /// Generate a new random API key.
         /// </summary>
-        /// <returns>API key string as a GUID.</returns>
+        /// <returns>API key string.</returns>
         public static string GenerateApiKey()
         {
-            return Guid.NewGuid().ToString();
+            return NetLedgerId.Generate("acc_");
         }
 
         /// <summary>
@@ -92,10 +129,16 @@ namespace NetLedger
         {
             return new ApiKey
             {
+                RowId = RowId,
                 Id = Id,
+                TenantId = TenantId,
+                UserId = UserId,
                 GUID = GUID,
                 Name = Name,
-                Key = Key.Length >= 36 ? Key.Substring(0, 8) + "-****-****-****-" + Key.Substring(Key.Length - 12) : "****",
+                Key = Key.Length >= 8 ? Key.Substring(0, 4) + "****" + Key.Substring(Key.Length - 4) : "****",
+                SecretKeySha256 = String.Empty,
+                SecretKeyLast4 = SecretKeyLast4,
+                RawSecretKey = null,
                 Active = Active,
                 IsAdmin = IsAdmin,
                 CreatedUtc = CreatedUtc

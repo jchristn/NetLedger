@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import './ActionMenu.css'
 
 // Global tracking for open menus to ensure only one is open at a time
@@ -9,6 +10,7 @@ export default function ActionMenu({ items }) {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
   const menuRef = useRef(null)
   const triggerRef = useRef(null)
+  const dropdownRef = useRef(null)
 
   const closeMenu = useCallback(() => {
     setIsOpen(false)
@@ -16,7 +18,10 @@ export default function ActionMenu({ items }) {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
+      const clickedTrigger = menuRef.current && menuRef.current.contains(event.target)
+      const clickedDropdown = dropdownRef.current && dropdownRef.current.contains(event.target)
+
+      if (!clickedTrigger && !clickedDropdown) {
         setIsOpen(false)
       }
     }
@@ -52,14 +57,29 @@ export default function ActionMenu({ items }) {
   const updateDropdownPosition = () => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect()
+      const dropdownWidth = 180
+      const dropdownMaxHeight = Math.min(320, window.innerHeight - 16)
+      const maxLeft = Math.max(8, window.innerWidth - dropdownWidth - 8)
+      const left = Math.min(
+        Math.max(8, rect.right - dropdownWidth),
+        maxLeft
+      )
+      const topBelow = rect.bottom + 4
+      const topAbove = rect.top - dropdownMaxHeight - 4
+      const top = topBelow + dropdownMaxHeight > window.innerHeight - 8
+        ? Math.max(8, topAbove)
+        : topBelow
+
       setDropdownPosition({
-        top: rect.bottom + 4,
-        left: rect.right - 160 // 160px is the min-width of the dropdown
+        top,
+        left,
+        maxHeight: dropdownMaxHeight
       })
     }
   }
 
-  const handleItemClick = (item) => {
+  const handleItemClick = (event, item) => {
+    event.stopPropagation()
     if (item.onClick && !item.disabled) {
       item.onClick()
     }
@@ -73,7 +93,8 @@ export default function ActionMenu({ items }) {
     return null
   }
 
-  const handleTriggerClick = () => {
+  const handleTriggerClick = (event) => {
+    event.stopPropagation()
     if (!isOpen) {
       updateDropdownPosition()
     }
@@ -81,7 +102,7 @@ export default function ActionMenu({ items }) {
   }
 
   return (
-    <div className="action-menu" ref={menuRef}>
+    <div className="action-menu" ref={menuRef} data-ignore-row-click="true">
       <button
         ref={triggerRef}
         className="action-menu-trigger"
@@ -95,21 +116,27 @@ export default function ActionMenu({ items }) {
         </svg>
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <>
           {/* Invisible overlay to block clicks to elements beneath */}
           <div
             className="action-menu-overlay"
-            onClick={() => setIsOpen(false)}
+            onClick={(event) => {
+              event.stopPropagation()
+              setIsOpen(false)
+            }}
           />
           <div
+            ref={dropdownRef}
             className="action-menu-dropdown animate-fade-in"
             style={{
               position: 'fixed',
               top: dropdownPosition.top,
               left: dropdownPosition.left,
-              right: 'auto'
+              right: 'auto',
+              maxHeight: dropdownPosition.maxHeight
             }}
+            data-ignore-row-click="true"
           >
             {filteredItems.map((item, index) => {
               if (item.divider) {
@@ -120,7 +147,7 @@ export default function ActionMenu({ items }) {
                 <button
                   key={index}
                   className={`action-menu-item ${item.variant || ''} ${item.disabled ? 'disabled' : ''}`}
-                  onClick={() => handleItemClick(item)}
+                  onClick={(event) => handleItemClick(event, item)}
                   disabled={item.disabled}
                 >
                   {item.icon && <span className="action-menu-icon">{item.icon}</span>}
@@ -129,7 +156,8 @@ export default function ActionMenu({ items }) {
               )
             })}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )

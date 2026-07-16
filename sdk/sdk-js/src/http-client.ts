@@ -10,11 +10,13 @@ import { NetLedgerConnectionError, NetLedgerApiError } from './errors';
 export class HttpClient {
     private readonly baseUrl: string;
     private readonly apiKey: string;
+    private readonly tenantId?: string;
     private readonly timeoutMs: number;
 
-    constructor(baseUrl: string, apiKey: string, timeoutMs: number = 30000) {
+    constructor(baseUrl: string, apiKey: string, timeoutMs: number = 30000, tenantId?: string) {
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.apiKey = apiKey;
+        this.tenantId = tenantId;
         this.timeoutMs = timeoutMs;
     }
 
@@ -47,6 +49,13 @@ export class HttpClient {
     }
 
     /**
+     * Make a DELETE request and return a response body.
+     */
+    async deleteWithResponse<T>(path: string): Promise<ApiResponse<T>> {
+        return this.request<T>('DELETE', path);
+    }
+
+    /**
      * Make a HEAD request.
      */
     async head(path: string): Promise<boolean> {
@@ -63,7 +72,8 @@ export class HttpClient {
                 timeout: this.timeoutMs,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {})
                 }
             };
 
@@ -104,6 +114,7 @@ export class HttpClient {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {}),
                     ...(bodyData ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyData) } : {})
                 }
             };

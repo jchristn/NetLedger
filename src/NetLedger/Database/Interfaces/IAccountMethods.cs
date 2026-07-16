@@ -24,7 +24,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Account if found, null otherwise.</returns>
-        Task<Account> ReadByGuidAsync(Guid guid, CancellationToken token = default);
+        Task<Account> ReadByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Read an account by name.
@@ -71,7 +71,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task DeleteByGuidAsync(Guid guid, CancellationToken token = default);
+        Task DeleteByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Check if an account exists by GUID.
@@ -79,7 +79,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>True if account exists.</returns>
-        Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default);
+        Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Check if an account exists by name.
@@ -97,3 +97,6 @@ namespace NetLedger.Database.Interfaces
         Task<int> GetCountAsync(CancellationToken token = default);
     }
 }
+
+
+

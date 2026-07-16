@@ -9,14 +9,24 @@
             Account information.
             </summary>
         </member>
+        <member name="P:NetLedger.Account.RowId">
+            <summary>
+            Internal provider row ID.
+            </summary>
+        </member>
         <member name="P:NetLedger.Account.Id">
             <summary>
-            Database row ID.
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.TenantId">
+            <summary>
+            Tenant identifier.
             </summary>
         </member>
         <member name="P:NetLedger.Account.GUID">
             <summary>
-            Globally-unique identifier for the account.
+            Legacy account identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.Account.Name">
@@ -29,9 +39,29 @@
             Notes for the account.
             </summary>
         </member>
+        <member name="P:NetLedger.Account.Labels">
+            <summary>
+            Account labels.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.Tags">
+            <summary>
+            Account tags.
+            </summary>
+        </member>
         <member name="P:NetLedger.Account.CreatedUtc">
             <summary>
             UTC timestamp when the account was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.LastUpdateUtc">
+            <summary>
+            UTC timestamp when the account was last updated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Account.Active">
+            <summary>
+            Boolean indicating whether the account is active.
             </summary>
         </member>
         <member name="M:NetLedger.Account.#ctor">
@@ -51,9 +81,14 @@
             Account event arguments.
             </summary>
         </member>
-        <member name="P:NetLedger.AccountEventArgs.GUID">
+        <member name="P:NetLedger.AccountEventArgs.Id">
             <summary>
             Globally-unique identifier for the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountEventArgs.GUID">
+            <summary>
+            Legacy account identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.AccountEventArgs.Name">
@@ -71,19 +106,64 @@
             UTC timestamp when the account was created.
             </summary>
         </member>
+        <member name="T:NetLedger.AccountUserMap">
+            <summary>
+            Many-to-many mapping between users and accounts.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountUserMap.Id">
+            <summary>
+            Mapping identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountUserMap.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountUserMap.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountUserMap.UserId">
+            <summary>
+            User identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AccountUserMap.CreatedUtc">
+            <summary>
+            UTC timestamp when the mapping was created.
+            </summary>
+        </member>
         <member name="T:NetLedger.ApiKey">
             <summary>
             API key for authentication.
             </summary>
         </member>
+        <member name="P:NetLedger.ApiKey.RowId">
+            <summary>
+            Internal provider row ID.
+            </summary>
+        </member>
         <member name="P:NetLedger.ApiKey.Id">
             <summary>
-            Database row ID.
+            Unique identifier for the API key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.UserId">
+            <summary>
+            User identifier.
             </summary>
         </member>
         <member name="P:NetLedger.ApiKey.GUID">
             <summary>
-            Unique identifier for the API key.
+            Legacy API key identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.ApiKey.Name">
@@ -94,6 +174,21 @@
         <member name="P:NetLedger.ApiKey.Key">
             <summary>
             The API key value. This is the Bearer token.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.SecretKeySha256">
+            <summary>
+            Secret key verifier material.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.SecretKeyLast4">
+            <summary>
+            Last four characters of the secret key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.ApiKey.RawSecretKey">
+            <summary>
+            Raw secret key shown only at creation time.
             </summary>
         </member>
         <member name="P:NetLedger.ApiKey.Active">
@@ -128,7 +223,7 @@
             <summary>
             Generate a new random API key.
             </summary>
-            <returns>API key string as a GUID.</returns>
+            <returns>API key string.</returns>
         </member>
         <member name="M:NetLedger.ApiKey.Redact">
             <summary>
@@ -136,19 +231,139 @@
             </summary>
             <returns>Redacted copy.</returns>
         </member>
+        <member name="T:NetLedger.AuditRecord">
+            <summary>
+            Append-only audit record for authentication and authorization events.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.Id">
+            <summary>
+            Audit record identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.PrincipalId">
+            <summary>
+            Principal identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.PrincipalType">
+            <summary>
+            Principal type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.EventType">
+            <summary>
+            Event type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.ResourceType">
+            <summary>
+            Resource type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.OperationType">
+            <summary>
+            Operation type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.ResourceId">
+            <summary>
+            Resource identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.Result">
+            <summary>
+            Event result.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.Reason">
+            <summary>
+            Human-readable reason.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.RequestId">
+            <summary>
+            Request identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuditRecord.CreatedUtc">
+            <summary>
+            UTC timestamp when the record was created.
+            </summary>
+        </member>
+        <member name="T:NetLedger.AuthSession">
+            <summary>
+            Revocable authentication session.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.Id">
+            <summary>
+            Session identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.UserId">
+            <summary>
+            User identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.CredentialId">
+            <summary>
+            Credential identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.Token">
+            <summary>
+            Session bearer token.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.Active">
+            <summary>
+            Boolean indicating whether the session is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.ExpiresUtc">
+            <summary>
+            UTC timestamp when the session expires.
+            </summary>
+        </member>
+        <member name="P:NetLedger.AuthSession.CreatedUtc">
+            <summary>
+            UTC timestamp when the session was created.
+            </summary>
+        </member>
         <member name="T:NetLedger.Balance">
             <summary>
             Account balance information.
             </summary>
         </member>
-        <member name="P:NetLedger.Balance.AccountGUID">
+        <member name="P:NetLedger.Balance.AccountId">
             <summary>
             GUID of the account.
             </summary>
         </member>
-        <member name="P:NetLedger.Balance.EntryGUID">
+        <member name="P:NetLedger.Balance.AccountGUID">
+            <summary>
+            Legacy account identifier alias.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.EntryId">
             <summary>
             Entry GUID containing the latest balance entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Balance.EntryGUID">
+            <summary>
+            Legacy entry identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.Balance.Name">
@@ -217,6 +432,16 @@
             Can be null.
             </summary>
         </member>
+        <member name="P:NetLedger.BatchEntryInput.Labels">
+            <summary>
+            Labels for the entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.BatchEntryInput.Tags">
+            <summary>
+            Tags for the entry.
+            </summary>
+        </member>
         <member name="M:NetLedger.BatchEntryInput.#ctor">
             <summary>
             Instantiate a batch entry input with default values.
@@ -250,6 +475,164 @@
             Balance from after the commit.
             </summary>
         </member>
+        <member name="T:NetLedger.Credential">
+            <summary>
+            Tenant- and user-scoped credential.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.Id">
+            <summary>
+            Credential identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.UserId">
+            <summary>
+            Owning user identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.Name">
+            <summary>
+            Credential name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.AccessKey">
+            <summary>
+            Public access key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.SecretKeySha256">
+            <summary>
+            Secret key SHA-256 verifier material.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.SecretKeyLast4">
+            <summary>
+            Last four characters of the raw secret key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.AuthMode">
+            <summary>
+            Authentication mode.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.Active">
+            <summary>
+            Boolean indicating whether the credential is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.IsProtected">
+            <summary>
+            Boolean indicating whether the credential is protected from accidental mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.LastUsedUtc">
+            <summary>
+            UTC timestamp when the credential was last used.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.ExpiresUtc">
+            <summary>
+            UTC timestamp when the credential expires.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.CreatedUtc">
+            <summary>
+            UTC timestamp when the credential was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Credential.LastUpdateUtc">
+            <summary>
+            UTC timestamp when the credential was last updated.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Credential.GenerateSecret">
+            <summary>
+            Generate a raw secret key and store its verifier.
+            </summary>
+            <returns>Raw secret key to show once.</returns>
+        </member>
+        <member name="M:NetLedger.Credential.HashSecret(System.String)">
+            <summary>
+            Hash a secret key for verifier storage.
+            </summary>
+            <param name="secret">Secret key.</param>
+            <returns>Hex-encoded SHA-256 hash.</returns>
+        </member>
+        <member name="T:NetLedger.CredentialScopeAssignment">
+            <summary>
+            Credential role or direct permission assignment.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.Id">
+            <summary>
+            Assignment identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.CredentialId">
+            <summary>
+            Credential identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.RoleId">
+            <summary>
+            Optional role identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.RoleName">
+            <summary>
+            Optional role name fallback.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.ResourceScope">
+            <summary>
+            Scope, either Tenant or Resource.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.ResourceId">
+            <summary>
+            Resource identifier for resource-scoped assignments.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.OperationTypes">
+            <summary>
+            Optional direct operation grants.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.ResourceTypes">
+            <summary>
+            Optional direct resource grants.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.Active">
+            <summary>
+            Whether this assignment is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.IsProtected">
+            <summary>
+            Whether this assignment is protected from normal mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.CredentialScopeAssignment.LastUpdateUtc">
+            <summary>
+            Last update timestamp UTC.
+            </summary>
+        </member>
         <member name="T:NetLedger.Database.DatabaseDriverBase">
             <summary>
             Abstract base class for database drivers.
@@ -269,6 +652,41 @@
         <member name="P:NetLedger.Database.DatabaseDriverBase.ApiKeys">
             <summary>
             API key methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.Tenants">
+            <summary>
+            Tenant methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.Users">
+            <summary>
+            User methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.AuthSessions">
+            <summary>
+            Authentication session methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.AccountUserMaps">
+            <summary>
+            Account-user map methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.AuditRecords">
+            <summary>
+            Audit record methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.RequestHistory">
+            <summary>
+            Request history methods.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.DatabaseDriverBase.Rbac">
+            <summary>
+            Role-based access control methods.
             </summary>
         </member>
         <member name="P:NetLedger.Database.DatabaseDriverBase.Settings">
@@ -343,6 +761,18 @@
             Log a query if logging is enabled.
             </summary>
             <param name="query">Query to log.</param>
+        </member>
+        <member name="T:NetLedger.Database.DatabaseDriverFactory">
+            <summary>
+            Factory for database drivers.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverFactory.Create(NetLedger.Database.DatabaseSettings)">
+            <summary>
+            Create a database driver from settings.
+            </summary>
+            <param name="settings">Database settings.</param>
+            <returns>Database driver.</returns>
         </member>
         <member name="T:NetLedger.Database.DatabaseSettings">
             <summary>
@@ -487,6 +917,21 @@
             Search term for description/notes.
             </summary>
         </member>
+        <member name="P:NetLedger.Database.FilterBuilder.TenantId">
+            <summary>
+            Tenant identifier filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.MappedUserId">
+            <summary>
+            User identifier used to restrict account enumeration to mapped accounts.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.UserId">
+            <summary>
+            User identifier filter for user-owned resources.
+            </summary>
+        </member>
         <member name="P:NetLedger.Database.FilterBuilder.EntryType">
             <summary>
             Entry type filter.
@@ -500,6 +945,36 @@
         <member name="P:NetLedger.Database.FilterBuilder.AmountMaximum">
             <summary>
             Maximum amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.CreditMinimum">
+            <summary>
+            Minimum credit amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.CreditMaximum">
+            <summary>
+            Maximum credit amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.DebitMinimum">
+            <summary>
+            Minimum debit amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.DebitMaximum">
+            <summary>
+            Maximum debit amount filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.Labels">
+            <summary>
+            Labels that must all exist on the record.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.FilterBuilder.Tags">
+            <summary>
+            Tags that must all match on the record.
             </summary>
         </member>
         <member name="P:NetLedger.Database.FilterBuilder.IsCommitted">
@@ -559,6 +1034,13 @@
             <param name="dbType">Database type for syntax differences.</param>
             <returns>WHERE clause conditions or empty string.</returns>
         </member>
+        <member name="M:NetLedger.Database.FilterBuilder.BuildCredentialConditions(NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            Build the WHERE clause conditions for credentials (without WHERE keyword).
+            </summary>
+            <param name="dbType">Database type for syntax differences.</param>
+            <returns>WHERE clause conditions or empty string.</returns>
+        </member>
         <member name="M:NetLedger.Database.FilterBuilder.GetOrderByClause(NetLedger.Database.DatabaseTypeEnum)">
             <summary>
             Get the ORDER BY clause.
@@ -612,7 +1094,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Created account.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Read an account by GUID.
             </summary>
@@ -659,7 +1141,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Updated account.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Delete an account by GUID.
             </summary>
@@ -667,7 +1149,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Task.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IAccountMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Check if an account exists by GUID.
             </summary>
@@ -690,6 +1172,31 @@
             <param name="token">Cancellation token.</param>
             <returns>Number of accounts.</returns>
         </member>
+        <member name="T:NetLedger.Database.Interfaces.IAccountUserMapMethods">
+            <summary>
+            Interface for account-user map data access.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountUserMapMethods.CreateAsync(NetLedger.AccountUserMap,System.Threading.CancellationToken)">
+            <summary>
+            Create a mapping.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountUserMapMethods.ExistsAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Check whether a user is mapped to an account.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountUserMapMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate mappings.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAccountUserMapMethods.DeleteAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Delete a mapping.
+            </summary>
+        </member>
         <member name="T:NetLedger.Database.Interfaces.IApiKeyMethods">
             <summary>
             Interface for API key CRUD operations.
@@ -703,7 +1210,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Created API key.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Read an API key by GUID.
             </summary>
@@ -742,7 +1249,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Updated API key.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IApiKeyMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Delete an API key by GUID.
             </summary>
@@ -767,6 +1274,46 @@
             <param name="token">Cancellation token.</param>
             <returns>API key if valid and active, null otherwise.</returns>
         </member>
+        <member name="T:NetLedger.Database.Interfaces.IAuditRecordMethods">
+            <summary>
+            Interface for audit record data access.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAuditRecordMethods.CreateAsync(NetLedger.AuditRecord,System.Threading.CancellationToken)">
+            <summary>
+            Create an audit record.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAuditRecordMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate audit records.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IAuthSessionMethods">
+            <summary>
+            Interface for authentication session data access.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAuthSessionMethods.CreateAsync(NetLedger.AuthSession,System.Threading.CancellationToken)">
+            <summary>
+            Create a session.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAuthSessionMethods.ReadByTokenAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a session by token.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAuthSessionMethods.RevokeAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Revoke a session.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IAuthSessionMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate sessions.
+            </summary>
+        </member>
         <member name="T:NetLedger.Database.Interfaces.IEntryMethods">
             <summary>
             Interface for entry CRUD operations.
@@ -788,7 +1335,7 @@
             <param name="token">Cancellation token.</param>
             <returns>List of created entries.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Read an entry by GUID.
             </summary>
@@ -796,7 +1343,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Entry if found, null otherwise.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <summary>
             Read entries by multiple GUIDs.
             </summary>
@@ -804,7 +1351,7 @@
             <param name="token">Cancellation token.</param>
             <returns>List of entries.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Read entries by account GUID.
             </summary>
@@ -812,7 +1359,7 @@
             <param name="token">Cancellation token.</param>
             <returns>List of entries for the account.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadPendingByAccountGuidAsync(System.String,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
             <summary>
             Read pending entries by account GUID.
             </summary>
@@ -821,7 +1368,7 @@
             <param name="token">Cancellation token.</param>
             <returns>List of pending entries.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadLatestBalanceAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Read the latest balance entry for an account.
             </summary>
@@ -829,7 +1376,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Latest balance entry if found, null otherwise.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadBalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <summary>
             Read balance entry as of a specific timestamp.
             </summary>
@@ -838,7 +1385,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Balance entry if found, null otherwise.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ReadWithFilterAsync(System.String,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
             <summary>
             Read entries with filtering.
             </summary>
@@ -847,7 +1394,7 @@
             <param name="token">Cancellation token.</param>
             <returns>List of filtered entries.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.EnumerateAsync(System.String,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <summary>
             Enumerate entries with pagination and filtering.
             </summary>
@@ -872,7 +1419,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Task.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Delete an entry by GUID.
             </summary>
@@ -880,7 +1427,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Task.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.DeleteByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Delete all entries by account GUID.
             </summary>
@@ -888,7 +1435,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Task.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Check if an entry exists by GUID.
             </summary>
@@ -896,7 +1443,7 @@
             <param name="token">Cancellation token.</param>
             <returns>True if entry exists.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.GetCountByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get count of entries for an account.
             </summary>
@@ -904,7 +1451,7 @@
             <param name="token">Cancellation token.</param>
             <returns>Number of entries.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.SumPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Sum pending credits for an account.
             </summary>
@@ -912,13 +1459,216 @@
             <param name="token">Cancellation token.</param>
             <returns>Sum of pending credits.</returns>
         </member>
-        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Interfaces.IEntryMethods.SumPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Sum pending debits for an account.
             </summary>
             <param name="accountGuid">Account GUID.</param>
             <param name="token">Cancellation token.</param>
             <returns>Sum of pending debits.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IRbacMethods">
+            <summary>
+            Role-based access control data access methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.CreateRoleAsync(NetLedger.UserRole,System.Threading.CancellationToken)">
+            <summary>
+            Create a role.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.ReadRoleAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a role by identifier.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.ReadRoleByNameAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a role by name, using tenant role first and built-in role fallback.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.EnumerateRolesAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate roles.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.CreatePermissionAsync(NetLedger.Permission,System.Threading.CancellationToken)">
+            <summary>
+            Create a permission.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.ReadPermissionAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a permission by identifier.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.EnumeratePermissionsAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate permissions.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.CreateRolePermissionMapAsync(NetLedger.RolePermissionMap,System.Threading.CancellationToken)">
+            <summary>
+            Create a role-permission mapping.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.EnumerateRolePermissionMapsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate role-permission mappings for a role.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.CreateUserRoleAssignmentAsync(NetLedger.UserRoleAssignment,System.Threading.CancellationToken)">
+            <summary>
+            Create a user role assignment.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.EnumerateUserRoleAssignmentsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate assignments for a user.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.CreateCredentialScopeAssignmentAsync(NetLedger.CredentialScopeAssignment,System.Threading.CancellationToken)">
+            <summary>
+            Create a credential scope assignment.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.EnumerateCredentialScopeAssignmentsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate assignments for a credential.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRbacMethods.SeedBuiltInsAsync(System.Threading.CancellationToken)">
+            <summary>
+            Seed built-in roles and permissions.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IRequestHistoryMethods">
+            <summary>
+            Request history data access methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.CreateAsync(NetLedger.RequestHistoryEntry,System.Threading.CancellationToken)">
+            <summary>
+            Create a request history entry.
+            </summary>
+            <param name="entry">Request history entry.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Created request history entry.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.ReadAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a request history entry by identifier.
+            </summary>
+            <param name="tenantId">Tenant scope. Null means all tenants.</param>
+            <param name="id">Request history identifier.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Request history entry or null.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.EnumerateAsync(NetLedger.RequestHistoryFilter,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate request history entries.
+            </summary>
+            <param name="filter">Search filter.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Paginated result.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.SummarizeAsync(NetLedger.RequestHistoryFilter,System.Threading.CancellationToken)">
+            <summary>
+            Summarize request history entries.
+            </summary>
+            <param name="filter">Search filter.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Summary result.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.DeleteAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Delete a request history entry by identifier.
+            </summary>
+            <param name="tenantId">Tenant scope. Null means all tenants.</param>
+            <param name="id">Request history identifier.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>True if the entry was deleted.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.DeleteManyAsync(NetLedger.RequestHistoryFilter,System.Threading.CancellationToken)">
+            <summary>
+            Delete matching request history entries.
+            </summary>
+            <param name="filter">Search filter.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Deleted row count.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IRequestHistoryMethods.PruneAsync(System.DateTime,System.Threading.CancellationToken)">
+            <summary>
+            Delete entries older than a timestamp.
+            </summary>
+            <param name="olderThanUtc">Cutoff timestamp in UTC.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Deleted row count.</returns>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.ITenantMethods">
+            <summary>
+            Interface for tenant data access.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.ITenantMethods.CreateAsync(NetLedger.Tenant,System.Threading.CancellationToken)">
+            <summary>
+            Create a tenant.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.ITenantMethods.ReadAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a tenant by identifier.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.ITenantMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate tenants.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.ITenantMethods.UpdateAsync(NetLedger.Tenant,System.Threading.CancellationToken)">
+            <summary>
+            Update a tenant.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.ITenantMethods.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Delete a tenant.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Database.Interfaces.IUserMethods">
+            <summary>
+            Interface for user data access.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IUserMethods.CreateAsync(NetLedger.User,System.Threading.CancellationToken)">
+            <summary>
+            Create a user.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IUserMethods.ReadAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a user by tenant and identifier.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IUserMethods.ReadByEmailAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read a user by tenant and email.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IUserMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate users.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IUserMethods.UpdateAsync(NetLedger.User,System.Threading.CancellationToken)">
+            <summary>
+            Update a user.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Interfaces.IUserMethods.DeleteAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Delete a user.
+            </summary>
         </member>
         <member name="T:NetLedger.Database.Mysql.Implementations.AccountMethods">
             <summary>
@@ -934,7 +1684,7 @@
         <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -952,10 +1702,10 @@
         <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Mysql.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -978,7 +1728,7 @@
         <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -993,7 +1743,7 @@
         <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Mysql.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -1019,28 +1769,28 @@
         <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.String,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadLatestBalanceAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ReadWithFilterAsync(System.String,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.EnumerateAsync(System.String,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
@@ -1049,22 +1799,22 @@
         <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.SumPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Mysql.Implementations.EntryMethods.SumPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Database.Mysql.MysqlDatabaseDriver">
@@ -1140,6 +1890,74 @@
             </summary>
             <returns>Array of SQL statements.</returns>
         </member>
+        <member name="T:NetLedger.Database.Portable.BucketAccumulator">
+            <summary>
+            Internal request history summary bucket accumulator.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Portable.BucketAccumulator.BucketStartUtc">
+            <summary>
+            Bucket start timestamp.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Portable.BucketAccumulator.BucketEndUtc">
+            <summary>
+            Bucket end timestamp.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Portable.BucketAccumulator.Count">
+            <summary>
+            Total request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Portable.BucketAccumulator.SuccessCount">
+            <summary>
+            Successful request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Portable.BucketAccumulator.FailureCount">
+            <summary>
+            Failed request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.Portable.BucketAccumulator.DurationTotalMs">
+            <summary>
+            Total duration in milliseconds.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods">
+            <summary>
+            Portable SQL request history methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.#ctor(NetLedger.Database.DatabaseDriverBase,NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            Instantiate request history methods.
+            </summary>
+            <param name="driver">Database driver.</param>
+            <param name="databaseType">Database type.</param>
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.CreateAsync(NetLedger.RequestHistoryEntry,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.ReadAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.EnumerateAsync(NetLedger.RequestHistoryFilter,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.SummarizeAsync(NetLedger.RequestHistoryFilter,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.DeleteAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.DeleteManyAsync(NetLedger.RequestHistoryFilter,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Portable.PortableSqlRequestHistoryMethods.PruneAsync(System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
         <member name="T:NetLedger.Database.Postgresql.Implementations.AccountMethods">
             <summary>
             PostgreSQL implementation of account methods.
@@ -1154,7 +1972,7 @@
         <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -1172,10 +1990,10 @@
         <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Postgresql.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -1198,7 +2016,7 @@
         <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -1213,7 +2031,7 @@
         <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Postgresql.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -1239,28 +2057,28 @@
         <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.String,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadLatestBalanceAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ReadWithFilterAsync(System.String,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.EnumerateAsync(System.String,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
@@ -1269,22 +2087,22 @@
         <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.SumPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Postgresql.Implementations.EntryMethods.SumPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Database.Postgresql.PostgresqlDatabaseDriver">
@@ -1358,6 +2176,36 @@
             </summary>
             <returns>Array of SQL statements.</returns>
         </member>
+        <member name="T:NetLedger.Database.SchemaMigration">
+            <summary>
+            Database schema migration record.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.SchemaMigration.Id">
+            <summary>
+            Migration identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.SchemaMigration.Name">
+            <summary>
+            Migration name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.SchemaMigration.AppliedUtc">
+            <summary>
+            Applied timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.SchemaMigration.Checksum">
+            <summary>
+            Migration checksum.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Database.SchemaMigration.Success">
+            <summary>
+            Whether the migration completed successfully.
+            </summary>
+        </member>
         <member name="T:NetLedger.Database.Sqlite.Implementations.AccountMethods">
             <summary>
             SQLite implementation of account methods.
@@ -1372,7 +2220,7 @@
         <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -1390,16 +2238,39 @@
         <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.AccountMethods.GetCountAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.AccountUserMapMethods">
+            <summary>
+            SQLite account-user map methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountUserMapMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the account-user map methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountUserMapMethods.CreateAsync(NetLedger.AccountUserMap,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountUserMapMethods.ExistsAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountUserMapMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AccountUserMapMethods.DeleteAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods">
@@ -1416,7 +2287,7 @@
         <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -1431,13 +2302,53 @@
         <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.ApiKeyMethods.AuthenticateAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.AuditRecordMethods">
+            <summary>
+            SQLite audit record methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuditRecordMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the audit record methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuditRecordMethods.CreateAsync(NetLedger.AuditRecord,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuditRecordMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.AuthSessionMethods">
+            <summary>
+            SQLite authentication session methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuthSessionMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the authentication session methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuthSessionMethods.CreateAsync(NetLedger.AuthSession,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuthSessionMethods.ReadByTokenAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuthSessionMethods.RevokeAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.AuthSessionMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Database.Sqlite.Implementations.EntryMethods">
@@ -1457,28 +2368,28 @@
         <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.String,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadLatestBalanceAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ReadWithFilterAsync(System.String,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.EnumerateAsync(System.String,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
@@ -1487,22 +2398,130 @@
         <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.SumPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.Sqlite.Implementations.EntryMethods.SumPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.RbacMethods">
+            <summary>
+            SQLite RBAC methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate.
+            </summary>
+            <param name="driver">SQLite driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.CreateRoleAsync(NetLedger.UserRole,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.ReadRoleAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.ReadRoleByNameAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.EnumerateRolesAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.CreatePermissionAsync(NetLedger.Permission,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.ReadPermissionAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.EnumeratePermissionsAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.CreateRolePermissionMapAsync(NetLedger.RolePermissionMap,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.EnumerateRolePermissionMapsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.CreateUserRoleAssignmentAsync(NetLedger.UserRoleAssignment,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.EnumerateUserRoleAssignmentsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.CreateCredentialScopeAssignmentAsync(NetLedger.CredentialScopeAssignment,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.EnumerateCredentialScopeAssignmentsAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.RbacMethods.SeedBuiltInsAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.TenantMethods">
+            <summary>
+            SQLite tenant methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.TenantMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the tenant methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.TenantMethods.CreateAsync(NetLedger.Tenant,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.TenantMethods.ReadAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.TenantMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.TenantMethods.UpdateAsync(NetLedger.Tenant,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.TenantMethods.DeleteAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:NetLedger.Database.Sqlite.Implementations.UserMethods">
+            <summary>
+            SQLite user methods.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.#ctor(NetLedger.Database.Sqlite.SqliteDatabaseDriver)">
+            <summary>
+            Instantiate the user methods.
+            </summary>
+            <param name="driver">SQLite database driver.</param>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.CreateAsync(NetLedger.User,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.ReadAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.ReadByEmailAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.EnumerateAsync(NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.UpdateAsync(NetLedger.User,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Implementations.UserMethods.DeleteAsync(System.String,System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Database.Sqlite.Queries.SetupQueries">
@@ -1520,6 +2539,12 @@
             Create all required tables.
             </summary>
             <returns>SQL statements to create tables.</returns>
+        </member>
+        <member name="M:NetLedger.Database.Sqlite.Queries.SetupQueries.CreateAuditRecordsTable">
+            <summary>
+            Create the audit records table.
+            </summary>
+            <returns>SQL statement to create the audit records table.</returns>
         </member>
         <member name="M:NetLedger.Database.Sqlite.Queries.SetupQueries.CreateIndices">
             <summary>
@@ -1613,7 +2638,7 @@
         <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.CreateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ReadByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -1631,10 +2656,10 @@
         <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.UpdateAsync(NetLedger.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.SqlServer.Implementations.AccountMethods.ExistsByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -1657,7 +2682,7 @@
         <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.CreateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ReadByKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -1672,7 +2697,7 @@
         <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.UpdateAsync(NetLedger.ApiKey,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.SqlServer.Implementations.ApiKeyMethods.ExistsActiveKeyAsync(System.String,System.Threading.CancellationToken)">
@@ -1698,28 +2723,28 @@
         <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.CreateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.Guid},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByGuidsAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.Guid,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadPendingByAccountGuidAsync(System.String,System.Nullable{NetLedger.EntryType},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadLatestBalanceAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadLatestBalanceAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadBalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadWithFilterAsync(System.Guid,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ReadWithFilterAsync(System.String,NetLedger.Database.FilterBuilder,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.EnumerateAsync(System.Guid,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.EnumerateAsync(System.String,NetLedger.EnumerationQuery,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.UpdateAsync(NetLedger.Entry,System.Threading.CancellationToken)">
@@ -1728,22 +2753,22 @@
         <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.UpdateManyAsync(System.Collections.Generic.List{NetLedger.Entry},System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.DeleteByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.DeleteByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.DeleteByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ExistsByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.ExistsByGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.GetCountByAccountGuidAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.SumPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.SumPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
-        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.SumPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Database.SqlServer.Implementations.EntryMethods.SumPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
         <member name="T:NetLedger.Database.SqlServer.Queries.SetupQueries">
@@ -1817,24 +2842,69 @@
         <member name="M:NetLedger.Database.SqlServer.SqlServerDatabaseTransaction.DisposeAsync">
             <inheritdoc />
         </member>
+        <member name="T:NetLedger.EffectivePermission">
+            <summary>
+            Effective permission tuple for dashboard authorization checks.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EffectivePermission.ResourceType">
+            <summary>
+            Resource type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EffectivePermission.OperationType">
+            <summary>
+            Operation type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EffectivePermission.ResourceScope">
+            <summary>
+            Resource scope.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EffectivePermission.ResourceId">
+            <summary>
+            Resource identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EffectivePermission.PermissionType">
+            <summary>
+            Permission type.
+            </summary>
+        </member>
         <member name="T:NetLedger.Entry">
             <summary>
             An entry in the ledger for a given account.
             </summary>
         </member>
+        <member name="P:NetLedger.Entry.RowId">
+            <summary>
+            Internal provider row ID.
+            </summary>
+        </member>
         <member name="P:NetLedger.Entry.Id">
             <summary>
-            Database row ID.
+            Entry identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.AccountId">
+            <summary>
+            Account identifier.
             </summary>
         </member>
         <member name="P:NetLedger.Entry.GUID">
             <summary>
-            Globally-unique identifier for the entry.
+            Legacy entry identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.Entry.AccountGUID">
             <summary>
-            Globally-unique identifier for the account.
+            Legacy account identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.Entry.Type">
@@ -1862,9 +2932,24 @@
             Indicates if the entry has been committed to the ledger and is reflected in the current balance.
             </summary>
         </member>
-        <member name="P:NetLedger.Entry.CommittedByGUID">
+        <member name="P:NetLedger.Entry.CommittedById">
             <summary>
             GUID of the entry that committed this entry.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.CommittedByGUID">
+            <summary>
+            Legacy committed-by identifier alias.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Labels">
+            <summary>
+            Entry labels.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Entry.Tags">
+            <summary>
+            Entry tags.
             </summary>
         </member>
         <member name="P:NetLedger.Entry.CommittedUtc">
@@ -1877,12 +2962,17 @@
             UTC timestamp when the entry was created.
             </summary>
         </member>
+        <member name="P:NetLedger.Entry.LastUpdateUtc">
+            <summary>
+            UTC timestamp when the entry was last updated.
+            </summary>
+        </member>
         <member name="M:NetLedger.Entry.#ctor">
             <summary>
             Instantiate an entry.
             </summary>
         </member>
-        <member name="M:NetLedger.Entry.#ctor(System.Guid,NetLedger.EntryType,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean)">
+        <member name="M:NetLedger.Entry.#ctor(System.String,NetLedger.EntryType,System.Decimal,System.String,System.String,System.Boolean)">
             <summary>
             Instantiate an entry.
             </summary>
@@ -1962,11 +3052,32 @@
             When enumerating entries, AccountGUID must be specified.
             </summary>
         </member>
-        <member name="P:NetLedger.EnumerationQuery.AccountGUID">
+        <member name="P:NetLedger.EnumerationQuery.AccountId">
             <summary>
             Account GUID.
             Required when enumerating entries within an account.
             Should be null when enumerating accounts.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.MappedUserId">
+            <summary>
+            User identifier used to restrict account enumeration to mapped accounts.
+            Applicable only when enumerating accounts.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.UserId">
+            <summary>
+            User identifier used to restrict user-owned resources.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.AccountGUID">
+            <summary>
+            Legacy account identifier alias.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.MaxResults">
@@ -2022,6 +3133,36 @@
             <summary>
             Only include entries with an amount less than or equal to this value.
             Applicable only when enumerating entries.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.CreditMinimum">
+            <summary>
+            Only include credit entries with an amount greater than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.CreditMaximum">
+            <summary>
+            Only include credit entries with an amount less than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.DebitMinimum">
+            <summary>
+            Only include debit entries with an amount greater than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.DebitMaximum">
+            <summary>
+            Only include debit entries with an amount less than or equal to this value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.Labels">
+            <summary>
+            Labels that must all exist on the returned object.
+            </summary>
+        </member>
+        <member name="P:NetLedger.EnumerationQuery.Tags">
+            <summary>
+            Tags that must all match on the returned object.
             </summary>
         </member>
         <member name="P:NetLedger.EnumerationQuery.BalanceMinimum">
@@ -2101,6 +3242,76 @@
             Instantiates the object.
             </summary>
         </member>
+        <member name="T:NetLedger.IdentifierPrefixes">
+            <summary>
+            Identifier prefixes used by NetLedger entities.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Tenant">
+            <summary>
+            Tenant identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.User">
+            <summary>
+            User identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Credential">
+            <summary>
+            Credential identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Session">
+            <summary>
+            Session identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Account">
+            <summary>
+            Account identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Entry">
+            <summary>
+            Entry identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Operation">
+            <summary>
+            Operation identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Role">
+            <summary>
+            Role identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Permission">
+            <summary>
+            Permission identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Assignment">
+            <summary>
+            Assignment identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Audit">
+            <summary>
+            Audit record identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.RequestHistory">
+            <summary>
+            Request history identifier prefix.
+            </summary>
+        </member>
+        <member name="F:NetLedger.IdentifierPrefixes.Migration">
+            <summary>
+            Schema migration identifier prefix.
+            </summary>
+        </member>
         <member name="T:NetLedger.Ledger">
             <summary>
             NetLedger.
@@ -2156,14 +3367,17 @@
             <exception cref="T:System.ArgumentNullException">Thrown when settings is null.</exception>
             <exception cref="T:System.ArgumentException">Thrown when database type is unsupported.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.CreateAccountAsync(System.String,System.Nullable{System.Decimal},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.CreateAccountAsync(System.String,System.Nullable{System.Decimal},System.Collections.Generic.List{System.String},System.Collections.Generic.Dictionary{System.String,System.String},System.String,System.Threading.CancellationToken)">
             <summary>
             Creates an account with the specified name.
             </summary>
             <param name="name">Name of the account.</param>
             <param name="initialBalance">Initial balance of the account.</param>
+            <param name="labels">Account labels.</param>
+            <param name="tags">Account tags.</param>
+            <param name="tenantId">Tenant identifier.</param>
             <param name="token">Cancellation token.</param>
-            <returns>GUID of the newly-created account.</returns>
+            <returns>string of the newly-created account.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.DeleteAccountByNameAsync(System.String,System.Threading.CancellationToken)">
@@ -2174,13 +3388,13 @@
             <param name="token">Cancellation token.</param>
             <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.DeleteAccountByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.DeleteAccountByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Delete an account and associated entries by account GUID.
             </summary>
-            <param name="guid">GUID of the account.</param>
+            <param name="guid">string of the account.</param>
             <param name="token">Cancellation token.</param>
-            <exception cref="T:System.ArgumentNullException">Thrown when guid is empty.</exception>
+            <exception cref="T:System.ArgumentNullException">Thrown when string is empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetAccountByNameAsync(System.String,System.Threading.CancellationToken)">
             <summary>
@@ -2191,14 +3405,14 @@
             <returns>Account or null if it does not exist.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetAccountByGuidAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetAccountByGuidAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Retrieve an account by GUID.
             </summary>
-            <param name="guid">GUID of the account.</param>
+            <param name="guid">string of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>Account or null if it does not exist.</returns>
-            <exception cref="T:System.ArgumentNullException">Thrown when guid is empty.</exception>
+            <exception cref="T:System.ArgumentNullException">Thrown when string is empty.</exception>
         </member>
         <member name="M:NetLedger.Ledger.GetAllAccountsAsync(System.String,System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>
@@ -2220,41 +3434,47 @@
             <exception cref="T:System.ArgumentNullException">Thrown when query is null.</exception>
             <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified, or when AmountMinimum/AmountMaximum ordering is used.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.AddCreditAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.AddCreditAsync(System.String,System.Decimal,System.String,System.String,System.Boolean,System.Collections.Generic.List{System.String},System.Collections.Generic.Dictionary{System.String,System.String},System.String,System.Threading.CancellationToken)">
             <summary>
             Add a credit.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="amount">Amount of the credit.</param>
             <param name="notes">Notes for the entry.</param>
-            <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
+            <param name="summarizedBy">string of the entry that summarized this entry.</param>
             <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
+            <param name="labels">Entry labels.</param>
+            <param name="tags">Entry tags.</param>
+            <param name="tenantId">Tenant identifier.</param>
             <param name="token">Cancellation token.</param>
-            <returns>GUID of the newly-created entry.</returns>
+            <returns>string of the newly-created entry.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.ArgumentException">Thrown when amount is negative.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.AddDebitAsync(System.Guid,System.Decimal,System.String,System.Nullable{System.Guid},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.AddDebitAsync(System.String,System.Decimal,System.String,System.String,System.Boolean,System.Collections.Generic.List{System.String},System.Collections.Generic.Dictionary{System.String,System.String},System.String,System.Threading.CancellationToken)">
             <summary>
             Add a debit.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="amount">Amount of the debit.</param>
             <param name="notes">Notes for the entry.</param>
-            <param name="summarizedBy">GUID of the entry that summarized this entry.</param>
+            <param name="summarizedBy">string of the entry that summarized this entry.</param>
             <param name="isCommitted">Indicates if the entry should be immediately committed.</param>
+            <param name="labels">Entry labels.</param>
+            <param name="tags">Entry tags.</param>
+            <param name="tenantId">Tenant identifier.</param>
             <param name="token">Cancellation token.</param>
-            <returns>GUID of the newly-created entry.</returns>
+            <returns>string of the newly-created entry.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.ArgumentException">Thrown when amount is negative.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.AddCreditsAsync(System.Guid,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.AddCreditsAsync(System.String,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add multiple credits in batch.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="credits">List of batch entry inputs containing amount and notes for each credit.</param>
             <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
             <param name="token">Cancellation token.</param>
@@ -2262,11 +3482,11 @@
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.ArgumentException">Thrown when credits list is null or empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.AddDebitsAsync(System.Guid,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.AddDebitsAsync(System.String,System.Collections.Generic.List{NetLedger.BatchEntryInput},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Add multiple debits in batch.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="debits">List of batch entry inputs containing amount and notes for each debit.</param>
             <param name="isCommitted">Indicates if transactions should be immediately committed.</param>
             <param name="token">Cancellation token.</param>
@@ -2274,31 +3494,31 @@
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.ArgumentException">Thrown when debits list is null or empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.CancelPendingAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.CancelPendingAsync(System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Cancel a pending entry.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
-            <param name="entryGuid">GUID of the entry.</param>
+            <param name="accountGuid">string of the account.</param>
+            <param name="entryGuid">string of the entry.</param>
             <param name="token">Cancellation token.</param>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid or entryGuid is empty.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
             <exception cref="T:System.InvalidOperationException">Thrown when entry is not found or already committed.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetEntryAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetEntryAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get an entry by its GUID.
             </summary>
-            <param name="entryGuid">GUID of the entry.</param>
+            <param name="entryGuid">string of the entry.</param>
             <param name="token">Cancellation token.</param>
             <returns>Entry or null if not found.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when entryGuid is empty.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetEntriesAsync(System.Guid,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetEntriesAsync(System.String,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Nullable{NetLedger.EntryType},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
             <summary>
             Get entries for an account with optional filtering.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="startTimeUtc">Start time UTC filter.</param>
             <param name="endTimeUtc">End time UTC filter.</param>
             <param name="amountMin">Minimum amount filter.</param>
@@ -2312,11 +3532,11 @@
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.SearchEntriesAsync(System.Guid,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.SearchEntriesAsync(System.String,System.Nullable{System.DateTime},System.Nullable{System.DateTime},System.Nullable{System.Decimal},System.Nullable{System.Decimal},System.String,System.Threading.CancellationToken)">
             <summary>
             Search for entries within an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="startTimeUtc">Start time UTC.</param>
             <param name="endTimeUtc">End time UTC.</param>
             <param name="amountMin">Minimum amount.</param>
@@ -2334,37 +3554,37 @@
             <param name="query">Enumeration query containing pagination parameters and filters.</param>
             <param name="token">Cancellation token.</param>
             <returns>Enumeration result containing the page of entries and metadata for continuing the enumeration.</returns>
-            <exception cref="T:System.ArgumentNullException">Thrown when query is null or AccountGUID is not specified.</exception>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null or accountGuid is not specified.</exception>
             <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetBalanceAsync(System.Guid,System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetBalanceAsync(System.String,System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Get the current balance for an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="includePendingEntries">Whether to include pending entries in the balance calculation.</param>
             <param name="token">Cancellation token.</param>
             <returns>Balance object containing committed and pending balances.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetBalanceAsOfAsync(System.Guid,System.DateTime,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetBalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
             <summary>
             Get the balance for an account as of a specific timestamp.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="asOfUtc">Timestamp in UTC.</param>
             <param name="token">Cancellation token.</param>
             <returns>Balance as of the specified timestamp.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.CommitEntriesAsync(System.Guid,System.Collections.Generic.List{System.Guid},System.Boolean,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.CommitEntriesAsync(System.String,System.Collections.Generic.List{System.String},System.Boolean,System.Threading.CancellationToken)">
             <summary>
             Commit pending entries for an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="guids">Optional list of specific entry GUIDs to commit. If null, all pending entries are committed.</param>
             <param name="acquireLock">Whether to acquire the account lock.</param>
             <param name="token">Cancellation token.</param>
@@ -2379,35 +3599,35 @@
             <param name="query">Enumeration query containing pagination parameters and filters.</param>
             <param name="token">Cancellation token.</param>
             <returns>Enumeration result containing the page of entries and metadata for continuing the enumeration.</returns>
-            <exception cref="T:System.ArgumentNullException">Thrown when query is null or AccountGUID is not specified.</exception>
+            <exception cref="T:System.ArgumentNullException">Thrown when query is null or accountGuid is not specified.</exception>
             <exception cref="T:System.ArgumentException">Thrown when skip and continuation token are both specified.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingEntriesAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetPendingEntriesAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get all pending entries for an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>List of pending entries.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingCreditsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetPendingCreditsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get all pending credit entries for an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>List of pending credit entries.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
             <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when account is not found.</exception>
         </member>
-        <member name="M:NetLedger.Ledger.GetPendingDebitsAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.GetPendingDebitsAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get all pending debit entries for an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>List of pending debit entries.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
@@ -2418,7 +3638,7 @@
             Get balances for all accounts as a dictionary.
             </summary>
             <param name="token">Cancellation token.</param>
-            <returns>Dictionary of account GUID to Balance objects.</returns>
+            <returns>Dictionary of account string to Balance objects.</returns>
         </member>
         <member name="M:NetLedger.Ledger.GetAllBalancesAsync(System.Boolean,System.Threading.CancellationToken)">
             <summary>
@@ -2426,13 +3646,13 @@
             </summary>
             <param name="includePendingEntries">Whether to include pending entries in the balance calculation.</param>
             <param name="token">Cancellation token.</param>
-            <returns>Dictionary of account GUID to Balance objects.</returns>
+            <returns>Dictionary of account string to Balance objects.</returns>
         </member>
-        <member name="M:NetLedger.Ledger.VerifyBalanceChainAsync(System.Guid,System.Threading.CancellationToken)">
+        <member name="M:NetLedger.Ledger.VerifyBalanceChainAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Verify the balance chain for an account.
             </summary>
-            <param name="accountGuid">GUID of the account.</param>
+            <param name="accountGuid">string of the account.</param>
             <param name="token">Cancellation token.</param>
             <returns>True if the balance chain is valid, false otherwise.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when accountGuid is empty.</exception>
@@ -2443,6 +3663,113 @@
             Dispose of the ledger.
             </summary>
             <returns>Task.</returns>
+        </member>
+        <member name="T:NetLedger.MetadataSerializer">
+            <summary>
+            Serializes and deserializes metadata fields stored in database JSON columns.
+            </summary>
+        </member>
+        <member name="M:NetLedger.MetadataSerializer.SerializeLabels(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Serialize labels to JSON.
+            </summary>
+            <param name="labels">Labels.</param>
+            <returns>JSON array.</returns>
+        </member>
+        <member name="M:NetLedger.MetadataSerializer.SerializeTags(System.Collections.Generic.IDictionary{System.String,System.String})">
+            <summary>
+            Serialize tags to JSON.
+            </summary>
+            <param name="tags">Tags.</param>
+            <returns>JSON object.</returns>
+        </member>
+        <member name="M:NetLedger.MetadataSerializer.DeserializeLabels(System.String)">
+            <summary>
+            Deserialize labels from JSON.
+            </summary>
+            <param name="json">JSON array.</param>
+            <returns>Labels.</returns>
+        </member>
+        <member name="M:NetLedger.MetadataSerializer.DeserializeTags(System.String)">
+            <summary>
+            Deserialize tags from JSON.
+            </summary>
+            <param name="json">JSON object.</param>
+            <returns>Tags.</returns>
+        </member>
+        <member name="T:NetLedger.MetadataValidator">
+            <summary>
+            Metadata normalization and validation helper.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MaxLabels">
+            <summary>
+            Maximum number of labels on one object.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MinLabelLength">
+            <summary>
+            Minimum label length.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MaxLabelLength">
+            <summary>
+            Maximum label length.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MaxTags">
+            <summary>
+            Maximum number of tags on one object.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MinTagKeyLength">
+            <summary>
+            Minimum tag key length.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MaxTagKeyLength">
+            <summary>
+            Maximum tag key length.
+            </summary>
+        </member>
+        <member name="F:NetLedger.MetadataValidator.MaxTagValueLength">
+            <summary>
+            Maximum tag value length.
+            </summary>
+        </member>
+        <member name="M:NetLedger.MetadataValidator.NormalizeLabels(System.Collections.Generic.IEnumerable{System.String})">
+            <summary>
+            Normalize and validate labels.
+            </summary>
+            <param name="labels">Labels.</param>
+            <returns>Normalized labels.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when labels exceed supported limits.</exception>
+        </member>
+        <member name="M:NetLedger.MetadataValidator.NormalizeTags(System.Collections.Generic.IDictionary{System.String,System.String})">
+            <summary>
+            Normalize and validate tags.
+            </summary>
+            <param name="tags">Tags.</param>
+            <returns>Normalized tags.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when tags exceed supported limits.</exception>
+        </member>
+        <member name="T:NetLedger.NetLedgerId">
+            <summary>
+            NetLedger identifier generation helper.
+            </summary>
+        </member>
+        <member name="F:NetLedger.NetLedgerId.Length">
+            <summary>
+            Total identifier length including prefix.
+            </summary>
+        </member>
+        <member name="M:NetLedger.NetLedgerId.Generate(System.String)">
+            <summary>
+            Generate a K-sortable NetLedger identifier.
+            </summary>
+            <param name="prefix">Entity prefix.</param>
+            <returns>Generated identifier.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when prefix is null or empty.</exception>
         </member>
         <member name="T:NetLedger.PendingTransactionSummary">
             <summary>
@@ -2467,6 +3794,586 @@
         <member name="M:NetLedger.PendingTransactionSummary.#ctor">
             <summary>
             Instantiate a pending transaction summary.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Permission">
+            <summary>
+            Permission tuple used by RBAC evaluation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.Id">
+            <summary>
+            Permission identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.TenantId">
+            <summary>
+            Tenant identifier. Empty for built-in global permissions.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.Name">
+            <summary>
+            Permission name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.ResourceTypes">
+            <summary>
+            Resource types this permission applies to.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.OperationTypes">
+            <summary>
+            Operation types this permission applies to.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.PermissionType">
+            <summary>
+            Permission type, either Permit or Deny.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.Active">
+            <summary>
+            Whether this permission is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.IsProtected">
+            <summary>
+            Whether this permission is protected from normal mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Permission.LastUpdateUtc">
+            <summary>
+            Last update timestamp UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RequestHistoryDeleteResult">
+            <summary>
+            Request history delete response.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryDeleteResult.DeletedCount">
+            <summary>
+            Number of deleted records.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RequestHistoryEntry">
+            <summary>
+            Captured HTTP request and response metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.Id">
+            <summary>
+            Request history identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.TenantId">
+            <summary>
+            Tenant identifier associated with the request.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.PrincipalId">
+            <summary>
+            User or credential principal identifier associated with the request.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.PrincipalType">
+            <summary>
+            Principal type associated with the request.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.Method">
+            <summary>
+            HTTP method.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.Path">
+            <summary>
+            Request path without query string.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.Url">
+            <summary>
+            Request URL including query string.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.StatusCode">
+            <summary>
+            Response status code.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.DurationMs">
+            <summary>
+            Request duration in milliseconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.SourceIp">
+            <summary>
+            Source IP address.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.RequestHeaders">
+            <summary>
+            Redacted request headers.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.RequestBody">
+            <summary>
+            Captured request body.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.RequestBodyBytes">
+            <summary>
+            Original request body byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.RequestBodyTruncated">
+            <summary>
+            Whether the request body capture was truncated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.ResponseHeaders">
+            <summary>
+            Response headers.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.ResponseBody">
+            <summary>
+            Captured response body.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.ResponseBodyBytes">
+            <summary>
+            Original response body byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.ResponseBodyTruncated">
+            <summary>
+            Whether the response body capture was truncated.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.CreatedUtc">
+            <summary>
+            UTC timestamp when the request started.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryEntry.CompletedUtc">
+            <summary>
+            UTC timestamp when the response completed.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RequestHistoryFilter">
+            <summary>
+            Request history search and summary filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.TenantId">
+            <summary>
+            Optional tenant scope.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.PrincipalId">
+            <summary>
+            Optional principal identifier scope.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.Method">
+            <summary>
+            Optional HTTP method filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.StatusCode">
+            <summary>
+            Optional exact status code filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.PathContains">
+            <summary>
+            Optional path substring filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.FromUtc">
+            <summary>
+            Optional lower created timestamp bound.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.ToUtc">
+            <summary>
+            Optional upper created timestamp bound.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.MaxResults">
+            <summary>
+            Maximum records to return. Default 25, minimum 1, maximum 1000.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.Skip">
+            <summary>
+            Number of records to skip. Default 0, minimum 0.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryFilter.BucketMinutes">
+            <summary>
+            Summary bucket size in minutes. Default 15, minimum 1, maximum 1440.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RequestHistoryResult">
+            <summary>
+            Paginated request history result.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryResult.Objects">
+            <summary>
+            Request history records.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryResult.TotalRecords">
+            <summary>
+            Total records matching the filter.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryResult.RecordsRemaining">
+            <summary>
+            Records remaining after the current page.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryResult.EndOfResults">
+            <summary>
+            Whether this page is the end of the result set.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryResult.MaxResults">
+            <summary>
+            Maximum records requested.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistoryResult.Skip">
+            <summary>
+            Number of records skipped.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RequestHistorySummary">
+            <summary>
+            Request history summary response.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummary.TotalCount">
+            <summary>
+            Total matching request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummary.TotalSuccess">
+            <summary>
+            Total successful request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummary.TotalFailure">
+            <summary>
+            Total failed request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummary.AverageDurationMs">
+            <summary>
+            Average request duration in milliseconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummary.Buckets">
+            <summary>
+            Summary buckets.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RequestHistorySummaryBucket">
+            <summary>
+            Request history summary bucket.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummaryBucket.BucketStartUtc">
+            <summary>
+            Bucket start timestamp in UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummaryBucket.BucketEndUtc">
+            <summary>
+            Bucket end timestamp in UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummaryBucket.SuccessCount">
+            <summary>
+            Successful request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummaryBucket.FailureCount">
+            <summary>
+            Failed request count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RequestHistorySummaryBucket.AverageDurationMs">
+            <summary>
+            Average request duration in milliseconds.
+            </summary>
+        </member>
+        <member name="T:NetLedger.RolePermissionMap">
+            <summary>
+            Role-to-permission mapping.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.Id">
+            <summary>
+            Mapping identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.RoleId">
+            <summary>
+            Role identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.PermissionId">
+            <summary>
+            Permission identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.Active">
+            <summary>
+            Whether this mapping is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.IsProtected">
+            <summary>
+            Whether this mapping is protected from normal mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.RolePermissionMap.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Tenant">
+            <summary>
+            Tenant information.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.Id">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.ParentId">
+            <summary>
+            Parent tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.Name">
+            <summary>
+            Tenant name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.Region">
+            <summary>
+            Geographic region.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.Active">
+            <summary>
+            Boolean indicating whether the tenant is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.IsProtected">
+            <summary>
+            Boolean indicating whether the tenant is protected from accidental mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.CreatedUtc">
+            <summary>
+            UTC timestamp when the tenant was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Tenant.LastUpdateUtc">
+            <summary>
+            UTC timestamp when the tenant was last updated.
+            </summary>
+        </member>
+        <member name="T:NetLedger.User">
+            <summary>
+            Tenant-scoped user.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.Id">
+            <summary>
+            User identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.FirstName">
+            <summary>
+            First name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.LastName">
+            <summary>
+            Last name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.Email">
+            <summary>
+            Email address, unique within the tenant.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.PasswordSha256">
+            <summary>
+            Password SHA-256 hash.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.IsAdmin">
+            <summary>
+            Boolean indicating whether the user has system-wide administrator access.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.IsTenantAdmin">
+            <summary>
+            Boolean indicating whether the user has tenant administrator access.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.Active">
+            <summary>
+            Boolean indicating whether the user is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.IsProtected">
+            <summary>
+            Boolean indicating whether the user is protected from accidental mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.CreatedUtc">
+            <summary>
+            UTC timestamp when the user was created.
+            </summary>
+        </member>
+        <member name="P:NetLedger.User.LastUpdateUtc">
+            <summary>
+            UTC timestamp when the user was last updated.
+            </summary>
+        </member>
+        <member name="T:NetLedger.UserRole">
+            <summary>
+            Tenant-scoped or built-in user role.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.Id">
+            <summary>
+            Role identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.TenantId">
+            <summary>
+            Tenant identifier. Empty for built-in global roles.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.Name">
+            <summary>
+            Role name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.IsBuiltIn">
+            <summary>
+            Whether this is a platform built-in role.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.Active">
+            <summary>
+            Whether this role is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.IsProtected">
+            <summary>
+            Whether this role is protected from normal mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRole.LastUpdateUtc">
+            <summary>
+            Last update timestamp UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.UserRoleAssignment">
+            <summary>
+            User role assignment with tenant or resource scope.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.Id">
+            <summary>
+            Assignment identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.UserId">
+            <summary>
+            User identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.RoleId">
+            <summary>
+            Optional role identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.RoleName">
+            <summary>
+            Optional role name fallback.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.ResourceScope">
+            <summary>
+            Scope, either Tenant or Resource.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.ResourceId">
+            <summary>
+            Resource identifier for resource-scoped assignments.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.InheritsToChildren">
+            <summary>
+            Whether tenant-scoped grants inherit to child resources.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.Active">
+            <summary>
+            Whether this assignment is active.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.IsProtected">
+            <summary>
+            Whether this assignment is protected from normal mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.CreatedUtc">
+            <summary>
+            Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.UserRoleAssignment.LastUpdateUtc">
+            <summary>
+            Last update timestamp UTC.
             </summary>
         </member>
     </members>

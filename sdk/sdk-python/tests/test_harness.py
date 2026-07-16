@@ -18,7 +18,8 @@ from netledger_sdk import (
     EntryInput,
     AccountEnumerationQuery,
     EntryEnumerationQuery,
-    ApiKeyEnumerationQuery
+    ApiKeyEnumerationQuery,
+    RequestHistoryQuery
 )
 
 
@@ -59,6 +60,7 @@ class TestHarness:
             self._run_enumeration_tests()
             self._run_balance_tests()
             self._run_api_key_tests()
+            self._run_request_history_tests()
             self._run_cleanup_tests()
         except Exception as e:
             print(f"Fatal error: {e}")
@@ -80,6 +82,10 @@ class TestHarness:
 
         self._run_test("Get Service Info", lambda: (
             self._assert(self.client.service.get_info().name, "Service name is empty")
+        ))
+
+        self._run_test("Get OpenAPI Spec", lambda: (
+            self._assert(self.client.service.get_openapi_spec().get("openapi") == "3.0.3", "OpenAPI version mismatch")
         ))
 
         print()
@@ -667,6 +673,24 @@ class TestHarness:
             self.client.api_key.revoke(created_key_guid)
 
         self._run_test("Revoke API Key", revoke_key)
+
+        print()
+
+    def _run_request_history_tests(self) -> None:
+        """Run request history tests."""
+        self._print_section_header("REQUEST HISTORY TESTS")
+
+        def enumerate_history():
+            result = self.client.request_history.enumerate(RequestHistoryQuery(max_results=10))
+            self._assert(result.total_records is not None, "Request history total records missing")
+
+        self._run_test("Enumerate Request History", enumerate_history)
+
+        def summarize_history():
+            summary = self.client.request_history.summarize(RequestHistoryQuery(max_results=100, bucket_minutes=15))
+            self._assert(summary.total_count is not None, "Request history summary total count missing")
+
+        self._run_test("Summarize Request History", summarize_history)
 
         print()
 

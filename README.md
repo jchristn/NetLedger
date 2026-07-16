@@ -8,6 +8,57 @@
 
 NetLedger is a thread-safe, self-contained ledgering library for .NET 8.0 that provides rigorous financial transaction control with full audit trails. Built on SQLite with async/await throughout, it enables strict separation between pending and committed transactions, making it ideal for applications requiring precise financial controls and auditability.
 
+## v3.0.0 Preview
+
+NetLedger v3.0.0 is the tenant-aware release. Public objects now use PrettyId string IDs such as `acct_...`, `ent_...`, `ten_...`, `usr_...`, and `cred_...`; accounts and entries carry `TenantId`; and account/entry metadata can be set with `Labels` and `Tags`.
+
+Key v3 capabilities:
+
+- Tenant-scoped account and entry models.
+- PrettyId K-sortable string IDs with 32-character total length.
+- Account and entry metadata through `List<string> Labels` and `Dictionary<string,string> Tags`.
+- Search and enumeration filters for labels and tags on accounts and entries, plus credit/debit amount bounds for entries.
+- `/v1/tenants/{tenantId}/...` route aliases plus `x-tenant-id` support; existing `/v1` paths remain.
+- Credential-oriented authentication model with tenant/user-scoped credential entities.
+- Tenant discovery and email/password login issuing revocable server-side sessions.
+- Dashboard tenant context, label/tag entry, label visibility, security administration, API Explorer, and Request History.
+- OpenAPI document at `GET /openapi.json` for explorer-driven API navigation.
+- Touchstone test projects: `Test.Shared`, `Test.Automated`, `Test.Xunit`, and `Test.Nunit`.
+
+Authentication flow:
+
+1. Call `POST /v1/auth/tenants` with `{ "Email": "user@example.com" }`.
+2. If multiple tenants are returned, select the tenant to enter.
+3. Call `POST /v1/auth/login` with tenant ID, email, and password.
+4. Send the returned `Session.Token` as `Authorization: Bearer <token>` and send `x-tenant-id` for tenant-scoped requests.
+
+Credential management is available through `/v1/credentials` and tenant-scoped credential routes. The legacy `/v1/apikeys` management paths are removed in v3.
+
+Minimal v3 library example:
+
+```csharp
+using NetLedger;
+
+await using Ledger ledger = new Ledger("accounting.db");
+
+string accountId = await ledger.CreateAccountAsync(
+    "Operating Account",
+    1000.00m,
+    new List<string> { "operating", "usd" },
+    new Dictionary<string, string> { { "department", "finance" } },
+    "ten_01h000000000000000000000000");
+
+string creditId = await ledger.AddCreditAsync(
+    accountId,
+    500.00m,
+    "Customer payment",
+    labels: new List<string> { "credit", "blue" },
+    tags: new Dictionary<string, string> { { "user", "foo" } },
+    tenantId: "ten_01h000000000000000000000000");
+
+Balance balance = await ledger.CommitEntriesAsync(accountId);
+```
+
 ## Who Should Use NetLedger
 
 NetLedger is designed for developers building applications that require:
@@ -43,7 +94,7 @@ NetLedger is designed for developers building applications that require:
 
 - ❌ **Multi-Currency Support** - Single currency per ledger (implement multiple ledgers for multi-currency)
 - ❌ **Automatic Transfers** - No built-in inter-account transfers (manually debit one account and credit another)
-- ❌ **Authentication/Authorization** - No user management or permissions (implement at application level)
+- ✅ **Authentication/Authorization** - v3 adds tenant-scoped users, sessions, credentials, admin flags, account mappings, RBAC role assignments, and audit records
 - ❌ **Multi-Tenant Isolation** - Single database instance (use separate databases for tenants)
 - ❌ **External Databases** - SQLite only (contact maintainer for external database support)
 - ❌ **Transaction Reversal** - Cannot undo committed entries (create offsetting entries instead)
@@ -141,7 +192,7 @@ This starts:
 - **NetLedger Server** on `http://localhost:8080` - REST API server
 - **NetLedger Dashboard** on `http://localhost:3000` - Web-based management UI
 
-Default admin API key: `netledgeradmin` (change this in production!)
+Fresh deployments create tenant `default` with `admin@netledger` / `password`.
 
 To stop the services:
 
@@ -165,13 +216,12 @@ The Docker setup uses configuration files in the `docker/server/` directory:
     "EnableConsole": true,
     "LogRequests": true
   },
-  "Authentication": {
-    "Enabled": true,
-    "DefaultAdminKey": "netledgeradmin"
-  },
   "Database": {
-    "Type": "Sqlite",
-    "Filename": "/app/data/netledger.db",
+    "Type": "Postgresql",
+    "Hostname": "postgres",
+    "DatabaseName": "netledger",
+    "Username": "netledger",
+    "Password": "netledger",
     "LogQueries": false
   }
 }
@@ -202,11 +252,14 @@ npm run dev
 - **Development**: Open `http://localhost:5173` in your browser (Vite default port)
 
 The dashboard provides:
-- Account management (create, view, delete)
+- Tenant, user, credential, account, and entry management based on the signed-in user's role
 - Transaction entry (credits and debits)
+- Label and tag metadata entry for accounts and entries
 - Balance viewing and history
+- Entry search and enumeration by description, amount bounds, labels, tags, and ordering
 - Entry commit operations
-- API key management
+- API Explorer backed by `GET /openapi.json`
+- Request History with filters, summaries, detail views, and scoped deletion for admins
 
 ## SDKs
 
@@ -222,18 +275,22 @@ dotnet add package NetLedger.Sdk
 using NetLedger.Sdk;
 
 // Create a client
-using var client = new NetLedgerClient("http://localhost:8080", "your-api-key");
+using NetLedgerClient client = new NetLedgerClient("http://localhost:8080", "your-api-key");
 
 // Create an account
 Account account = await client.Account.CreateAsync("My Account");
 
 // Add credits and debits
-await client.Entry.AddCreditAsync(account.GUID, 100.00m, "Deposit");
-await client.Entry.AddDebitAsync(account.GUID, 25.50m, "Purchase");
+await client.Entry.AddCreditAsync(account.Id, 100.00m, "Deposit");
+await client.Entry.AddDebitAsync(account.Id, 25.50m, "Purchase");
 
 // Get balance and commit
-Balance balance = await client.Balance.GetAsync(account.GUID);
-await client.Balance.CommitAsync(account.GUID);
+Balance balance = await client.Balance.GetAsync(account.Id);
+await client.Balance.CommitAsync(account.Id);
+
+// API Explorer and Request History support
+string openApiJson = await client.Service.GetOpenApiJsonAsync();
+EnumerationResult<RequestHistoryEntry> history = await client.RequestHistory.EnumerateAsync(new RequestHistoryQuery { MaxResults = 25 });
 ```
 
 See [sdk/sdk-csharp/NetLedger.Sdk/README.md](sdk/sdk-csharp/NetLedger.Sdk/README.md) for full documentation.
@@ -254,12 +311,16 @@ const client = new NetLedgerClient('http://localhost:8080', 'your-api-key');
 const account = await client.account.create('My Account');
 
 // Add credits and debits
-await client.entry.addCredit(account.guid, 100.00, 'Deposit');
-await client.entry.addDebit(account.guid, 25.50, 'Purchase');
+await client.entry.addCredit(account.Id, 100.00, 'Deposit');
+await client.entry.addDebit(account.Id, 25.50, 'Purchase');
 
 // Get balance and commit
-const balance = await client.balance.get(account.guid);
-await client.balance.commit(account.guid);
+const balance = await client.balance.get(account.Id);
+await client.balance.commit(account.Id);
+
+// API Explorer and Request History support
+const openApiSpec = await client.service.getOpenApiSpec();
+const history = await client.requestHistory.enumerate({ MaxResults: 25 });
 ```
 
 See [sdk/sdk-js/README.md](sdk/sdk-js/README.md) for full documentation.
@@ -278,17 +339,21 @@ When running NetLedger Server (via Docker or directly), a full REST API is avail
 # Health check
 curl http://localhost:8080/
 
-# Create an account
+# Create an account with label/tag metadata
 curl -X PUT http://localhost:8080/v1/accounts \
   -H "Authorization: Bearer netledgeradmin" \
   -H "Content-Type: application/json" \
-  -d '{"Name": "My Account", "InitialBalance": 100.00}'
+  -d '{"Name":"My Account","InitialBalance":100.00,"Labels":["operating","blue"],"Tags":{"department":"finance","color":"blue"}}'
 
-# Add a credit
+# Add a credit with label/tag metadata
 curl -X PUT http://localhost:8080/v1/accounts/{accountGuid}/credits \
   -H "Authorization: Bearer netledgeradmin" \
   -H "Content-Type: application/json" \
-  -d '{"Amount": 50.00, "Notes": "Customer payment"}'
+  -d '{"Amount":50.00,"Notes":"Customer payment","Labels":["blue"],"Tags":{"color":"blue"}}'
+
+# Search entries by amount bounds, label, tag, and ordering
+curl "http://localhost:8080/v1/accounts/{accountGuid}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending" \
+  -H "Authorization: Bearer netledgeradmin"
 
 # Get balance
 curl http://localhost:8080/v1/accounts/{accountGuid}/balance \
@@ -314,6 +379,14 @@ Guid guid1 = await ledger.CreateAccountAsync("Checking Account");
 // Create account with initial balance
 Guid guid2 = await ledger.CreateAccountAsync("Savings Account", 5000.00m);
 
+// Create account with label/tag metadata
+string operatingAccountId = await ledger.CreateAccountAsync(
+    "Operating Account",
+    1000.00m,
+    labels: new List<string> { "operating", "blue" },
+    tags: new Dictionary<string, string> { { "department", "finance" }, { "color", "blue" } }
+);
+
 // Create account with negative balance (e.g., credit card)
 Guid guid3 = await ledger.CreateAccountAsync("Credit Card", -250.00m);
 
@@ -333,6 +406,14 @@ List<Account> results = await ledger.GetAllAccountsAsync(
     take: 10
 );
 
+// Enumerate accounts by metadata. Labels and tags are all-must-match filters.
+EnumerationResult<Account> blueFinanceAccounts = await ledger.EnumerateAccountsAsync(new EnumerationQuery
+{
+    MaxResults = 25,
+    Labels = new List<string> { "blue" },
+    Tags = new Dictionary<string, string> { { "department", "finance" } }
+});
+
 // Delete account by name
 await ledger.DeleteAccountByNameAsync("Checking Account");
 
@@ -350,6 +431,15 @@ Guid entryGuid = await ledger.AddCreditAsync(
     accountGuid,
     amount: 250.00m,
     notes: "Invoice #1234"
+);
+
+// Add pending credit with label/tag metadata
+string labeledCreditId = await ledger.AddCreditAsync(
+    accountGuid,
+    amount: 175.00m,
+    notes: "Blue customer payment",
+    labels: new List<string> { "blue", "customer-payment" },
+    tags: new Dictionary<string, string> { { "color", "blue" }, { "source", "dashboard" } }
 );
 
 // Add immediately committed credit
@@ -515,7 +605,7 @@ EnumerationQuery query = new EnumerationQuery
 {
     AccountGUID = accountGuid,
     MaxResults = 10,
-    Ordering = EnumerationOrderEnum.CreatedDescending,
+    Ordering = EnumerationOrderEnum.AmountDescending,
     AmountMinimum = 75.00m,     // Only entries >= $75
     AmountMaximum = 250.00m,    // Only entries <= $250
     CreatedAfterUtc = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
@@ -540,6 +630,23 @@ if (!result.EndOfResults && result.ContinuationToken != null)
     query.ContinuationToken = result.ContinuationToken;
     EnumerationResult<Entry> nextPage = await ledger.EnumerateTransactionsAsync(query);
 }
+```
+
+Complex metadata and debit-specific searches use the same enumeration surface. Labels and tags are all-must-match filters:
+
+```csharp
+EnumerationQuery blueDebitQuery = new EnumerationQuery
+{
+    AccountGUID = accountGuid,
+    MaxResults = 50,
+    Ordering = EnumerationOrderEnum.AmountDescending,
+    DebitMinimum = 5.00m,
+    DebitMaximum = 50.00m,
+    Labels = new List<string> { "blue" },
+    Tags = new Dictionary<string, string> { { "color", "blue" } }
+};
+
+EnumerationResult<Entry> blueDebits = await ledger.EnumerateTransactionsAsync(blueDebitQuery);
 ```
 
 ### Audit Trail and Balance Verification

@@ -42,9 +42,10 @@ const errors_1 = require("./errors");
  * HTTP client for making API requests.
  */
 class HttpClient {
-    constructor(baseUrl, apiKey, timeoutMs = 30000) {
+    constructor(baseUrl, apiKey, timeoutMs = 30000, tenantId) {
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.apiKey = apiKey;
+        this.tenantId = tenantId;
         this.timeoutMs = timeoutMs;
     }
     /**
@@ -72,6 +73,12 @@ class HttpClient {
         await this.request('DELETE', path);
     }
     /**
+     * Make a DELETE request and return a response body.
+     */
+    async deleteWithResponse(path) {
+        return this.request('DELETE', path);
+    }
+    /**
      * Make a HEAD request.
      */
     async head(path) {
@@ -87,7 +94,8 @@ class HttpClient {
                 timeout: this.timeoutMs,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {})
                 }
             };
             const req = lib.request(options, (res) => {
@@ -121,6 +129,7 @@ class HttpClient {
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {}),
                     ...(bodyData ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyData) } : {})
                 }
             };

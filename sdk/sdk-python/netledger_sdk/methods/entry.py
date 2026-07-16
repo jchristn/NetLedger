@@ -76,7 +76,15 @@ class EntryMethods:
                 raise NetLedgerValidationError('All amounts must be greater than zero', 'entries')
 
         # Server expects {Entries: [{Amount: X, Notes: Y}, ...]}
-        body = {'Entries': [{'Amount': e.amount, 'Notes': e.description} for e in entries]}
+        body = {'Entries': [
+            {
+                'Amount': e.amount,
+                'Notes': e.description,
+                'Labels': e.labels,
+                'Tags': e.tags
+            }
+            for e in entries
+        ]}
         response = self._client.put(f'/v1/accounts/{account_guid}/credits', body)
         if not response.data:
             return []
@@ -139,7 +147,15 @@ class EntryMethods:
                 raise NetLedgerValidationError('All amounts must be greater than zero', 'entries')
 
         # Server expects {Entries: [{Amount: X, Notes: Y}, ...]}
-        body = {'Entries': [{'Amount': e.amount, 'Notes': e.description} for e in entries]}
+        body = {'Entries': [
+            {
+                'Amount': e.amount,
+                'Notes': e.description,
+                'Labels': e.labels,
+                'Tags': e.tags
+            }
+            for e in entries
+        ]}
         response = self._client.put(f'/v1/accounts/{account_guid}/debits', body)
         if not response.data:
             return []

@@ -23,13 +23,21 @@ namespace NetLedger.Sdk.Methods
 
         private class AddEntriesResponse
         {
-            public List<Guid>? EntryGuids { get; set; }
+            public List<string>? EntryIds { get; set; }
+            public List<string>? EntryGuids { get; set; }
+
+            public List<string> GetIds()
+            {
+                return EntryIds ?? EntryGuids ?? new List<string>();
+            }
         }
 
         private class AddEntriesRequest
         {
             public decimal? Amount { get; set; }
             public string? Notes { get; set; }
+            public List<string>? Labels { get; set; }
+            public Dictionary<string, string>? Tags { get; set; }
             public List<EntryItem>? Entries { get; set; }
         }
 
@@ -37,6 +45,8 @@ namespace NetLedger.Sdk.Methods
         {
             public decimal Amount { get; set; }
             public string? Notes { get; set; }
+            public List<string>? Labels { get; set; }
+            public Dictionary<string, string>? Tags { get; set; }
         }
 
         #endregion
@@ -57,7 +67,7 @@ namespace NetLedger.Sdk.Methods
         #region Public-Methods
 
         /// <inheritdoc />
-        public async Task<Entry> AddCreditAsync(Guid accountGuid, decimal amount, string? description = null, CancellationToken cancellationToken = default)
+        public async Task<Entry> AddCreditAsync(string accountId, decimal amount, string? description = null, CancellationToken cancellationToken = default)
         {
             if (amount <= 0)
                 throw new NetLedgerValidationException("Amount must be greater than zero.", nameof(amount));
@@ -70,17 +80,18 @@ namespace NetLedger.Sdk.Methods
 
             ApiResponse<AddEntriesResponse> response = await _Client.SendAsync<AddEntriesResponse>(
                 HttpMethod.Put,
-                $"/v1/accounts/{accountGuid}/credits",
+                $"/v1/accounts/{accountId}/credits",
                 request,
                 cancellationToken).ConfigureAwait(false);
 
-            if (response.Data?.EntryGuids == null || response.Data.EntryGuids.Count == 0)
-                throw new NetLedgerApiException(response.StatusCode, "No entry GUID returned from server.");
+            List<string> responseIds = response.Data?.GetIds() ?? new List<string>();
+            if (responseIds.Count == 0)
+                throw new NetLedgerApiException(response.StatusCode, "No entry Id returned from server.");
 
             return new Entry
             {
-                GUID = response.Data.EntryGuids[0],
-                AccountGUID = accountGuid,
+                Id = responseIds[0],
+                AccountId = accountId,
                 Type = EntryType.Credit,
                 Amount = amount,
                 Description = description,
@@ -90,7 +101,7 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> AddCreditsAsync(Guid accountGuid, List<EntryInput> entries, CancellationToken cancellationToken = default)
+        public async Task<List<Entry>> AddCreditsAsync(string accountId, List<EntryInput> entries, CancellationToken cancellationToken = default)
         {
             if (entries == null)
                 throw new ArgumentNullException(nameof(entries));
@@ -100,24 +111,25 @@ namespace NetLedger.Sdk.Methods
 
             AddEntriesRequest request = new AddEntriesRequest
             {
-                Entries = entries.Select(e => new EntryItem { Amount = e.Amount, Notes = e.Notes }).ToList()
+                Entries = entries.Select(e => new EntryItem { Amount = e.Amount, Notes = e.Notes, Labels = e.Labels, Tags = e.Tags }).ToList()
             };
 
             ApiResponse<AddEntriesResponse> response = await _Client.SendAsync<AddEntriesResponse>(
                 HttpMethod.Put,
-                $"/v1/accounts/{accountGuid}/credits",
+                $"/v1/accounts/{accountId}/credits",
                 request,
                 cancellationToken).ConfigureAwait(false);
 
             List<Entry> result = new List<Entry>();
-            if (response.Data?.EntryGuids != null)
+            List<string> responseIds = response.Data?.GetIds() ?? new List<string>();
+            if (responseIds.Count > 0)
             {
-                for (int i = 0; i < response.Data.EntryGuids.Count && i < entries.Count; i++)
+                for (int i = 0; i < responseIds.Count && i < entries.Count; i++)
                 {
                     result.Add(new Entry
                     {
-                        GUID = response.Data.EntryGuids[i],
-                        AccountGUID = accountGuid,
+                        Id = responseIds[i],
+                        AccountId = accountId,
                         Type = EntryType.Credit,
                         Amount = entries[i].Amount,
                         Description = entries[i].Notes,
@@ -131,7 +143,7 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<Entry> AddDebitAsync(Guid accountGuid, decimal amount, string? description = null, CancellationToken cancellationToken = default)
+        public async Task<Entry> AddDebitAsync(string accountId, decimal amount, string? description = null, CancellationToken cancellationToken = default)
         {
             if (amount <= 0)
                 throw new NetLedgerValidationException("Amount must be greater than zero.", nameof(amount));
@@ -144,17 +156,18 @@ namespace NetLedger.Sdk.Methods
 
             ApiResponse<AddEntriesResponse> response = await _Client.SendAsync<AddEntriesResponse>(
                 HttpMethod.Put,
-                $"/v1/accounts/{accountGuid}/debits",
+                $"/v1/accounts/{accountId}/debits",
                 request,
                 cancellationToken).ConfigureAwait(false);
 
-            if (response.Data?.EntryGuids == null || response.Data.EntryGuids.Count == 0)
-                throw new NetLedgerApiException(response.StatusCode, "No entry GUID returned from server.");
+            List<string> responseIds = response.Data?.GetIds() ?? new List<string>();
+            if (responseIds.Count == 0)
+                throw new NetLedgerApiException(response.StatusCode, "No entry Id returned from server.");
 
             return new Entry
             {
-                GUID = response.Data.EntryGuids[0],
-                AccountGUID = accountGuid,
+                Id = responseIds[0],
+                AccountId = accountId,
                 Type = EntryType.Debit,
                 Amount = amount,
                 Description = description,
@@ -164,7 +177,7 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> AddDebitsAsync(Guid accountGuid, List<EntryInput> entries, CancellationToken cancellationToken = default)
+        public async Task<List<Entry>> AddDebitsAsync(string accountId, List<EntryInput> entries, CancellationToken cancellationToken = default)
         {
             if (entries == null)
                 throw new ArgumentNullException(nameof(entries));
@@ -174,24 +187,25 @@ namespace NetLedger.Sdk.Methods
 
             AddEntriesRequest request = new AddEntriesRequest
             {
-                Entries = entries.Select(e => new EntryItem { Amount = e.Amount, Notes = e.Notes }).ToList()
+                Entries = entries.Select(e => new EntryItem { Amount = e.Amount, Notes = e.Notes, Labels = e.Labels, Tags = e.Tags }).ToList()
             };
 
             ApiResponse<AddEntriesResponse> response = await _Client.SendAsync<AddEntriesResponse>(
                 HttpMethod.Put,
-                $"/v1/accounts/{accountGuid}/debits",
+                $"/v1/accounts/{accountId}/debits",
                 request,
                 cancellationToken).ConfigureAwait(false);
 
             List<Entry> result = new List<Entry>();
-            if (response.Data?.EntryGuids != null)
+            List<string> responseIds = response.Data?.GetIds() ?? new List<string>();
+            if (responseIds.Count > 0)
             {
-                for (int i = 0; i < response.Data.EntryGuids.Count && i < entries.Count; i++)
+                for (int i = 0; i < responseIds.Count && i < entries.Count; i++)
                 {
                     result.Add(new Entry
                     {
-                        GUID = response.Data.EntryGuids[i],
-                        AccountGUID = accountGuid,
+                        Id = responseIds[i],
+                        AccountId = accountId,
                         Type = EntryType.Debit,
                         Amount = entries[i].Amount,
                         Description = entries[i].Notes,
@@ -205,11 +219,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> GetAllAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<List<Entry>> GetAllAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<EnumerationResult<Entry>> response = await _Client.SendAsync<EnumerationResult<Entry>>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}/entries",
+                $"/v1/accounts/{accountId}/entries",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -217,13 +231,13 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<EnumerationResult<Entry>> EnumerateAsync(Guid accountGuid, EntryEnumerationQuery? query = null, CancellationToken cancellationToken = default)
+        public async Task<EnumerationResult<Entry>> EnumerateAsync(string accountId, EntryEnumerationQuery? query = null, CancellationToken cancellationToken = default)
         {
             query ??= new EntryEnumerationQuery();
 
             ApiResponse<EnumerationResult<Entry>> response = await _Client.SendAsync<EnumerationResult<Entry>>(
                 HttpMethod.Post,
-                $"/v1/accounts/{accountGuid}/entries/enumerate",
+                $"/v1/accounts/{accountId}/entries/enumerate",
                 query,
                 cancellationToken).ConfigureAwait(false);
 
@@ -231,11 +245,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> GetPendingAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<List<Entry>> GetPendingAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<List<Entry>> response = await _Client.SendAsync<List<Entry>>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}/entries/pending",
+                $"/v1/accounts/{accountId}/entries/pending",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -243,11 +257,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> GetPendingCreditsAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<List<Entry>> GetPendingCreditsAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<List<Entry>> response = await _Client.SendAsync<List<Entry>>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}/entries/pending/credits",
+                $"/v1/accounts/{accountId}/entries/pending/credits",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -255,11 +269,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> GetPendingDebitsAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<List<Entry>> GetPendingDebitsAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<List<Entry>> response = await _Client.SendAsync<List<Entry>>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}/entries/pending/debits",
+                $"/v1/accounts/{accountId}/entries/pending/debits",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -267,11 +281,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task CancelAsync(Guid accountGuid, Guid entryGuid, CancellationToken cancellationToken = default)
+        public async Task CancelAsync(string accountId, string entryId, CancellationToken cancellationToken = default)
         {
             await _Client.SendAsync<object>(
                 HttpMethod.Delete,
-                $"/v1/accounts/{accountGuid}/entries/{entryGuid}",
+                $"/v1/accounts/{accountId}/entries/{entryId}",
                 null,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -279,3 +293,4 @@ namespace NetLedger.Sdk.Methods
         #endregion
     }
 }
+

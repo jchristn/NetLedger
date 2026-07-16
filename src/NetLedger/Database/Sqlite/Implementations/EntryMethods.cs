@@ -47,7 +47,7 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             if (result != null && result.Rows.Count > 0)
             {
-                entry.Id = Convert.ToInt32(result.Rows[0][0]);
+                entry.RowId = Convert.ToInt32(result.Rows[0][0]);
             }
 
             return entry;
@@ -71,7 +71,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<Entry> ReadByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT * FROM entries WHERE guid = '" + Sanitize(guid.ToString()) + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -82,7 +82,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadByGuidsAsync(List<Guid> guids, CancellationToken token = default)
+        public async Task<List<Entry>> ReadByGuidsAsync(List<string> guids, CancellationToken token = default)
         {
             if (guids == null || guids.Count == 0) return new List<Entry>();
 
@@ -104,7 +104,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<List<Entry>> ReadByAccountGuidAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "' ORDER BY createdutc DESC;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -123,7 +123,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadPendingByAccountGuidAsync(Guid accountGuid, EntryType? entryType = null, CancellationToken token = default)
+        public async Task<List<Entry>> ReadPendingByAccountGuidAsync(string accountGuid, EntryType? entryType = null, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
                 "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "' " +
@@ -153,7 +153,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry> ReadLatestBalanceAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<Entry> ReadLatestBalanceAsync(string accountGuid, CancellationToken token = default)
         {
             string query =
                 "SELECT * FROM entries " +
@@ -169,7 +169,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry> ReadBalanceAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken token = default)
+        public async Task<Entry> ReadBalanceAsOfAsync(string accountGuid, DateTime asOfUtc, CancellationToken token = default)
         {
             string query =
                 "SELECT * FROM entries " +
@@ -186,7 +186,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadWithFilterAsync(Guid accountGuid, FilterBuilder filter, CancellationToken token = default)
+        public async Task<List<Entry>> ReadWithFilterAsync(string accountGuid, FilterBuilder filter, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
                 "SELECT * FROM entries WHERE accountguid = '" + accountGuid.ToString() + "'");
@@ -224,7 +224,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<EnumerationResult<Entry>> EnumerateAsync(Guid accountGuid, EnumerationQuery query, CancellationToken token = default)
+        public async Task<EnumerationResult<Entry>> EnumerateAsync(string accountGuid, EnumerationQuery query, CancellationToken token = default)
         {
             if (query == null) throw new ArgumentNullException(nameof(query));
 
@@ -239,12 +239,12 @@ namespace NetLedger.Database.Sqlite.Implementations
             // Handle continuation token - get the entry's timestamp and id for filtering
             string continuationCondition = "";
             int continuationId = 0;
-            if (query.ContinuationToken.HasValue)
+            if (!String.IsNullOrEmpty(query.ContinuationToken))
             {
-                Entry continuationEntry = await ReadByGuidAsync(query.ContinuationToken.Value, token).ConfigureAwait(false);
+                Entry continuationEntry = await ReadByGuidAsync(query.ContinuationToken, token).ConfigureAwait(false);
                 if (continuationEntry != null)
                 {
-                    continuationId = continuationEntry.Id;
+                    continuationId = continuationEntry.RowId;
                     // Use Id for stable ordering since multiple entries might have same timestamp
                     if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
                     {
@@ -307,7 +307,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             }
 
             mainQuery.Append(" LIMIT " + query.MaxResults);
-            if (query.Skip > 0 && !query.ContinuationToken.HasValue)
+            if (query.Skip > 0 && String.IsNullOrEmpty(query.ContinuationToken))
             {
                 mainQuery.Append(" OFFSET " + query.Skip);
             }
@@ -324,7 +324,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             }
 
             // Calculate records remaining based on skip/continuation
-            if (query.ContinuationToken.HasValue)
+            if (!String.IsNullOrEmpty(query.ContinuationToken))
             {
                 // For continuation token, count remaining after last entry
                 if (result.Objects.Count > 0)
@@ -338,19 +338,19 @@ namespace NetLedger.Database.Sqlite.Implementations
                     }
                     if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
                     {
-                        remainingQuery.Append(" AND id < " + lastEntry.Id);
+                        remainingQuery.Append(" AND id < " + lastEntry.RowId);
                     }
                     else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
                     {
-                        remainingQuery.Append(" AND id > " + lastEntry.Id);
+                        remainingQuery.Append(" AND id > " + lastEntry.RowId);
                     }
                     else if (query.Ordering == EnumerationOrderEnum.AmountDescending)
                     {
-                        remainingQuery.Append(" AND (amount < " + lastEntry.Amount.ToString() + " OR (amount = " + lastEntry.Amount.ToString() + " AND id < " + lastEntry.Id + "))");
+                        remainingQuery.Append(" AND (amount < " + lastEntry.Amount.ToString() + " OR (amount = " + lastEntry.Amount.ToString() + " AND id < " + lastEntry.RowId + "))");
                     }
                     else if (query.Ordering == EnumerationOrderEnum.AmountAscending)
                     {
-                        remainingQuery.Append(" AND (amount > " + lastEntry.Amount.ToString() + " OR (amount = " + lastEntry.Amount.ToString() + " AND id > " + lastEntry.Id + "))");
+                        remainingQuery.Append(" AND (amount > " + lastEntry.Amount.ToString() + " OR (amount = " + lastEntry.Amount.ToString() + " AND id > " + lastEntry.RowId + "))");
                     }
                     remainingQuery.Append(";");
 
@@ -388,10 +388,14 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "type = '" + entry.Type.ToString() + "', " +
                 "amount = " + entry.Amount.ToString() + ", " +
                 "description = " + (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +
-                "replaces = " + (entry.Replaces.HasValue ? "'" + Sanitize(entry.Replaces.Value.ToString()) + "'" : "NULL") + ", " +
+                "replaces = " + (!String.IsNullOrEmpty(entry.Replaces) ? "'" + Sanitize(entry.Replaces) + "'" : "NULL") + ", " +
                 "committed = " + (entry.IsCommitted ? "1" : "0") + ", " +
-                "committedbyguid = " + (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
-                "committedutc = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + " " +
+                "committedbyguid = " + (!String.IsNullOrEmpty(entry.CommittedByGUID) ? "'" + Sanitize(entry.CommittedByGUID) + "'" : "NULL") + ", " +
+                "committedutc = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + ", " +
+                "tenantid = '" + Sanitize(entry.TenantId) + "', " +
+                "labels = '" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
+                "tags = '" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
+                "lastupdateutc = '" + DateTime.UtcNow.ToString(SetupQueries.TimestampFormat) + "' " +
                 "WHERE guid = '" + entry.GUID.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
@@ -413,10 +417,14 @@ namespace NetLedger.Database.Sqlite.Implementations
                     "type = '" + entry.Type.ToString() + "', " +
                     "amount = " + entry.Amount.ToString() + ", " +
                     "description = " + (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +
-                    "replaces = " + (entry.Replaces.HasValue ? "'" + Sanitize(entry.Replaces.Value.ToString()) + "'" : "NULL") + ", " +
+                    "replaces = " + (!String.IsNullOrEmpty(entry.Replaces) ? "'" + Sanitize(entry.Replaces) + "'" : "NULL") + ", " +
                     "committed = " + (entry.IsCommitted ? "1" : "0") + ", " +
-                    "committedbyguid = " + (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
-                    "committedutc = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + " " +
+                    "committedbyguid = " + (!String.IsNullOrEmpty(entry.CommittedByGUID) ? "'" + Sanitize(entry.CommittedByGUID) + "'" : "NULL") + ", " +
+                    "committedutc = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + ", " +
+                    "tenantid = '" + Sanitize(entry.TenantId) + "', " +
+                    "labels = '" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
+                    "tags = '" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
+                    "lastupdateutc = '" + DateTime.UtcNow.ToString(SetupQueries.TimestampFormat) + "' " +
                     "WHERE guid = '" + entry.GUID.ToString() + "';"
                 );
             }
@@ -425,21 +433,21 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "DELETE FROM entries WHERE guid = '" + Sanitize(guid.ToString()) + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task DeleteByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task DeleteByAccountGuidAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "DELETE FROM entries WHERE accountguid = '" + accountGuid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT COUNT(*) FROM entries WHERE guid = '" + Sanitize(guid.ToString()) + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -453,7 +461,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<int> GetCountByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<int> GetCountByAccountGuidAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT COUNT(*) FROM entries WHERE accountguid = '" + accountGuid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -467,7 +475,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<decimal> SumPendingCreditsAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<decimal> SumPendingCreditsAsync(string accountGuid, CancellationToken token = default)
         {
             string query =
                 "SELECT COALESCE(SUM(amount), 0) FROM entries " +
@@ -486,7 +494,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<decimal> SumPendingDebitsAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<decimal> SumPendingDebitsAsync(string accountGuid, CancellationToken token = default)
         {
             string query =
                 "SELECT COALESCE(SUM(amount), 0) FROM entries " +
@@ -517,26 +525,31 @@ namespace NetLedger.Database.Sqlite.Implementations
         private string BuildInsertQuery(Entry entry)
         {
             return
-                "INSERT INTO entries (guid, accountguid, type, amount, description, replaces, committed, committedbyguid, committedutc, createdutc) VALUES (" +
+                "INSERT INTO entries (guid, tenantid, accountguid, type, amount, description, replaces, committed, committedbyguid, committedutc, labels, tags, createdutc, lastupdateutc) VALUES (" +
                 "'" + entry.GUID.ToString() + "', " +
+                "'" + Sanitize(entry.TenantId) + "', " +
                 "'" + entry.AccountGUID.ToString() + "', " +
                 "'" + entry.Type.ToString() + "', " +
                 entry.Amount.ToString() + ", " +
                 (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +
-                (entry.Replaces.HasValue ? "'" + Sanitize(entry.Replaces.Value.ToString()) + "'" : "NULL") + ", " +
+                (!String.IsNullOrEmpty(entry.Replaces) ? "'" + Sanitize(entry.Replaces) + "'" : "NULL") + ", " +
                 (entry.IsCommitted ? "1" : "0") + ", " +
-                (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
+                (!String.IsNullOrEmpty(entry.CommittedByGUID) ? "'" + Sanitize(entry.CommittedByGUID) + "'" : "NULL") + ", " +
                 (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + ", " +
-                "'" + entry.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'" +
+                "'" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
+                "'" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
+                "'" + entry.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "', " +
+                "'" + (entry.LastUpdateUtc == default ? entry.CreatedUtc : entry.LastUpdateUtc).ToString(SetupQueries.TimestampFormat) + "'" +
                 ");";
         }
 
         private Entry DataRowToEntry(DataRow row)
         {
             Entry entry = new Entry();
-            entry.Id = Convert.ToInt32(row["id"]);
-            entry.GUID = Guid.Parse(row["guid"].ToString());
-            entry.AccountGUID = Guid.Parse(row["accountguid"].ToString());
+            entry.RowId = Convert.ToInt32(row["id"]);
+            entry.GUID = row["guid"].ToString();
+            entry.TenantId = GetString(row, "tenantid");
+            entry.AccountGUID = row["accountguid"].ToString();
             entry.Type = (EntryType)Enum.Parse(typeof(EntryType), row["type"].ToString());
             entry.Amount = Convert.ToDecimal(row["amount"]);
             entry.Description = row["description"]?.ToString();
@@ -544,15 +557,17 @@ namespace NetLedger.Database.Sqlite.Implementations
             string replacesStr = row["replaces"]?.ToString();
             if (!String.IsNullOrEmpty(replacesStr))
             {
-                entry.Replaces = Guid.Parse(replacesStr);
+                entry.Replaces = replacesStr;
             }
 
             entry.IsCommitted = Convert.ToInt32(row["committed"]) == 1;
+            entry.Labels = MetadataSerializer.DeserializeLabels(GetString(row, "labels"));
+            entry.Tags = MetadataSerializer.DeserializeTags(GetString(row, "tags"));
 
             string committedByStr = row["committedbyguid"]?.ToString();
             if (!String.IsNullOrEmpty(committedByStr))
             {
-                entry.CommittedByGUID = Guid.Parse(committedByStr);
+                entry.CommittedByGUID = committedByStr;
             }
 
             string committedUtcStr = row["committedutc"]?.ToString();
@@ -569,9 +584,23 @@ namespace NetLedger.Database.Sqlite.Implementations
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
 
+            string lastUpdateUtc = GetString(row, "lastupdateutc");
+            entry.LastUpdateUtc = !String.IsNullOrEmpty(lastUpdateUtc)
+                ? DateTime.Parse(lastUpdateUtc, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
+                : entry.CreatedUtc;
+
             return entry;
+        }
+
+        private string GetString(DataRow row, string columnName)
+        {
+            if (!row.Table.Columns.Contains(columnName)) return String.Empty;
+            return row[columnName]?.ToString() ?? String.Empty;
         }
 
         #endregion
     }
 }
+
+
+

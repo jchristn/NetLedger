@@ -11,12 +11,30 @@ namespace NetLedger
         /// <summary>
         /// GUID of the account.
         /// </summary>
-        public Guid AccountGUID { get; set; }
+        public string AccountId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Legacy account identifier alias.
+        /// </summary>
+        public string AccountGUID
+        {
+            get { return AccountId; }
+            set { AccountId = value; }
+        }
 
         /// <summary>
         /// Entry GUID containing the latest balance entry.
         /// </summary>
-        public Guid EntryGUID { get; set; }
+        public string EntryId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Legacy entry identifier alias.
+        /// </summary>
+        public string EntryGUID
+        {
+            get { return EntryId; }
+            set { EntryId = value; }
+        }
 
         /// <summary>
         /// Name of the account.
@@ -60,7 +78,7 @@ namespace NetLedger
         /// <summary>
         /// GUIDs of committed entries.
         /// </summary>
-        public List<Guid> Committed { get; set; } = new List<Guid>();
+        public List<string> Committed { get; set; } = new List<string>();
 
         /// <summary>
         /// Instantiate a balance object.
@@ -71,3 +89,4 @@ namespace NetLedger
         }
     }
 }
+

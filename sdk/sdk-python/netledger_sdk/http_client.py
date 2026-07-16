@@ -20,7 +20,7 @@ class ApiResponse(Generic[T]):
 class HttpClient:
     """HTTP client for making API requests."""
 
-    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0):
+    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0, tenant_id: Optional[str] = None):
         """
         Initialize the HTTP client.
 
@@ -31,13 +31,17 @@ class HttpClient:
         """
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
+        self.tenant_id = tenant_id
         self.timeout = timeout_seconds
         self.session = requests.Session()
-        self.session.headers.update({
+        headers = {
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-        })
+        }
+        if tenant_id:
+            headers['x-tenant-id'] = tenant_id
+        self.session.headers.update(headers)
 
     def get(self, path: str) -> ApiResponse:
         """Make a GET request."""
@@ -54,6 +58,10 @@ class HttpClient:
     def delete(self, path: str) -> None:
         """Make a DELETE request."""
         self._request('DELETE', path)
+
+    def delete_with_response(self, path: str) -> ApiResponse:
+        """Make a DELETE request and return a response body."""
+        return self._request('DELETE', path)
 
     def head(self, path: str) -> bool:
         """Make a HEAD request to check if a resource exists."""

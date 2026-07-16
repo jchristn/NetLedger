@@ -1,6 +1,7 @@
 namespace NetLedger
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Represents input data for a batch entry operation (credit or debit).
@@ -29,11 +30,31 @@ namespace NetLedger
         /// </summary>
         public string? Notes { get; set; } = null;
 
+        /// <summary>
+        /// Labels for the entry.
+        /// </summary>
+        public List<string> Labels
+        {
+            get { return _Labels; }
+            set { _Labels = MetadataValidator.NormalizeLabels(value); }
+        }
+
+        /// <summary>
+        /// Tags for the entry.
+        /// </summary>
+        public Dictionary<string, string> Tags
+        {
+            get { return _Tags; }
+            set { _Tags = MetadataValidator.NormalizeTags(value); }
+        }
+
         #endregion
 
         #region Private-Members
 
         private decimal _Amount = 0m;
+        private List<string> _Labels = new List<string>();
+        private Dictionary<string, string> _Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -61,3 +82,4 @@ namespace NetLedger
         #endregion
     }
 }
+

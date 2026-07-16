@@ -48,9 +48,9 @@ namespace NetLedger.Database.Mysql.Implementations
                 "'" + entry.Type.ToString() + "', " +
                 entry.Amount.ToString() + ", " +
                 (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +
-                (entry.Replaces.HasValue ? "'" + Sanitize(entry.Replaces.Value.ToString()) + "'" : "NULL") + ", " +
+                (!String.IsNullOrEmpty(entry.Replaces) ? "'" + Sanitize(entry.Replaces) + "'" : "NULL") + ", " +
                 (entry.IsCommitted ? "1" : "0") + ", " +
-                (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
+                (!String.IsNullOrEmpty(entry.CommittedByGUID) ? "'" + Sanitize(entry.CommittedByGUID) + "'" : "NULL") + ", " +
                 (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + ", " +
                 "'" + entry.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'" +
                 "); SELECT LAST_INSERT_ID();";
@@ -59,7 +59,7 @@ namespace NetLedger.Database.Mysql.Implementations
 
             if (result != null && result.Rows.Count > 0)
             {
-                entry.Id = Convert.ToInt32(result.Rows[0][0]);
+                entry.RowId = Convert.ToInt32(result.Rows[0][0]);
             }
 
             return entry;
@@ -79,7 +79,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<Entry> ReadByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT * FROM `entries` WHERE `guid` = '" + Sanitize(guid.ToString()) + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -90,7 +90,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadByGuidsAsync(List<Guid> guids, CancellationToken token = default)
+        public async Task<List<Entry>> ReadByGuidsAsync(List<string> guids, CancellationToken token = default)
         {
             if (guids == null || guids.Count == 0) return new List<Entry>();
 
@@ -112,7 +112,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<List<Entry>> ReadByAccountGuidAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT * FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "' ORDER BY `createdutc` DESC;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -131,7 +131,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadPendingByAccountGuidAsync(Guid accountGuid, EntryType? entryType = null, CancellationToken token = default)
+        public async Task<List<Entry>> ReadPendingByAccountGuidAsync(string accountGuid, EntryType? entryType = null, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
                 "SELECT * FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "' " +
@@ -161,7 +161,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry> ReadLatestBalanceAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<Entry> ReadLatestBalanceAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT * FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "' AND `type` = 'Balance' ORDER BY `createdutc` DESC LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -172,7 +172,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<Entry> ReadBalanceAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken token = default)
+        public async Task<Entry> ReadBalanceAsOfAsync(string accountGuid, DateTime asOfUtc, CancellationToken token = default)
         {
             string query = "SELECT * FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "' AND `type` = 'Balance' AND `createdutc` <= '" + asOfUtc.ToString(SetupQueries.TimestampFormat) + "' ORDER BY `createdutc` DESC LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -183,7 +183,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<List<Entry>> ReadWithFilterAsync(Guid accountGuid, FilterBuilder filter, CancellationToken token = default)
+        public async Task<List<Entry>> ReadWithFilterAsync(string accountGuid, FilterBuilder filter, CancellationToken token = default)
         {
             if (filter == null) throw new ArgumentNullException(nameof(filter));
 
@@ -215,7 +215,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<EnumerationResult<Entry>> EnumerateAsync(Guid accountGuid, EnumerationQuery query, CancellationToken token = default)
+        public async Task<EnumerationResult<Entry>> EnumerateAsync(string accountGuid, EnumerationQuery query, CancellationToken token = default)
         {
             if (query == null) throw new ArgumentNullException(nameof(query));
 
@@ -230,12 +230,12 @@ namespace NetLedger.Database.Mysql.Implementations
             // Handle continuation token - get the entry's id for filtering
             string continuationCondition = "";
             int continuationId = 0;
-            if (query.ContinuationToken.HasValue)
+            if (!String.IsNullOrEmpty(query.ContinuationToken))
             {
-                Entry? continuationEntry = await ReadByGuidAsync(query.ContinuationToken.Value, token).ConfigureAwait(false);
+                Entry? continuationEntry = await ReadByGuidAsync(query.ContinuationToken, token).ConfigureAwait(false);
                 if (continuationEntry != null)
                 {
-                    continuationId = continuationEntry.Id;
+                    continuationId = continuationEntry.RowId;
                     // Use Id for stable ordering since multiple entries might have same timestamp
                     if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
                     {
@@ -296,7 +296,7 @@ namespace NetLedger.Database.Mysql.Implementations
             }
 
             mainQuery.Append(" LIMIT " + query.MaxResults);
-            if (query.Skip > 0 && !query.ContinuationToken.HasValue)
+            if (query.Skip > 0 && String.IsNullOrEmpty(query.ContinuationToken))
             {
                 mainQuery.Append(" OFFSET " + query.Skip);
             }
@@ -313,7 +313,7 @@ namespace NetLedger.Database.Mysql.Implementations
             }
 
             // Calculate records remaining based on skip/continuation
-            if (query.ContinuationToken.HasValue)
+            if (!String.IsNullOrEmpty(query.ContinuationToken))
             {
                 // For continuation token, count remaining after last entry
                 if (result.Objects.Count > 0)
@@ -326,19 +326,19 @@ namespace NetLedger.Database.Mysql.Implementations
                     }
                     if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
                     {
-                        remainingQuery.Append(" AND `id` < " + lastEntry.Id);
+                        remainingQuery.Append(" AND `id` < " + lastEntry.RowId);
                     }
                     else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
                     {
-                        remainingQuery.Append(" AND `id` > " + lastEntry.Id);
+                        remainingQuery.Append(" AND `id` > " + lastEntry.RowId);
                     }
                     else if (query.Ordering == EnumerationOrderEnum.AmountDescending)
                     {
-                        remainingQuery.Append(" AND (`amount` < " + lastEntry.Amount.ToString() + " OR (`amount` = " + lastEntry.Amount.ToString() + " AND `id` < " + lastEntry.Id + "))");
+                        remainingQuery.Append(" AND (`amount` < " + lastEntry.Amount.ToString() + " OR (`amount` = " + lastEntry.Amount.ToString() + " AND `id` < " + lastEntry.RowId + "))");
                     }
                     else if (query.Ordering == EnumerationOrderEnum.AmountAscending)
                     {
-                        remainingQuery.Append(" AND (`amount` > " + lastEntry.Amount.ToString() + " OR (`amount` = " + lastEntry.Amount.ToString() + " AND `id` > " + lastEntry.Id + "))");
+                        remainingQuery.Append(" AND (`amount` > " + lastEntry.Amount.ToString() + " OR (`amount` = " + lastEntry.Amount.ToString() + " AND `id` > " + lastEntry.RowId + "))");
                     }
                     remainingQuery.Append(";");
 
@@ -376,9 +376,9 @@ namespace NetLedger.Database.Mysql.Implementations
                 "`type` = '" + entry.Type.ToString() + "', " +
                 "`amount` = " + entry.Amount.ToString() + ", " +
                 "`description` = " + (entry.Description != null ? "'" + Sanitize(entry.Description) + "'" : "NULL") + ", " +
-                "`replaces` = " + (entry.Replaces.HasValue ? "'" + Sanitize(entry.Replaces.Value.ToString()) + "'" : "NULL") + ", " +
+                "`replaces` = " + (!String.IsNullOrEmpty(entry.Replaces) ? "'" + Sanitize(entry.Replaces) + "'" : "NULL") + ", " +
                 "`iscommitted` = " + (entry.IsCommitted ? "1" : "0") + ", " +
-                "`committedbyguid` = " + (entry.CommittedByGUID.HasValue ? "'" + Sanitize(entry.CommittedByGUID.Value.ToString()) + "'" : "NULL") + ", " +
+                "`committedbyguid` = " + (!String.IsNullOrEmpty(entry.CommittedByGUID) ? "'" + Sanitize(entry.CommittedByGUID) + "'" : "NULL") + ", " +
                 "`committedutc` = " + (entry.CommittedUtc.HasValue ? "'" + entry.CommittedUtc.Value.ToString(SetupQueries.TimestampFormat) + "'" : "NULL") + " " +
                 "WHERE `guid` = '" + entry.GUID.ToString() + "';";
 
@@ -399,21 +399,21 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task DeleteByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "DELETE FROM `entries` WHERE `guid` = '" + Sanitize(guid.ToString()) + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task DeleteByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task DeleteByAccountGuidAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "DELETE FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default)
         {
             string query = "SELECT COUNT(*) FROM `entries` WHERE `guid` = '" + Sanitize(guid.ToString()) + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -427,7 +427,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<int> GetCountByAccountGuidAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<int> GetCountByAccountGuidAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT COUNT(*) FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -441,7 +441,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<decimal> SumPendingCreditsAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<decimal> SumPendingCreditsAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT COALESCE(SUM(`amount`), 0) FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "' AND `type` = 'Credit' AND `iscommitted` = 0;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -455,7 +455,7 @@ namespace NetLedger.Database.Mysql.Implementations
         }
 
         /// <inheritdoc />
-        public async Task<decimal> SumPendingDebitsAsync(Guid accountGuid, CancellationToken token = default)
+        public async Task<decimal> SumPendingDebitsAsync(string accountGuid, CancellationToken token = default)
         {
             string query = "SELECT COALESCE(SUM(`amount`), 0) FROM `entries` WHERE `accountguid` = '" + accountGuid.ToString() + "' AND `type` = 'Debit' AND `iscommitted` = 0;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
@@ -481,15 +481,15 @@ namespace NetLedger.Database.Mysql.Implementations
         private Entry DataRowToEntry(DataRow row)
         {
             Entry entry = new Entry();
-            entry.Id = Convert.ToInt32(row["id"]);
-            entry.GUID = Guid.Parse(row["guid"].ToString()!);
-            entry.AccountGUID = Guid.Parse(row["accountguid"].ToString()!);
+            entry.RowId = Convert.ToInt32(row["id"]);
+            entry.GUID = row["guid"].ToString()!;
+            entry.AccountGUID = row["accountguid"].ToString()!;
             entry.Type = Enum.Parse<EntryType>(row["type"].ToString()!);
             entry.Amount = Convert.ToDecimal(row["amount"]);
             entry.Description = row["description"] != DBNull.Value ? row["description"]?.ToString() : null;
-            entry.Replaces = row["replaces"] != DBNull.Value && !String.IsNullOrEmpty(row["replaces"]?.ToString()) ? Guid.Parse(row["replaces"].ToString()!) : null;
+            entry.Replaces = row["replaces"] != DBNull.Value && !String.IsNullOrEmpty(row["replaces"]?.ToString()) ? row["replaces"].ToString()! : null;
             entry.IsCommitted = Convert.ToBoolean(row["iscommitted"]);
-            entry.CommittedByGUID = row["committedbyguid"] != DBNull.Value && !String.IsNullOrEmpty(row["committedbyguid"]?.ToString()) ? Guid.Parse(row["committedbyguid"].ToString()!) : null;
+            entry.CommittedByGUID = row["committedbyguid"] != DBNull.Value && !String.IsNullOrEmpty(row["committedbyguid"]?.ToString()) ? row["committedbyguid"].ToString()! : null;
             entry.CommittedUtc = row["committedutc"] != DBNull.Value && !String.IsNullOrEmpty(row["committedutc"]?.ToString()) ? DateTime.Parse(row["committedutc"].ToString()!) : null;
             entry.CreatedUtc = DateTime.Parse(row["createdutc"].ToString()!);
             return entry;
@@ -498,3 +498,6 @@ namespace NetLedger.Database.Mysql.Implementations
         #endregion
     }
 }
+
+
+

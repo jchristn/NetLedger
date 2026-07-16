@@ -12,7 +12,7 @@ export declare class AccountMethods {
      * @param notes Optional notes.
      * @returns The created account.
      */
-    create(name: string, notes?: string): Promise<Account>;
+    create(name: string, notes?: string, labels?: string[], tags?: Record<string, string>): Promise<Account>;
     /**
      * Get an account by GUID.
      * @param accountGuid The account GUID.

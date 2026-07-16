@@ -24,7 +24,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">API key GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>API key if found, null otherwise.</returns>
-        Task<ApiKey> ReadByGuidAsync(Guid guid, CancellationToken token = default);
+        Task<ApiKey> ReadByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Read an API key by the key value.
@@ -63,7 +63,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">API key GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task DeleteByGuidAsync(Guid guid, CancellationToken token = default);
+        Task DeleteByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Check if an active API key exists.
@@ -83,3 +83,6 @@ namespace NetLedger.Database.Interfaces
         Task<ApiKey> AuthenticateAsync(string key, CancellationToken token = default);
     }
 }
+
+
+

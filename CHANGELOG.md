@@ -2,6 +2,36 @@
 
 ## Current Version
 
+### v3.0.0 (In development)
+
+**MAJOR VERSION - BREAKING CHANGES**
+
+NetLedger v3.0.0 introduces tenant-scoped ledger data, PrettyId string identifiers, metadata labels/tags, credential-oriented authentication, dashboard metadata workflows, and Touchstone-backed tests.
+
+#### Breaking Changes
+
+- Public model identifiers are now `string Id` values generated with PrettyId K-sortable IDs, for example `acct_...`, `ent_...`, `ten_...`, `usr_...`, and `cred_...`.
+- Accounts and entries now include `TenantId`; tenant context can be supplied through `x-tenant-id` or `/v1/tenants/{tenantId}/...` route aliases.
+- API key management routes are replaced by tenant/user-scoped credential routes with access keys and secret verifier material. Legacy `/v1/apikeys` management routes are removed.
+- Accounts and entries support `Labels: string[]` and `Tags: Dictionary<string,string>` request/response fields.
+- Enumeration queries support all-must-match `Labels`/`Tags` filters and `CreditMinimum`, `CreditMaximum`, `DebitMinimum`, and `DebitMaximum`.
+- SDKs now prefer string IDs and expose tenant/header and metadata support.
+
+#### New Features
+
+- v3 schema declarations are for net-new deployments or manually migrated deployments.
+- New v3 domain models: `Tenant`, `User`, `Credential`, `AuthSession`, `AccountUserMap`, `AuditRecord`, `UserRole`, `Permission`, `RolePermissionMap`, `UserRoleAssignment`, and `CredentialScopeAssignment`.
+- Credential creation now returns the raw secret key once, then stores only verifier material and `SecretKeyLast4`.
+- Watson server dependency upgraded to the Watson 7 line.
+- Dashboard login accepts tenant context and account/entry forms can set labels and tags.
+- REST route aliases under `/v1/tenants/{tenantId}/accounts/...` preserve `/v1` while making tenant scope explicit.
+- Touchstone test projects added: `Test.Shared`, `Test.Automated`, `Test.Xunit`, and `Test.Nunit`.
+
+#### Validation
+
+- SQLite, MySQL, PostgreSQL, and SQL Server provider certification is tracked through Touchstone-backed tests.
+- v3 does not include automated v2-to-v3 data migration; operators should deploy net-new or perform manual migration.
+
 ### v2.0.0 (October 2025)
 
 **MAJOR VERSION - BREAKING CHANGES**

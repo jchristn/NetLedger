@@ -33,7 +33,7 @@ namespace NetLedger.Sdk.Methods
         #region Public-Methods
 
         /// <inheritdoc />
-        public async Task<ApiKeyInfo> CreateAsync(string name, bool isAdmin = false, CancellationToken cancellationToken = default)
+        public async Task<CredentialCreateResponse> CreateAsync(string name, bool isAdmin = false, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentNullException(nameof(name), "API key name cannot be null or empty.");
@@ -43,14 +43,14 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<ApiKeyInfo> CreateAsync(ApiKeyInfo apiKey, CancellationToken cancellationToken = default)
+        public async Task<CredentialCreateResponse> CreateAsync(ApiKeyInfo apiKey, CancellationToken cancellationToken = default)
         {
             if (apiKey == null)
                 throw new ArgumentNullException(nameof(apiKey));
 
-            ApiResponse<ApiKeyInfo> response = await _Client.SendAsync<ApiKeyInfo>(
+            ApiResponse<CredentialCreateResponse> response = await _Client.SendAsync<CredentialCreateResponse>(
                 HttpMethod.Put,
-                "/v1/apikeys",
+                "/v1/credentials",
                 apiKey,
                 cancellationToken).ConfigureAwait(false);
 
@@ -62,7 +62,11 @@ namespace NetLedger.Sdk.Methods
         {
             query ??= new ApiKeyEnumerationQuery();
 
-            string path = $"/v1/apikeys?maxResults={query.MaxResults}&skip={query.Skip}";
+            string path = $"/v1/credentials?maxResults={query.MaxResults}&skip={query.Skip}";
+            if (!String.IsNullOrEmpty(query.TenantId))
+            {
+                path += "&tenantId=" + Uri.EscapeDataString(query.TenantId);
+            }
 
             ApiResponse<EnumerationResult<ApiKeyInfo>> response = await _Client.SendAsync<EnumerationResult<ApiKeyInfo>>(
                 HttpMethod.Get,
@@ -74,11 +78,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task RevokeAsync(Guid apiKeyGuid, CancellationToken cancellationToken = default)
+        public async Task RevokeAsync(string apiKeyId, CancellationToken cancellationToken = default)
         {
             await _Client.SendAsync<object>(
                 HttpMethod.Delete,
-                $"/v1/apikeys/{apiKeyGuid}",
+                $"/v1/credentials/{apiKeyId}",
                 null,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -86,3 +90,4 @@ namespace NetLedger.Sdk.Methods
         #endregion
     }
 }
+

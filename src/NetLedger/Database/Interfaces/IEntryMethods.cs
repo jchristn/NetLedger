@@ -32,7 +32,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">Entry GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Entry if found, null otherwise.</returns>
-        Task<Entry> ReadByGuidAsync(Guid guid, CancellationToken token = default);
+        Task<Entry> ReadByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Read entries by multiple GUIDs.
@@ -40,7 +40,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guids">List of entry GUIDs.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>List of entries.</returns>
-        Task<List<Entry>> ReadByGuidsAsync(List<Guid> guids, CancellationToken token = default);
+        Task<List<Entry>> ReadByGuidsAsync(List<string> guids, CancellationToken token = default);
 
         /// <summary>
         /// Read entries by account GUID.
@@ -48,7 +48,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="accountGuid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>List of entries for the account.</returns>
-        Task<List<Entry>> ReadByAccountGuidAsync(Guid accountGuid, CancellationToken token = default);
+        Task<List<Entry>> ReadByAccountGuidAsync(string accountGuid, CancellationToken token = default);
 
         /// <summary>
         /// Read pending entries by account GUID.
@@ -57,7 +57,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="entryType">Optional entry type filter.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>List of pending entries.</returns>
-        Task<List<Entry>> ReadPendingByAccountGuidAsync(Guid accountGuid, EntryType? entryType = null, CancellationToken token = default);
+        Task<List<Entry>> ReadPendingByAccountGuidAsync(string accountGuid, EntryType? entryType = null, CancellationToken token = default);
 
         /// <summary>
         /// Read the latest balance entry for an account.
@@ -65,7 +65,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="accountGuid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Latest balance entry if found, null otherwise.</returns>
-        Task<Entry> ReadLatestBalanceAsync(Guid accountGuid, CancellationToken token = default);
+        Task<Entry> ReadLatestBalanceAsync(string accountGuid, CancellationToken token = default);
 
         /// <summary>
         /// Read balance entry as of a specific timestamp.
@@ -74,7 +74,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="asOfUtc">Timestamp in UTC.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Balance entry if found, null otherwise.</returns>
-        Task<Entry> ReadBalanceAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken token = default);
+        Task<Entry> ReadBalanceAsOfAsync(string accountGuid, DateTime asOfUtc, CancellationToken token = default);
 
         /// <summary>
         /// Read entries with filtering.
@@ -83,7 +83,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="filter">Filter builder with search criteria.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>List of filtered entries.</returns>
-        Task<List<Entry>> ReadWithFilterAsync(Guid accountGuid, FilterBuilder filter, CancellationToken token = default);
+        Task<List<Entry>> ReadWithFilterAsync(string accountGuid, FilterBuilder filter, CancellationToken token = default);
 
         /// <summary>
         /// Enumerate entries with pagination and filtering.
@@ -92,7 +92,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="query">Enumeration query parameters.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Enumeration result with entries.</returns>
-        Task<EnumerationResult<Entry>> EnumerateAsync(Guid accountGuid, EnumerationQuery query, CancellationToken token = default);
+        Task<EnumerationResult<Entry>> EnumerateAsync(string accountGuid, EnumerationQuery query, CancellationToken token = default);
 
         /// <summary>
         /// Update an entry.
@@ -116,7 +116,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">Entry GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task DeleteByGuidAsync(Guid guid, CancellationToken token = default);
+        Task DeleteByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Delete all entries by account GUID.
@@ -124,7 +124,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="accountGuid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Task.</returns>
-        Task DeleteByAccountGuidAsync(Guid accountGuid, CancellationToken token = default);
+        Task DeleteByAccountGuidAsync(string accountGuid, CancellationToken token = default);
 
         /// <summary>
         /// Check if an entry exists by GUID.
@@ -132,7 +132,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="guid">Entry GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>True if entry exists.</returns>
-        Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default);
+        Task<bool> ExistsByGuidAsync(string guid, CancellationToken token = default);
 
         /// <summary>
         /// Get count of entries for an account.
@@ -140,7 +140,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="accountGuid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Number of entries.</returns>
-        Task<int> GetCountByAccountGuidAsync(Guid accountGuid, CancellationToken token = default);
+        Task<int> GetCountByAccountGuidAsync(string accountGuid, CancellationToken token = default);
 
         /// <summary>
         /// Sum pending credits for an account.
@@ -148,7 +148,7 @@ namespace NetLedger.Database.Interfaces
         /// <param name="accountGuid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Sum of pending credits.</returns>
-        Task<decimal> SumPendingCreditsAsync(Guid accountGuid, CancellationToken token = default);
+        Task<decimal> SumPendingCreditsAsync(string accountGuid, CancellationToken token = default);
 
         /// <summary>
         /// Sum pending debits for an account.
@@ -156,6 +156,9 @@ namespace NetLedger.Database.Interfaces
         /// <param name="accountGuid">Account GUID.</param>
         /// <param name="token">Cancellation token.</param>
         /// <returns>Sum of pending debits.</returns>
-        Task<decimal> SumPendingDebitsAsync(Guid accountGuid, CancellationToken token = default);
+        Task<decimal> SumPendingDebitsAsync(string accountGuid, CancellationToken token = default);
     }
 }
+
+
+

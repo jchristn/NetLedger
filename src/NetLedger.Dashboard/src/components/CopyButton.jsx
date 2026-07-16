@@ -1,32 +1,47 @@
 import React, { useState, useCallback } from 'react'
 import './CopyButton.css'
 
-export default function CopyButton({ text, title = 'Copy', size = 14, className = '', label = null }) {
+export default function CopyButton({ text, title = 'Copy', size = 14, className = '' }) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = useCallback((e) => {
+  const fallbackCopy = useCallback(() => {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.top = '-1000px'
+    textarea.style.left = '-1000px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+  }, [text])
+
+  const handleCopy = useCallback(async (e) => {
     if (e) e.stopPropagation()
     if (!text) return
 
-    navigator.clipboard.writeText(text).catch(() => {
-      // Fallback for older browsers
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-    })
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        fallbackCopy()
+      }
+    } catch {
+      fallbackCopy()
+    }
 
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
-  }, [text])
+  }, [fallbackCopy, text])
 
   return (
     <button
-      className={`copy-btn ${copied ? 'copy-btn-success' : ''} ${label ? 'copy-btn-with-label' : ''} ${className}`}
+      className={`copy-btn ${copied ? 'copy-btn-success' : ''} ${className}`}
       onClick={handleCopy}
       title={copied ? 'Copied!' : title}
+      type="button"
+      aria-label={copied ? 'Copied' : title}
     >
       {copied ? (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -38,7 +53,6 @@ export default function CopyButton({ text, title = 'Copy', size = 14, className 
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </svg>
       )}
-      {label && <span>{copied ? 'Copied!' : label}</span>}
     </button>
   )
 }

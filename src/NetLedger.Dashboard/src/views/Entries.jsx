@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import DataTable from '../components/DataTable'
 import Pagination from '../components/Pagination'
 import ActionMenu from '../components/ActionMenu'
-import Modal, { ConfirmModal, ViewMetadataModal } from '../components/Modal'
+import Modal, { ConfirmModal, RecordModal, ViewMetadataModal } from '../components/Modal'
 import CopyButton from '../components/CopyButton'
+import { MetadataLabelsEditor, MetadataTagsEditor } from '../components/MetadataEditor'
+import { labelsToPayload, tagsToPayload } from '../components/metadataEditorUtils'
 import { formatDate, formatCurrency, normalizeEnumerationResult } from '../api/api'
 import './Entries.css'
 
@@ -13,7 +15,45 @@ import './Entries.css'
 const getGuid = (obj) => {
   if (!obj) return null
   // Check GUID first (server uses uppercase GUID), then lowercase variants
-  return obj.GUID || obj.guid || obj.Guid || null
+  return obj.Id || obj.id || obj.GUID || obj.guid || obj.Guid || null
+}
+
+const createEmptyFormData = () => ({
+  amount: '',
+  description: '',
+  labels: [''],
+  tags: [{ key: '', value: '' }],
+  commitImmediately: false
+})
+
+const createEmptyEntryFilters = () => ({
+  search: '',
+  ordering: 'CreatedDescending',
+  startTime: '',
+  endTime: '',
+  amountMin: '',
+  amountMax: '',
+  creditMin: '',
+  creditMax: '',
+  debitMin: '',
+  debitMax: '',
+  labels: [''],
+  tags: [{ key: '', value: '' }]
+})
+
+const toNullableNumber = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const toApiDate = (value) => value ? new Date(value).toISOString() : null
+
+const formatTags = (tags) => {
+  if (!tags || typeof tags !== 'object') return ''
+  return Object.entries(tags)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ')
 }
 
 export default function Entries() {
@@ -38,10 +78,15 @@ export default function Entries() {
 
   // Filter state
   const [showOnlyPending, setShowOnlyPending] = useState(false)
+  const [isSearchPanelOpen, setIsSearchPanelOpen] = useState(false)
+  const [filterDraft, setFilterDraft] = useState(createEmptyEntryFilters())
+  const [appliedFilters, setAppliedFilters] = useState(createEmptyEntryFilters())
 
   // Modal state
   const [showAddEntryModal, setShowAddEntryModal] = useState(false)
   const [showCommitModal, setShowCommitModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showMetadataModal, setShowMetadataModal] = useState(false)
   const [showCommitEntryModal, setShowCommitEntryModal] = useState(false)
@@ -49,30 +94,10 @@ export default function Entries() {
   const [entryType, setEntryType] = useState('credit') // 'credit' or 'debit'
 
   // Form state
-  const [formData, setFormData] = useState({ amount: '', description: '', commitImmediately: false })
+  const [formData, setFormData] = useState(createEmptyFormData())
   const [formLoading, setFormLoading] = useState(false)
 
-  // Load accounts on mount
-  useEffect(() => {
-    loadAccounts()
-  }, [])
-
-  // Load entries when account changes
-  useEffect(() => {
-    if (selectedAccountGuid) {
-      loadEntries()
-      loadBalance()
-      // Update URL
-      setSearchParams({ account: selectedAccountGuid })
-    } else {
-      setEntries([])
-      setTotalRecords(0)
-      setBalance(null)
-      setSearchParams({})
-    }
-  }, [selectedAccountGuid, currentPage, pageSize, showOnlyPending])
-
-  const loadAccounts = async () => {
+  const loadAccounts = useCallback(async () => {
     try {
       setAccountsLoading(true)
       const result = await api.listAccounts({ maxResults: 1000 })
@@ -89,7 +114,7 @@ export default function Entries() {
     } finally {
       setAccountsLoading(false)
     }
-  }
+  }, [api, selectedAccountGuid, setError])
 
   const loadEntries = useCallback(async () => {
     if (!selectedAccountGuid) return
@@ -102,13 +127,24 @@ export default function Entries() {
         result = await api.getPendingEntries(selectedAccountGuid)
         // Pending entries endpoint returns an array directly or wrapped
         const entriesList = Array.isArray(result) ? result : (result?.Objects || result?.objects || [])
-        setEntries(entriesList)
+        setEntries(entriesList.slice(currentPage * pageSize, (currentPage + 1) * pageSize))
         setTotalRecords(entriesList.length)
       } else {
         result = await api.listEntries(selectedAccountGuid, {
           maxResults: pageSize,
           skip: currentPage * pageSize,
-          ordering: 'CreatedDescending'
+          ordering: appliedFilters.ordering,
+          search: appliedFilters.search.trim() || null,
+          startTime: toApiDate(appliedFilters.startTime),
+          endTime: toApiDate(appliedFilters.endTime),
+          amountMin: toNullableNumber(appliedFilters.amountMin),
+          amountMax: toNullableNumber(appliedFilters.amountMax),
+          creditMin: toNullableNumber(appliedFilters.creditMin),
+          creditMax: toNullableNumber(appliedFilters.creditMax),
+          debitMin: toNullableNumber(appliedFilters.debitMin),
+          debitMax: toNullableNumber(appliedFilters.debitMax),
+          labels: parseLabels(appliedFilters.labels),
+          tags: parseTags(appliedFilters.tags)
         })
         const { objects, totalRecords } = normalizeEnumerationResult(result)
         setEntries(objects)
@@ -119,9 +155,9 @@ export default function Entries() {
     } finally {
       setLoading(false)
     }
-  }, [api, selectedAccountGuid, currentPage, pageSize, showOnlyPending, setError])
+  }, [api, selectedAccountGuid, currentPage, pageSize, showOnlyPending, appliedFilters, setError])
 
-  const loadBalance = async () => {
+  const loadBalance = useCallback(async () => {
     if (!selectedAccountGuid) return
 
     try {
@@ -131,7 +167,27 @@ export default function Entries() {
       // Balance might not exist yet
       setBalance(null)
     }
-  }
+  }, [api, selectedAccountGuid])
+
+  // Load accounts on mount
+  useEffect(() => {
+    loadAccounts()
+  }, [loadAccounts])
+
+  // Load entries when account changes
+  useEffect(() => {
+    if (selectedAccountGuid) {
+      loadEntries()
+      loadBalance()
+      // Update URL
+      setSearchParams({ account: selectedAccountGuid })
+    } else {
+      setEntries([])
+      setTotalRecords(0)
+      setBalance(null)
+      setSearchParams({})
+    }
+  }, [selectedAccountGuid, loadEntries, loadBalance, setSearchParams])
 
   const handleAccountChange = (e) => {
     const guid = e.target.value
@@ -153,7 +209,7 @@ export default function Entries() {
 
   const openAddEntryModal = (type) => {
     setEntryType(type)
-    setFormData({ amount: '', description: '', commitImmediately: false })
+    setFormData(createEmptyFormData())
     setShowAddEntryModal(true)
   }
 
@@ -170,7 +226,9 @@ export default function Entries() {
 
       const entryData = [{
         amount: parseFloat(formData.amount),
-        description: formData.description.trim()
+        description: formData.description.trim(),
+        labels: parseLabels(formData.labels),
+        tags: parseTags(formData.tags)
       }]
 
       if (entryType === 'credit') {
@@ -180,7 +238,7 @@ export default function Entries() {
       }
 
       setShowAddEntryModal(false)
-      setFormData({ amount: '', description: '', commitImmediately: false })
+      setFormData(createEmptyFormData())
       loadEntries()
       loadBalance()
     } catch (err) {
@@ -231,6 +289,16 @@ export default function Entries() {
     setShowMetadataModal(true)
   }
 
+  const openEditModal = (entry) => {
+    setSelectedEntry(entry)
+    setShowEditModal(true)
+  }
+
+  const openViewModal = (entry) => {
+    setSelectedEntry(entry)
+    setShowViewModal(true)
+  }
+
   const openCommitEntryModal = (entry) => {
     setSelectedEntry(entry)
     setShowCommitEntryModal(true)
@@ -255,6 +323,58 @@ export default function Entries() {
 
   const totalPages = Math.ceil(totalRecords / pageSize)
 
+  const parseLabels = (value) => {
+    return labelsToPayload(value)
+  }
+
+  const parseTags = (value) => {
+    return tagsToPayload(value)
+  }
+
+  const applyEntryFilters = () => {
+    setAppliedFilters(filterDraft)
+    setCurrentPage(0)
+  }
+
+  const clearEntryFilters = () => {
+    const emptyFilters = createEmptyEntryFilters()
+    setFilterDraft(emptyFilters)
+    setAppliedFilters(emptyFilters)
+    setCurrentPage(0)
+  }
+
+  const hasEntryFilters = (filters) => Boolean(
+    filters.search.trim() ||
+    filters.startTime ||
+    filters.endTime ||
+    filters.amountMin ||
+    filters.amountMax ||
+    filters.creditMin ||
+    filters.creditMax ||
+    filters.debitMin ||
+    filters.debitMax ||
+    parseLabels(filters.labels).length > 0 ||
+    Object.keys(parseTags(filters.tags)).length > 0 ||
+    filters.ordering !== 'CreatedDescending'
+  )
+
+  const hasDraftFilters = hasEntryFilters(filterDraft)
+  const hasAppliedFilters = hasEntryFilters(appliedFilters)
+  const activeFilterCount = [
+    appliedFilters.search.trim(),
+    appliedFilters.startTime,
+    appliedFilters.endTime,
+    appliedFilters.amountMin,
+    appliedFilters.amountMax,
+    appliedFilters.creditMin,
+    appliedFilters.creditMax,
+    appliedFilters.debitMin,
+    appliedFilters.debitMax,
+    parseLabels(appliedFilters.labels).length > 0,
+    Object.keys(parseTags(appliedFilters.tags)).length > 0,
+    appliedFilters.ordering !== 'CreatedDescending'
+  ].filter(Boolean).length
+
   const hasPendingEntries = balance && (
     (balance.pendingCredits?.count ?? balance.PendingCredits?.Count ?? 0) > 0 ||
     (balance.pendingDebits?.count ?? balance.PendingDebits?.Count ?? 0) > 0
@@ -263,7 +383,7 @@ export default function Entries() {
   const columns = [
     {
       key: 'guid',
-      label: 'GUID',
+      label: 'ID',
       className: 'col-guid',
       sortable: true,
       filterable: true,
@@ -272,10 +392,30 @@ export default function Entries() {
           <span className="guid-cell">
             {getGuid(row)}
           </span>
-          <CopyButton text={getGuid(row)} title="Copy GUID" />
+          <CopyButton text={getGuid(row)} title="Copy ID" />
         </span>
       ),
       filterValue: (row) => getGuid(row) || ''
+    },
+    {
+      key: 'labels',
+      label: 'Labels',
+      filterable: true,
+      render: (row) => {
+        const labels = row.labels || row.Labels || []
+        return labels.length > 0 ? labels.join(', ') : <span className="text-muted">None</span>
+      },
+      filterValue: (row) => (row.labels || row.Labels || []).join(' ')
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      filterable: true,
+      render: (row) => {
+        const tagText = formatTags(row.tags || row.Tags || {})
+        return tagText ? <span className="entry-tags" title={tagText}>{tagText}</span> : <span className="text-muted">None</span>
+      },
+      filterValue: (row) => formatTags(row.tags || row.Tags || {})
     },
     {
       key: 'type',
@@ -364,7 +504,15 @@ export default function Entries() {
           <ActionMenu
             items={[
               {
-                label: 'View Metadata',
+                label: 'Edit',
+                onClick: () => openEditModal(row)
+              },
+              {
+                label: 'View',
+                onClick: () => openViewModal(row)
+              },
+              {
+                label: 'View JSON',
                 icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -375,7 +523,7 @@ export default function Entries() {
                 ),
                 onClick: () => openMetadataModal(row)
               },
-              isPending && type !== 'Balance' ? { divider: true } : null,
+              { divider: true },
               isPending && type !== 'Balance' ? {
                 label: 'Commit Entry',
                 variant: 'primary',
@@ -386,9 +534,10 @@ export default function Entries() {
                 ),
                 onClick: () => openCommitEntryModal(row)
               } : null,
-              isPending && type !== 'Balance' ? {
-                label: 'Cancel Entry',
+              {
+                label: 'Delete',
                 variant: 'danger',
+                disabled: !isPending || type === 'Balance',
                 icon: (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10"/>
@@ -397,7 +546,7 @@ export default function Entries() {
                   </svg>
                 ),
                 onClick: () => openCancelModal(row)
-              } : null
+              }
             ]}
           />
         )
@@ -498,6 +647,190 @@ export default function Entries() {
             )}
           </div>
 
+          {selectedAccountGuid && (
+            <div className="entry-search-panel">
+              <button
+                className="entry-search-toggle"
+                type="button"
+                onClick={() => setIsSearchPanelOpen((current) => !current)}
+                aria-expanded={isSearchPanelOpen}
+                aria-controls="entrySearchFilters"
+              >
+                <span className="entry-search-toggle-label">
+                  <svg className={isSearchPanelOpen ? 'entry-search-toggle-icon open' : 'entry-search-toggle-icon'} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                  Search Filters
+                </span>
+                <span className="entry-search-toggle-meta">
+                  {showOnlyPending ? 'Disabled while showing pending' : activeFilterCount > 0 ? `${activeFilterCount} active` : 'Collapsed'}
+                </span>
+              </button>
+
+              {isSearchPanelOpen && (
+                <div id="entrySearchFilters" className="entry-search-panel-body">
+                  <div className="entry-search-grid">
+                    <div className="entry-filter-field entry-filter-field-wide">
+                      <label htmlFor="entrySearch">Search</label>
+                      <input
+                        id="entrySearch"
+                        type="text"
+                        value={filterDraft.search}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, search: e.target.value })}
+                        placeholder="Description"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryOrdering">Order</label>
+                      <select
+                        id="entryOrdering"
+                        value={filterDraft.ordering}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, ordering: e.target.value })}
+                        disabled={showOnlyPending}
+                      >
+                        <option value="CreatedDescending">Newest first</option>
+                        <option value="CreatedAscending">Oldest first</option>
+                        <option value="AmountDescending">Amount descending</option>
+                        <option value="AmountAscending">Amount ascending</option>
+                      </select>
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryStartTime">Created After</label>
+                      <input
+                        id="entryStartTime"
+                        type="datetime-local"
+                        value={filterDraft.startTime}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, startTime: e.target.value })}
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryEndTime">Created Before</label>
+                      <input
+                        id="entryEndTime"
+                        type="datetime-local"
+                        value={filterDraft.endTime}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, endTime: e.target.value })}
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryAmountMin">Any Amount Min</label>
+                      <input
+                        id="entryAmountMin"
+                        type="number"
+                        value={filterDraft.amountMin}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, amountMin: e.target.value })}
+                        placeholder="0.00"
+                        step="0.01"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryAmountMax">Any Amount Max</label>
+                      <input
+                        id="entryAmountMax"
+                        type="number"
+                        value={filterDraft.amountMax}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, amountMax: e.target.value })}
+                        placeholder="0.00"
+                        step="0.01"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryCreditMin">Credit Min</label>
+                      <input
+                        id="entryCreditMin"
+                        type="number"
+                        value={filterDraft.creditMin}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, creditMin: e.target.value })}
+                        placeholder="0.00"
+                        step="0.01"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryCreditMax">Credit Max</label>
+                      <input
+                        id="entryCreditMax"
+                        type="number"
+                        value={filterDraft.creditMax}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, creditMax: e.target.value })}
+                        placeholder="0.00"
+                        step="0.01"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryDebitMin">Debit Min</label>
+                      <input
+                        id="entryDebitMin"
+                        type="number"
+                        value={filterDraft.debitMin}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, debitMin: e.target.value })}
+                        placeholder="5.00"
+                        step="0.01"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field">
+                      <label htmlFor="entryDebitMax">Debit Max</label>
+                      <input
+                        id="entryDebitMax"
+                        type="number"
+                        value={filterDraft.debitMax}
+                        onChange={(e) => setFilterDraft({ ...filterDraft, debitMax: e.target.value })}
+                        placeholder="50.00"
+                        step="0.01"
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field entry-filter-field-wide">
+                      <label>Labels</label>
+                      <MetadataLabelsEditor
+                        idPrefix="entryFilterLabels"
+                        value={filterDraft.labels}
+                        onChange={(labels) => setFilterDraft({ ...filterDraft, labels })}
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+
+                    <div className="entry-filter-field entry-filter-field-wide">
+                      <label>Tags</label>
+                      <MetadataTagsEditor
+                        idPrefix="entryFilterTags"
+                        value={filterDraft.tags}
+                        onChange={(tags) => setFilterDraft({ ...filterDraft, tags })}
+                        disabled={showOnlyPending}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="entry-filter-actions">
+                    <button className="btn btn-secondary" type="button" onClick={clearEntryFilters} disabled={showOnlyPending || (!hasDraftFilters && !hasAppliedFilters)}>
+                      Clear
+                    </button>
+                    <button className="btn btn-primary" type="button" onClick={applyEntryFilters} disabled={showOnlyPending}>
+                      Apply Search
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Balance Summary */}
           {selectedAccountGuid && balance && (
             <div className="balance-summary">
@@ -539,24 +872,23 @@ export default function Entries() {
       {/* Entries Table */}
       {selectedAccountGuid ? (
         <>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            pageSize={pageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+
           <DataTable
             columns={columns}
             data={entries}
             loading={loading}
             emptyMessage={showOnlyPending ? 'No pending entries' : 'No entries found'}
+            onRowClick={openEditModal}
             rowKey="guid"
           />
-
-          {!showOnlyPending && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalRecords={totalRecords}
-              pageSize={pageSize}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
-          )}
         </>
       ) : (
         <div className="card">
@@ -638,6 +970,26 @@ export default function Entries() {
           </div>
 
           <div className="form-group">
+            <label>Labels</label>
+            <MetadataLabelsEditor
+              idPrefix="entryLabels"
+              value={formData.labels}
+              onChange={(labels) => setFormData({ ...formData, labels })}
+              disabled={formLoading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Tags</label>
+            <MetadataTagsEditor
+              idPrefix="entryTags"
+              value={formData.tags}
+              onChange={(tags) => setFormData({ ...formData, tags })}
+              disabled={formLoading}
+            />
+          </div>
+
+          <div className="form-group">
             <label className="checkbox-label">
               <input
                 type="checkbox"
@@ -696,6 +1048,27 @@ export default function Entries() {
         confirmText="Commit Entry"
         variant="primary"
         isLoading={formLoading}
+      />
+
+      <RecordModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setSelectedEntry(null)
+        }}
+        title={`Edit ${getGuid(selectedEntry) || 'Entry'}`}
+        data={selectedEntry}
+        mode="edit"
+      />
+
+      <RecordModal
+        isOpen={showViewModal}
+        onClose={() => {
+          setShowViewModal(false)
+          setSelectedEntry(null)
+        }}
+        title={`View ${getGuid(selectedEntry) || 'Entry'}`}
+        data={selectedEntry}
       />
 
       {/* View Metadata Modal */}

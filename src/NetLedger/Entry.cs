@@ -1,6 +1,8 @@
 namespace NetLedger
 {
     using System;
+    using System.Collections.Generic;
+    using System.Text.Json.Serialization;
 
     /// <summary>
     /// An entry in the ledger for a given account.
@@ -10,19 +12,45 @@ namespace NetLedger
         #region Public-Members
 
         /// <summary>
-        /// Database row ID.
+        /// Internal provider row ID.
         /// </summary>
-        public int Id { get; set; } = 0;
+        [JsonIgnore]
+        public int RowId { get; set; } = 0;
 
         /// <summary>
-        /// Globally-unique identifier for the entry.
+        /// Entry identifier.
         /// </summary>
-        public Guid GUID { get; set; } = Guid.NewGuid();
+        public string Id { get; set; } = NetLedgerId.Generate(IdentifierPrefixes.Entry);
 
         /// <summary>
-        /// Globally-unique identifier for the account.
+        /// Tenant identifier.
         /// </summary>
-        public Guid AccountGUID { get; set; } = Guid.NewGuid();
+        public string TenantId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Account identifier.
+        /// </summary>
+        public string AccountId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Legacy entry identifier alias.
+        /// </summary>
+        [JsonIgnore]
+        public string GUID
+        {
+            get { return Id; }
+            set { Id = value; }
+        }
+
+        /// <summary>
+        /// Legacy account identifier alias.
+        /// </summary>
+        [JsonIgnore]
+        public string AccountGUID
+        {
+            get { return AccountId; }
+            set { AccountId = value; }
+        }
 
         /// <summary>
         /// The type of entry.
@@ -42,7 +70,7 @@ namespace NetLedger
         /// <summary>
         /// Specifies the GUID of the entry that this entry is replacing.  Used only by balance entries.
         /// </summary>
-        public Guid? Replaces { get; set; } = null;
+        public string? Replaces { get; set; } = null;
 
         /// <summary>
         /// Indicates if the entry has been committed to the ledger and is reflected in the current balance.
@@ -52,7 +80,35 @@ namespace NetLedger
         /// <summary>
         /// GUID of the entry that committed this entry.
         /// </summary>
-        public Guid? CommittedByGUID { get; set; } = null;
+        public string? CommittedById { get; set; } = null;
+
+        /// <summary>
+        /// Legacy committed-by identifier alias.
+        /// </summary>
+        [JsonIgnore]
+        public string? CommittedByGUID
+        {
+            get { return CommittedById; }
+            set { CommittedById = value; }
+        }
+
+        /// <summary>
+        /// Entry labels.
+        /// </summary>
+        public List<string> Labels
+        {
+            get { return _Labels; }
+            set { _Labels = MetadataValidator.NormalizeLabels(value); }
+        }
+
+        /// <summary>
+        /// Entry tags.
+        /// </summary>
+        public Dictionary<string, string> Tags
+        {
+            get { return _Tags; }
+            set { _Tags = MetadataValidator.NormalizeTags(value); }
+        }
 
         /// <summary>
         /// UTC timestamp when the entry was committed.
@@ -63,6 +119,18 @@ namespace NetLedger
         /// UTC timestamp when the entry was created.
         /// </summary>
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
+
+        /// <summary>
+        /// UTC timestamp when the entry was last updated.
+        /// </summary>
+        public DateTime LastUpdateUtc { get; set; } = DateTime.Now.ToUniversalTime();
+
+        #endregion
+
+        #region Private-Members
+
+        private List<string> _Labels = new List<string>();
+        private Dictionary<string, string> _Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -86,9 +154,9 @@ namespace NetLedger
         /// <param name="isCommitted">Indicate whether or not the entry has already been included in the balance of the account.</param>
         /// <exception cref="ArgumentNullException">Thrown when accountGuid is empty.</exception>
         /// <exception cref="ArgumentException">Thrown when amount is negative.</exception>
-        public Entry(Guid accountGuid, EntryType entryType, decimal amount, string? notes = null, Guid? summarizedBy = null, bool isCommitted = false)
+        public Entry(string accountGuid, EntryType entryType, decimal amount, string? notes = null, string? summarizedBy = null, bool isCommitted = false)
         {
-            if (accountGuid == Guid.Empty) throw new ArgumentNullException(nameof(accountGuid));
+            if (String.IsNullOrEmpty(accountGuid)) throw new ArgumentNullException(nameof(accountGuid));
             if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
 
             AccountGUID = accountGuid;
@@ -107,3 +175,4 @@ namespace NetLedger
         #endregion
     }
 }
+

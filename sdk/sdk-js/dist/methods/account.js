@@ -15,11 +15,11 @@ class AccountMethods {
      * @param notes Optional notes.
      * @returns The created account.
      */
-    async create(name, notes) {
+    async create(name, notes, labels, tags) {
         if (!name || name.trim() === '') {
             throw new errors_1.NetLedgerValidationError('Account name cannot be empty', 'name');
         }
-        const response = await this.client.put('/v1/accounts', { Name: name, Notes: notes });
+        const response = await this.client.put('/v1/accounts', { Name: name, Notes: notes, Labels: labels, Tags: tags });
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -82,6 +82,11 @@ class AccountMethods {
                 params.append('skip', query.Skip.toString());
             if (query.SearchTerm)
                 params.append('searchTerm', query.SearchTerm);
+            if (query.Labels && query.Labels.length > 0)
+                params.append('labels', query.Labels.join(','));
+            if (query.Tags && Object.keys(query.Tags).length > 0) {
+                params.append('tags', Object.entries(query.Tags).map(([key, value]) => `${key}=${value}`).join(','));
+            }
         }
         const queryString = params.toString();
         const path = queryString ? `/v1/accounts?${queryString}` : '/v1/accounts';

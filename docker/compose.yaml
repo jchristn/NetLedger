@@ -1,6 +1,48 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: netledger-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - netledger-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - netledger
+
+  postgres-init:
+    image: postgres:17-alpine
+    container_name: netledger-postgres-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_SUPERUSER: postgres
+      POSTGRES_SUPERPASS: postgres
+      NETLEDGER_DB_HOST: postgres
+      NETLEDGER_DB_NAME: netledger
+      NETLEDGER_DB_USER: netledger
+      NETLEDGER_DB_PASS: netledger
+      PGPASSWORD: postgres
+    volumes:
+      - ./postgres/init.sh:/init/postgres-init.sh:ro
+    command: ["sh", "/init/postgres-init.sh"]
+    restart: "no"
+    networks:
+      - netledger
+
   server:
-    image: jchristn77/netledger:v2.0.1
+    image: jchristn77/netledger:v3.0.0
     container_name: netledger-server
     restart: unless-stopped
     ports:
@@ -10,6 +52,9 @@ services:
     command: ["-f", "/app/data/netledger.json"]
     environment:
       - DOTNET_RUNNING_IN_CONTAINER=true
+    depends_on:
+      postgres-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
@@ -20,9 +65,11 @@ services:
       - netledger
 
   dashboard:
-    image: jchristn77/netledger-ui:v2.0.1
+    image: jchristn77/netledger-ui:v3.0.0
     container_name: netledger-dashboard
     restart: unless-stopped
+    environment:
+      NETLEDGER_SERVER_URL: http://localhost:8080
     ports:
       - "3000:80"
     volumes:
@@ -42,3 +89,6 @@ services:
 networks:
   netledger:
     driver: bridge
+
+volumes:
+  netledger-postgres-data:

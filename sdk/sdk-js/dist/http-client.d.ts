@@ -5,8 +5,9 @@ import { ApiResponse } from './models';
 export declare class HttpClient {
     private readonly baseUrl;
     private readonly apiKey;
+    private readonly tenantId?;
     private readonly timeoutMs;
-    constructor(baseUrl: string, apiKey: string, timeoutMs?: number);
+    constructor(baseUrl: string, apiKey: string, timeoutMs?: number, tenantId?: string);
     /**
      * Make a GET request.
      */
@@ -23,6 +24,10 @@ export declare class HttpClient {
      * Make a DELETE request.
      */
     delete(path: string): Promise<void>;
+    /**
+     * Make a DELETE request and return a response body.
+     */
+    deleteWithResponse<T>(path: string): Promise<ApiResponse<T>>;
     /**
      * Make a HEAD request.
      */

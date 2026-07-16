@@ -1,6 +1,8 @@
 namespace NetLedger
 {
     using System;
+    using System.Collections.Generic;
+    using System.Text.Json.Serialization;
 
     /// <summary>
     /// Account information.
@@ -10,14 +12,30 @@ namespace NetLedger
         #region Public-Members
 
         /// <summary>
-        /// Database row ID.
+        /// Internal provider row ID.
         /// </summary>
-        public int Id { get; set; } = 0;
+        [JsonIgnore]
+        public int RowId { get; set; } = 0;
 
         /// <summary>
-        /// Globally-unique identifier for the account.
+        /// Account identifier.
         /// </summary>
-        public Guid GUID { get; set; } = Guid.NewGuid();
+        public string Id { get; set; } = NetLedgerId.Generate(IdentifierPrefixes.Account);
+
+        /// <summary>
+        /// Tenant identifier.
+        /// </summary>
+        public string TenantId { get; set; } = String.Empty;
+
+        /// <summary>
+        /// Legacy account identifier alias.
+        /// </summary>
+        [JsonIgnore]
+        public string GUID
+        {
+            get { return Id; }
+            set { Id = value; }
+        }
 
         /// <summary>
         /// Name of the account.
@@ -30,9 +48,44 @@ namespace NetLedger
         public string? Notes { get; set; } = null;
 
         /// <summary>
+        /// Account labels.
+        /// </summary>
+        public List<string> Labels
+        {
+            get { return _Labels; }
+            set { _Labels = MetadataValidator.NormalizeLabels(value); }
+        }
+
+        /// <summary>
+        /// Account tags.
+        /// </summary>
+        public Dictionary<string, string> Tags
+        {
+            get { return _Tags; }
+            set { _Tags = MetadataValidator.NormalizeTags(value); }
+        }
+
+        /// <summary>
         /// UTC timestamp when the account was created.
         /// </summary>
         public DateTime CreatedUtc { get; set; } = DateTime.Now.ToUniversalTime();
+
+        /// <summary>
+        /// UTC timestamp when the account was last updated.
+        /// </summary>
+        public DateTime LastUpdateUtc { get; set; } = DateTime.Now.ToUniversalTime();
+
+        /// <summary>
+        /// Boolean indicating whether the account is active.
+        /// </summary>
+        public bool Active { get; set; } = true;
+
+        #endregion
+
+        #region Private-Members
+
+        private List<string> _Labels = new List<string>();
+        private Dictionary<string, string> _Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -60,3 +113,4 @@ namespace NetLedger
         #endregion
     }
 }
+

@@ -10,6 +10,7 @@ namespace NetLedger.Database.SqlServer
     using Microsoft.Data.SqlClient;
     using NetLedger.Database.SqlServer.Implementations;
     using NetLedger.Database.SqlServer.Queries;
+    using NetLedger.Database.Portable;
 
     /// <summary>
     /// SQL Server database driver.
@@ -41,7 +42,7 @@ namespace NetLedger.Database.SqlServer
 
             SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder
             {
-                DataSource = settings.Port != 1433 ? $"{settings.Hostname},{settings.Port}" : settings.Hostname,
+                DataSource = settings.GetEffectivePort() != 1433 ? $"{settings.Hostname},{settings.GetEffectivePort()}" : settings.Hostname,
                 InitialCatalog = settings.DatabaseName,
                 ConnectTimeout = settings.ConnectionTimeoutSeconds,
                 Pooling = true,
@@ -63,11 +64,19 @@ namespace NetLedger.Database.SqlServer
 
             _ConnectionString = builder.ConnectionString;
 
-            Accounts = new AccountMethods(this);
-            Entries = new EntryMethods(this);
-            ApiKeys = new ApiKeyMethods(this);
+            Accounts = new PortableSqlAccountMethods(this, DatabaseTypeEnum.SqlServer);
+            Entries = new PortableSqlEntryMethods(this, DatabaseTypeEnum.SqlServer);
+            ApiKeys = new PortableSqlApiKeyMethods(this, DatabaseTypeEnum.SqlServer);
+            Tenants = new PortableSqlTenantMethods(this, DatabaseTypeEnum.SqlServer);
+            Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.SqlServer);
+            AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.SqlServer);
+            AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.SqlServer);
+            AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.SqlServer);
+            RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.SqlServer);
+            Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.SqlServer);
 
             InitializeDatabaseAsync().GetAwaiter().GetResult();
+            Rbac.SeedBuiltInsAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
         #endregion
@@ -215,3 +224,6 @@ namespace NetLedger.Database.SqlServer
         #endregion
     }
 }
+
+
+
