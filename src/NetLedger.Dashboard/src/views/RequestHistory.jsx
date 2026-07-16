@@ -79,6 +79,49 @@ function formatChartLabel(timestamp) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function getBucketTimestampRows(bucket) {
+  return [
+    { label: 'Start', value: formatDate(valueOf(bucket, 'BucketStartUtc')) },
+    { label: 'End', value: formatDate(valueOf(bucket, 'BucketEndUtc')) }
+  ]
+}
+
+function buildChartTooltip(x, y, width, height, title, rows) {
+  const yPercent = (y / height) * 100
+  const estimatedHeight = 52 + rows.length * 20
+  const hasRoomAbove = y > estimatedHeight + 8
+  const hasRoomBelow = y < height - estimatedHeight - 8
+  return {
+    xPercent: (x / width) * 100,
+    yPercent,
+    placement: hasRoomAbove || !hasRoomBelow ? 'above' : 'below',
+    title,
+    rows
+  }
+}
+
+function ChartTooltip({ tooltip }) {
+  if (!tooltip) return null
+
+  return (
+    <div
+      className={`history-chart-tooltip ${tooltip.placement === 'below' ? 'history-chart-tooltip-below' : 'history-chart-tooltip-above'}`}
+      style={{
+        left: `clamp(8.5rem, ${tooltip.xPercent}%, calc(100% - 8.5rem))`,
+        top: `${tooltip.yPercent}%`
+      }}
+    >
+      <div className="history-chart-tooltip-title">{tooltip.title}</div>
+      {tooltip.rows.map((row) => (
+        <div key={row.label} className="history-chart-tooltip-row">
+          <span>{row.label}</span>
+          <strong>{row.value}</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function RequestHistory() {
   const { api, currentUser, effectivePermissions, setError } = useApp()
   const { isRegularUser } = getRoleFlags(currentUser, effectivePermissions)
@@ -426,6 +469,7 @@ function Summary({ summary, loading }) {
 }
 
 function SummaryChart({ buckets }) {
+  const [tooltip, setTooltip] = useState(null)
   const visibleBuckets = buckets.slice(-48)
   const highestCount = Math.max(0, ...visibleBuckets.map((bucket) => (valueOf(bucket, 'SuccessCount') || 0) + (valueOf(bucket, 'FailureCount') || 0)))
   const yLabels = buildYAxisLabels(highestCount)
@@ -460,6 +504,7 @@ function SummaryChart({ buckets }) {
           const failureHeight = total > 0 ? totalHeight * (failure / total) : 0
           const x = padding.left + index * slotWidth + (slotWidth - barWidth) / 2
           const y = padding.top + innerHeight - totalHeight
+          const tooltipY = total > 0 ? y : padding.top + innerHeight
 
           return (
             <g key={`${valueOf(bucket, 'BucketStartUtc')}-${index}`}>
@@ -473,10 +518,34 @@ function SummaryChart({ buckets }) {
                 <text x={x + barWidth / 2} y={chartHeight - 15} className="history-x-label">{formatChartLabel(valueOf(bucket, 'BucketStartUtc'))}</text>
               )}
               <title>{`${formatDate(valueOf(bucket, 'BucketStartUtc'))}: ${total} requests`}</title>
+              <rect
+                className="history-chart-hover-target"
+                x={padding.left + index * slotWidth}
+                y={padding.top}
+                width={slotWidth}
+                height={innerHeight}
+                tabIndex="0"
+                aria-label={`${formatDate(valueOf(bucket, 'BucketStartUtc'))} ${total} requests`}
+                onFocus={() => setTooltip(buildChartTooltip(x + barWidth / 2, tooltipY, chartWidth, chartHeight, 'Traffic', [
+                  ...getBucketTimestampRows(bucket),
+                  { label: 'Total', value: total.toLocaleString() },
+                  { label: 'Success', value: success.toLocaleString() },
+                  { label: 'Failed', value: failure.toLocaleString() }
+                ]))}
+                onMouseEnter={() => setTooltip(buildChartTooltip(x + barWidth / 2, tooltipY, chartWidth, chartHeight, 'Traffic', [
+                  ...getBucketTimestampRows(bucket),
+                  { label: 'Total', value: total.toLocaleString() },
+                  { label: 'Success', value: success.toLocaleString() },
+                  { label: 'Failed', value: failure.toLocaleString() }
+                ]))}
+                onBlur={() => setTooltip(null)}
+                onMouseLeave={() => setTooltip(null)}
+              />
             </g>
           )
         })}
       </svg>
+      <ChartTooltip tooltip={tooltip} />
     </div>
   )
 }

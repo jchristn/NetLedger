@@ -9,6 +9,7 @@ import CopyButton from '../components/CopyButton'
 import { MetadataLabelsEditor, MetadataTagsEditor } from '../components/MetadataEditor'
 import { labelsToPayload, tagsToPayload } from '../components/metadataEditorUtils'
 import { formatDate, formatCurrency, normalizeEnumerationResult } from '../api/api'
+import { getRoleFlags, valueOf } from '../utils/roles'
 import './Entries.css'
 
 // Helper to extract GUID from an object with various casing conventions
@@ -16,6 +17,14 @@ const getGuid = (obj) => {
   if (!obj) return null
   // Check GUID first (server uses uppercase GUID), then lowercase variants
   return obj.Id || obj.id || obj.GUID || obj.guid || obj.Guid || null
+}
+
+const getAccountTenantId = (account) => valueOf(account, 'TenantId') || ''
+
+const getTenantLabel = (tenant) => {
+  const id = getGuid(tenant)
+  const name = valueOf(tenant, 'Name') || id
+  return id && name !== id ? `${name} (${id})` : name
 }
 
 const createEmptyFormData = () => ({
@@ -57,11 +66,14 @@ const formatTags = (tags) => {
 }
 
 export default function Entries() {
-  const { api, setError } = useApp()
+  const { api, setError, currentUser, effectivePermissions } = useApp()
+  const { isSystemAdmin } = getRoleFlags(currentUser, effectivePermissions)
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Account selection state
   const [accounts, setAccounts] = useState([])
+  const [tenants, setTenants] = useState([])
+  const [selectedTenantId, setSelectedTenantId] = useState(searchParams.get('tenant') || '')
   const [selectedAccountGuid, setSelectedAccountGuid] = useState(searchParams.get('account') || '')
   const [selectedAccount, setSelectedAccount] = useState(null)
   const [balance, setBalance] = useState(null)
@@ -97,10 +109,30 @@ export default function Entries() {
   const [formData, setFormData] = useState(createEmptyFormData())
   const [formLoading, setFormLoading] = useState(false)
 
+  const selectedAccountTenantId = selectedAccount ? getAccountTenantId(selectedAccount) : ''
+  const requestTenantId = isSystemAdmin ? selectedTenantId || selectedAccountTenantId || null : null
+
+  const loadTenants = useCallback(async () => {
+    if (!isSystemAdmin) {
+      setTenants([])
+      return
+    }
+
+    try {
+      const result = await api.listTenants({ maxResults: 1000, ordering: 'CreatedDescending' })
+      setTenants(normalizeEnumerationResult(result).objects)
+    } catch (err) {
+      setError(err.message || 'Failed to load tenants')
+    }
+  }, [api, isSystemAdmin, setError])
+
   const loadAccounts = useCallback(async () => {
     try {
       setAccountsLoading(true)
-      const result = await api.listAccounts({ maxResults: 1000 })
+      const result = await api.listAccounts({
+        maxResults: 1000,
+        tenantId: isSystemAdmin ? selectedTenantId || null : null
+      })
       const { objects: accountsList } = normalizeEnumerationResult(result)
       setAccounts(accountsList)
 
@@ -114,7 +146,7 @@ export default function Entries() {
     } finally {
       setAccountsLoading(false)
     }
-  }, [api, selectedAccountGuid, setError])
+  }, [api, isSystemAdmin, selectedAccountGuid, selectedTenantId, setError])
 
   const loadEntries = useCallback(async () => {
     if (!selectedAccountGuid) return
@@ -124,7 +156,7 @@ export default function Entries() {
 
       let result
       if (showOnlyPending) {
-        result = await api.getPendingEntries(selectedAccountGuid)
+        result = await api.getPendingEntries(selectedAccountGuid, requestTenantId)
         // Pending entries endpoint returns an array directly or wrapped
         const entriesList = Array.isArray(result) ? result : (result?.Objects || result?.objects || [])
         setEntries(entriesList.slice(currentPage * pageSize, (currentPage + 1) * pageSize))
@@ -144,7 +176,8 @@ export default function Entries() {
           debitMin: toNullableNumber(appliedFilters.debitMin),
           debitMax: toNullableNumber(appliedFilters.debitMax),
           labels: parseLabels(appliedFilters.labels),
-          tags: parseTags(appliedFilters.tags)
+          tags: parseTags(appliedFilters.tags),
+          tenantId: requestTenantId
         })
         const { objects, totalRecords } = normalizeEnumerationResult(result)
         setEntries(objects)
@@ -155,21 +188,25 @@ export default function Entries() {
     } finally {
       setLoading(false)
     }
-  }, [api, selectedAccountGuid, currentPage, pageSize, showOnlyPending, appliedFilters, setError])
+  }, [api, selectedAccountGuid, currentPage, pageSize, showOnlyPending, appliedFilters, requestTenantId, setError])
 
   const loadBalance = useCallback(async () => {
     if (!selectedAccountGuid) return
 
     try {
-      const result = await api.getBalance(selectedAccountGuid)
+      const result = await api.getBalance(selectedAccountGuid, requestTenantId)
       setBalance(result)
     } catch (err) {
       // Balance might not exist yet
       setBalance(null)
     }
-  }, [api, selectedAccountGuid])
+  }, [api, selectedAccountGuid, requestTenantId])
 
-  // Load accounts on mount
+  useEffect(() => {
+    loadTenants()
+  }, [loadTenants])
+
+  // Load accounts on mount and when tenant scope changes
   useEffect(() => {
     loadAccounts()
   }, [loadAccounts])
@@ -180,14 +217,28 @@ export default function Entries() {
       loadEntries()
       loadBalance()
       // Update URL
-      setSearchParams({ account: selectedAccountGuid })
+      setSearchParams({
+        ...(isSystemAdmin && selectedTenantId ? { tenant: selectedTenantId } : {}),
+        account: selectedAccountGuid
+      })
     } else {
       setEntries([])
       setTotalRecords(0)
       setBalance(null)
-      setSearchParams({})
+      setSearchParams(isSystemAdmin && selectedTenantId ? { tenant: selectedTenantId } : {})
     }
-  }, [selectedAccountGuid, loadEntries, loadBalance, setSearchParams])
+  }, [isSystemAdmin, selectedAccountGuid, selectedTenantId, loadEntries, loadBalance, setSearchParams])
+
+  const handleTenantChange = (e) => {
+    setSelectedTenantId(e.target.value)
+    setSelectedAccountGuid('')
+    setSelectedAccount(null)
+    setEntries([])
+    setTotalRecords(0)
+    setBalance(null)
+    setShowOnlyPending(false)
+    setCurrentPage(0)
+  }
 
   const handleAccountChange = (e) => {
     const guid = e.target.value
@@ -232,9 +283,9 @@ export default function Entries() {
       }]
 
       if (entryType === 'credit') {
-        await api.addCredits(selectedAccountGuid, entryData, formData.commitImmediately)
+        await api.addCredits(selectedAccountGuid, entryData, formData.commitImmediately, requestTenantId)
       } else {
-        await api.addDebits(selectedAccountGuid, entryData, formData.commitImmediately)
+        await api.addDebits(selectedAccountGuid, entryData, formData.commitImmediately, requestTenantId)
       }
 
       setShowAddEntryModal(false)
@@ -251,7 +302,7 @@ export default function Entries() {
   const handleCommit = async () => {
     try {
       setFormLoading(true)
-      await api.commitEntries(selectedAccountGuid)
+      await api.commitEntries(selectedAccountGuid, { tenantId: requestTenantId })
       setShowCommitModal(false)
       loadEntries()
       loadBalance()
@@ -267,7 +318,7 @@ export default function Entries() {
 
     try {
       setFormLoading(true)
-      await api.cancelEntry(selectedAccountGuid, getGuid(selectedEntry))
+      await api.cancelEntry(selectedAccountGuid, getGuid(selectedEntry), requestTenantId)
       setShowCancelModal(false)
       setSelectedEntry(null)
       loadEntries()
@@ -309,7 +360,7 @@ export default function Entries() {
 
     try {
       setFormLoading(true)
-      await api.commitEntries(selectedAccountGuid, { entryGuids: [getGuid(selectedEntry)] })
+      await api.commitEntries(selectedAccountGuid, { entryGuids: [getGuid(selectedEntry)], tenantId: requestTenantId })
       setShowCommitEntryModal(false)
       setSelectedEntry(null)
       loadEntries()
@@ -567,6 +618,25 @@ export default function Entries() {
       <div className="entries-controls card">
         <div className="card-body">
           <div className="entries-controls-row">
+            {isSystemAdmin && (
+              <div className="account-selector">
+                <label htmlFor="tenantSelect">Tenant</label>
+                <select
+                  id="tenantSelect"
+                  value={selectedTenantId}
+                  onChange={handleTenantChange}
+                  disabled={accountsLoading}
+                >
+                  <option value="">All visible tenants</option>
+                  {tenants.map(tenant => (
+                    <option key={getGuid(tenant)} value={getGuid(tenant)}>
+                      {getTenantLabel(tenant)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="account-selector">
               <label htmlFor="accountSelect">Select Account</label>
               <select
@@ -578,7 +648,7 @@ export default function Entries() {
                 <option value="">-- Select an account --</option>
                 {accounts.map(account => (
                   <option key={getGuid(account)} value={getGuid(account)}>
-                    {account.name || account.Name}
+                    {account.name || account.Name}{isSystemAdmin && !selectedTenantId && getAccountTenantId(account) ? ` (${getAccountTenantId(account)})` : ''}
                   </option>
                 ))}
               </select>
