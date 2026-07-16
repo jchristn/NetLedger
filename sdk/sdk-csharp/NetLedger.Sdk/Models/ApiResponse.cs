@@ -23,7 +23,7 @@ namespace NetLedger.Sdk
         /// <summary>
         /// The unique identifier for this request.
         /// </summary>
-        public Guid? RequestGuid { get; set; }
+        public string? RequestId { get; set; }
 
         #endregion
 
@@ -91,3 +91,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

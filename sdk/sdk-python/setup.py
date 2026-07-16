@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="netledger-sdk",
-    version="1.0.0",
+    version="3.0.0",
     author="Joel Christner",
     author_email="joel@example.com",
     description="SDK for interacting with the NetLedger Server REST API",

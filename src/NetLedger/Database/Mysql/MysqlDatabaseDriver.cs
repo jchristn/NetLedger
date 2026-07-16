@@ -6,10 +6,10 @@ namespace NetLedger.Database.Mysql
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using AsyncKeyedLock;
     using MySqlConnector;
     using NetLedger.Database.Mysql.Implementations;
     using NetLedger.Database.Mysql.Queries;
+    using NetLedger.Database.Portable;
 
     /// <summary>
     /// MySQL database driver.
@@ -19,7 +19,6 @@ namespace NetLedger.Database.Mysql
         #region Private-Members
 
         private readonly string _ConnectionString;
-        private readonly AsyncNonKeyedLocker _Lock = new AsyncNonKeyedLocker();
         private bool _Disposed = false;
 
         #endregion
@@ -42,7 +41,7 @@ namespace NetLedger.Database.Mysql
             MySqlConnectionStringBuilder builder = new MySqlConnectionStringBuilder
             {
                 Server = settings.Hostname,
-                Port = (uint)settings.Port,
+                Port = (uint)settings.GetEffectivePort(),
                 Database = settings.DatabaseName,
                 UserID = settings.Username ?? String.Empty,
                 Password = settings.Password ?? String.Empty,
@@ -55,11 +54,19 @@ namespace NetLedger.Database.Mysql
 
             _ConnectionString = builder.ConnectionString;
 
-            Accounts = new AccountMethods(this);
-            Entries = new EntryMethods(this);
-            ApiKeys = new ApiKeyMethods(this);
+            Accounts = new PortableSqlAccountMethods(this, DatabaseTypeEnum.Mysql);
+            Entries = new PortableSqlEntryMethods(this, DatabaseTypeEnum.Mysql);
+            ApiKeys = new PortableSqlApiKeyMethods(this, DatabaseTypeEnum.Mysql);
+            Tenants = new PortableSqlTenantMethods(this, DatabaseTypeEnum.Mysql);
+            Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.Mysql);
+            AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.Mysql);
+            AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.Mysql);
+            AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.Mysql);
+            RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Mysql);
+            Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.Mysql);
 
             InitializeDatabaseAsync().GetAwaiter().GetResult();
+            Rbac.SeedBuiltInsAsync(CancellationToken.None).GetAwaiter().GetResult();
         }
 
         #endregion
@@ -77,8 +84,6 @@ namespace NetLedger.Database.Mysql
                 LogQuery($"[MySQL] {query}");
             }
 
-            AsyncNonKeyedLockReleaser lockReleaser = await _Lock.LockAsync(token).ConfigureAwait(false);
-            using (lockReleaser)
             using (MySqlConnection connection = new MySqlConnection(_ConnectionString))
             {
                 await connection.OpenAsync(token).ConfigureAwait(false);
@@ -150,31 +155,59 @@ namespace NetLedger.Database.Mysql
             if (_Disposed) throw new ObjectDisposedException(nameof(MysqlDatabaseDriver));
             if (queries == null || !queries.Any()) return new DataTable();
 
-            AsyncNonKeyedLockReleaser lockReleaser = await _Lock.LockAsync(token).ConfigureAwait(false);
-            using (lockReleaser)
             using (MySqlConnection connection = new MySqlConnection(_ConnectionString))
             {
                 await connection.OpenAsync(token).ConfigureAwait(false);
 
                 DataTable lastResult = new DataTable();
+                MySqlTransaction? transaction = null;
 
-                foreach (string query in queries)
+                try
                 {
-                    if (String.IsNullOrEmpty(query)) continue;
-
-                    if (Settings.LogQueries)
+                    if (isTransaction)
                     {
-                        LogQuery($"[MySQL] {query}");
+                        transaction = await connection.BeginTransactionAsync(token).ConfigureAwait(false);
                     }
 
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    foreach (string query in queries)
                     {
-                        command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
-                        await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                        if (String.IsNullOrEmpty(query)) continue;
+
+                        if (Settings.LogQueries)
+                        {
+                            LogQuery($"[MySQL] {query}");
+                        }
+
+                        using (MySqlCommand command = new MySqlCommand(query, connection))
+                        {
+                            command.CommandTimeout = Settings.ConnectionTimeoutSeconds;
+                            if (transaction != null) command.Transaction = transaction;
+                            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                        }
+                    }
+
+                    if (transaction != null)
+                    {
+                        await transaction.CommitAsync(token).ConfigureAwait(false);
+                    }
+
+                    return lastResult;
+                }
+                catch
+                {
+                    if (transaction != null)
+                    {
+                        await transaction.RollbackAsync(token).ConfigureAwait(false);
+                    }
+                    throw;
+                }
+                finally
+                {
+                    if (transaction != null)
+                    {
+                        await transaction.DisposeAsync().ConfigureAwait(false);
                     }
                 }
-
-                return lastResult;
             }
         }
 
@@ -200,10 +233,6 @@ namespace NetLedger.Database.Mysql
         {
             if (!_Disposed)
             {
-                if (disposing)
-                {
-                    _Lock.Dispose();
-                }
                 _Disposed = true;
             }
             base.Dispose(disposing);
@@ -252,3 +281,6 @@ namespace NetLedger.Database.Mysql
         #endregion
     }
 }
+
+
+

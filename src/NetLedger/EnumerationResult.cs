@@ -1,4 +1,4 @@
-﻿namespace NetLedger
+namespace NetLedger
 {
     using System;
     using System.Collections.Generic;
@@ -71,7 +71,7 @@
         /// <summary>
         /// Continuation token.
         /// </summary>
-        public Guid? ContinuationToken { get; set; } = null;
+        public string? ContinuationToken { get; set; } = null;
 
         /// <summary>
         /// Boolean indicating end of results.
@@ -142,4 +142,5 @@
         }
     }
 }
+
 

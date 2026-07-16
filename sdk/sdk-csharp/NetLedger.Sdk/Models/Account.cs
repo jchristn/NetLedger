@@ -1,6 +1,7 @@
 namespace NetLedger.Sdk
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Represents a ledger account.
@@ -12,7 +13,12 @@ namespace NetLedger.Sdk
         /// <summary>
         /// The unique identifier for the account.
         /// </summary>
-        public Guid GUID { get; set; }
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The tenant identifier for the account.
+        /// </summary>
+        public string TenantId { get; set; } = string.Empty;
 
         /// <summary>
         /// The name of the account.
@@ -25,9 +31,29 @@ namespace NetLedger.Sdk
         public string? Notes { get; set; }
 
         /// <summary>
+        /// Account labels.
+        /// </summary>
+        public List<string> Labels { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Account tags.
+        /// </summary>
+        public Dictionary<string, string> Tags { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// The UTC timestamp when the account was created.
         /// </summary>
         public DateTime CreatedUtc { get; set; }
+
+        /// <summary>
+        /// The UTC timestamp when the account was last updated.
+        /// </summary>
+        public DateTime LastUpdateUtc { get; set; }
+
+        /// <summary>
+        /// Indicates whether the account is active.
+        /// </summary>
+        public bool Active { get; set; } = true;
 
         #endregion
 
@@ -63,3 +89,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

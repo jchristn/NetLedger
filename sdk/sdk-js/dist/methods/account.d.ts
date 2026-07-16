@@ -12,13 +12,13 @@ export declare class AccountMethods {
      * @param notes Optional notes.
      * @returns The created account.
      */
-    create(name: string, notes?: string): Promise<Account>;
+    create(name: string, notes?: string, labels?: string[], tags?: Record<string, string>): Promise<Account>;
     /**
-     * Get an account by GUID.
-     * @param accountGuid The account GUID.
+     * Get an account by identifier.
+     * @param accountId The account identifier.
      * @returns The account.
      */
-    get(accountGuid: string): Promise<Account>;
+    get(accountId: string): Promise<Account>;
     /**
      * Get an account by name.
      * @param name The account name.
@@ -27,15 +27,15 @@ export declare class AccountMethods {
     getByName(name: string): Promise<Account>;
     /**
      * Check if an account exists.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the account exists.
      */
-    exists(accountGuid: string): Promise<boolean>;
+    exists(accountId: string): Promise<boolean>;
     /**
      * Delete an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      */
-    delete(accountGuid: string): Promise<void>;
+    delete(accountId: string): Promise<void>;
     /**
      * Enumerate accounts with optional filtering and pagination.
      * @param query Query parameters.

@@ -27,38 +27,56 @@ export declare enum EnumerationOrder {
  */
 export interface Account {
     /** Unique identifier for the account. */
-    GUID: string;
+    Id: string;
+    /** Tenant identifier. */
+    TenantId: string;
     /** Name of the account. */
     Name: string;
     /** Optional notes. */
     Notes?: string;
+    /** Account labels. */
+    Labels: string[];
+    /** Account tags. */
+    Tags: Record<string, string>;
     /** UTC timestamp when created. */
     CreatedUtc: string;
+    /** UTC timestamp when last updated. */
+    LastUpdateUtc: string;
+    /** Whether the account is active. */
+    Active: boolean;
 }
 /**
  * Represents a ledger entry.
  */
 export interface Entry {
     /** Unique identifier for the entry. */
-    GUID: string;
+    Id: string;
+    /** Tenant identifier. */
+    TenantId: string;
     /** Account this entry belongs to. */
-    AccountGUID: string;
+    AccountId: string;
     /** Type of entry (Credit, Debit, Balance). */
     Type: EntryType;
     /** Monetary amount. */
     Amount: number;
     /** Optional description. */
     Description?: string;
-    /** For balance entries, the GUID of the replaced balance. */
+    /** For balance entries, the Identifier of the replaced balance. */
     Replaces?: string;
     /** Whether the entry is committed. */
     IsCommitted: boolean;
-    /** GUID of the balance entry that committed this. */
-    CommittedByGUID?: string;
+    /** Identifier of the balance entry that committed this. */
+    CommittedById?: string;
+    /** Entry labels. */
+    Labels: string[];
+    /** Entry tags. */
+    Tags: Record<string, string>;
     /** UTC timestamp when committed. */
     CommittedUtc?: string;
     /** UTC timestamp when created. */
     CreatedUtc: string;
+    /** UTC timestamp when last updated. */
+    LastUpdateUtc: string;
 }
 /**
  * Input for creating an entry.
@@ -68,21 +86,25 @@ export interface EntryInput {
     Amount: number;
     /** Optional notes. */
     Notes?: string;
+    /** Labels to attach to the entry. */
+    Labels?: string[];
+    /** Tags to attach to the entry. */
+    Tags?: Record<string, string>;
 }
 /**
  * Response from adding entries.
  */
 export interface AddEntriesResponse {
-    /** GUIDs of created entries. */
-    EntryGuids: string[];
+    /** Identifiers of created entries. */
+    EntryIds: string[];
 }
 /**
  * Historical balance at a point in time.
  * Note: Properties are lowercase as returned by the server.
  */
 export interface HistoricalBalance {
-    /** Account GUID. */
-    accountGuid: string;
+    /** Account identifier. */
+    accountId: string;
     /** The timestamp this balance is as of. */
     asOfUtc: string;
     /** The balance value. */
@@ -103,8 +125,8 @@ export interface PendingTransactionSummary {
  * Represents an account balance.
  */
 export interface Balance {
-    /** Account GUID. */
-    AccountGUID: string;
+    /** Account identifier. */
+    AccountId: string;
     /** Committed (finalized) balance. */
     CommittedBalance: number;
     /** Pending balance (includes uncommitted entries). */
@@ -129,19 +151,25 @@ export interface CommitResult {
  * Request to commit entries.
  */
 export interface CommitRequest {
-    /** Specific entry GUIDs to commit (null = all). */
-    EntryGuids?: string[];
+    /** Specific entry identifiers to commit (null = all). */
+    EntryIds?: string[];
 }
 /**
  * Information about an API key.
  */
 export interface ApiKeyInfo {
     /** Unique identifier. */
-    GUID: string;
+    Id: string;
+    /** Tenant identifier. */
+    TenantId?: string;
+    /** Owning user identifier. */
+    UserId?: string;
     /** Display name. */
     Name: string;
     /** The API key value (only on creation). */
     Key?: string;
+    /** Last four characters of the credential secret key. */
+    SecretKeyLast4?: string;
     /** Whether the key is active. */
     Active: boolean;
     /** Whether the key has admin privileges. */
@@ -189,6 +217,10 @@ export interface AccountEnumerationQuery {
     Skip?: number;
     /** Search term for name. */
     SearchTerm?: string;
+    /** Labels that must all match. */
+    Labels?: string[];
+    /** Tags that must all match. */
+    Tags?: Record<string, string>;
 }
 /**
  * Query for enumerating entries.
@@ -196,8 +228,12 @@ export interface AccountEnumerationQuery {
 export interface EntryEnumerationQuery {
     /** Maximum results (1-1000). */
     MaxResults?: number;
+    /** Number to skip. */
+    Skip?: number;
     /** Continuation token. */
     ContinuationToken?: string;
+    /** Search term for entry description. */
+    SearchTerm?: string;
     /** Filter: created after. */
     CreatedAfterUtc?: string;
     /** Filter: created before. */
@@ -206,6 +242,18 @@ export interface EntryEnumerationQuery {
     AmountMinimum?: number;
     /** Filter: maximum amount. */
     AmountMaximum?: number;
+    /** Credit minimum filter. */
+    CreditMinimum?: number;
+    /** Credit maximum filter. */
+    CreditMaximum?: number;
+    /** Debit minimum filter. */
+    DebitMinimum?: number;
+    /** Debit maximum filter. */
+    DebitMaximum?: number;
+    /** Labels that must all match. */
+    Labels?: string[];
+    /** Tags that must all match. */
+    Tags?: Record<string, string>;
     /** Result ordering. */
     Ordering?: EnumerationOrder;
 }
@@ -217,6 +265,160 @@ export interface ApiKeyEnumerationQuery {
     MaxResults?: number;
     /** Number to skip. */
     Skip?: number;
+    /** Optional tenant identifier. */
+    TenantId?: string;
+}
+export interface RequestHistoryEntry {
+    Id: string;
+    TenantId?: string;
+    PrincipalId?: string;
+    PrincipalType?: string;
+    Method: string;
+    Path: string;
+    Url: string;
+    StatusCode: number;
+    DurationMs: number;
+    SourceIp?: string;
+    RequestHeaders: Record<string, string>;
+    RequestBody?: string;
+    RequestBodyBytes: number;
+    RequestBodyTruncated: boolean;
+    ResponseHeaders: Record<string, string>;
+    ResponseBody?: string;
+    ResponseBodyBytes: number;
+    ResponseBodyTruncated: boolean;
+    CreatedUtc: string;
+    CompletedUtc?: string;
+}
+export interface RequestHistoryQuery {
+    TenantId?: string;
+    PrincipalId?: string;
+    Method?: string;
+    StatusCode?: number;
+    PathContains?: string;
+    FromUtc?: string;
+    ToUtc?: string;
+    MaxResults?: number;
+    Skip?: number;
+    BucketMinutes?: number;
+}
+export interface RequestHistorySummaryBucket {
+    BucketStartUtc: string;
+    BucketEndUtc: string;
+    SuccessCount: number;
+    FailureCount: number;
+    AverageDurationMs: number;
+}
+export interface RequestHistorySummary {
+    TotalCount: number;
+    TotalSuccess: number;
+    TotalFailure: number;
+    AverageDurationMs: number;
+    Buckets: RequestHistorySummaryBucket[];
+}
+export interface RequestHistoryDeleteResult {
+    DeletedCount: number;
+}
+export interface TenantInfo {
+    Id: string;
+    ParentId?: string;
+    Name: string;
+    Region?: string;
+    Active: boolean;
+    IsProtected: boolean;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+export interface UserInfo {
+    Id: string;
+    TenantId: string;
+    FirstName?: string;
+    LastName?: string;
+    Email: string;
+    IsAdmin: boolean;
+    IsTenantAdmin: boolean;
+    Active: boolean;
+    IsProtected: boolean;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+export interface AuthSessionInfo {
+    Id: string;
+    TenantId: string;
+    UserId?: string;
+    CredentialId?: string;
+    Token?: string;
+    Active: boolean;
+    ExpiresUtc: string;
+    CreatedUtc: string;
+}
+/**
+ * Credential creation response with the one-time secret key.
+ */
+export interface CredentialCreateResponse {
+    /** Created credential. */
+    Credential?: ApiKeyInfo;
+    /** Raw secret key shown only once. */
+    SecretKey?: string;
+}
+export interface AuditRecordInfo {
+    Id: string;
+    TenantId: string;
+    PrincipalId?: string;
+    PrincipalType?: string;
+    EventType: string;
+    ResourceType?: string;
+    OperationType?: string;
+    ResourceId?: string;
+    Result: string;
+    Reason?: string;
+    RequestId?: string;
+    CreatedUtc: string;
+}
+export interface RoleInfo {
+    Id: string;
+    TenantId?: string;
+    Name: string;
+    IsBuiltIn: boolean;
+    Active: boolean;
+    IsProtected: boolean;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+export interface PermissionInfo {
+    Id: string;
+    TenantId?: string;
+    Name: string;
+    ResourceTypes: string[];
+    OperationTypes: string[];
+    PermissionType: string;
+    Active: boolean;
+    IsProtected: boolean;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+export interface UserRoleAssignmentInfo {
+    Id?: string;
+    TenantId?: string;
+    UserId?: string;
+    RoleId?: string;
+    RoleName?: string;
+    ResourceScope?: string;
+    ResourceId?: string;
+    InheritsToChildren?: boolean;
+    Active?: boolean;
+}
+export interface EffectivePermissionsInfo {
+    TenantId?: string;
+    PrincipalId?: string;
+    PrincipalType?: string;
+    Permissions: Array<{
+        ResourceType: string;
+        OperationType: string;
+        ResourceScope: string;
+        ResourceId?: string;
+        PermissionType: string;
+    }>;
 }
 /**
  * API response wrapper.
@@ -226,8 +428,8 @@ export interface ApiResponse<T> {
     Data?: T;
     /** HTTP status code. */
     StatusCode: number;
-    /** Request GUID. */
-    RequestGuid?: string;
+    /** Request identifier. */
+    RequestId?: string;
 }
 /**
  * Error response from the API.

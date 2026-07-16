@@ -9,14 +9,14 @@ namespace NetLedger
     public class Balance
     {
         /// <summary>
-        /// GUID of the account.
+        /// Account identifier.
         /// </summary>
-        public Guid AccountGUID { get; set; }
+        public string AccountId { get; set; } = String.Empty;
 
         /// <summary>
-        /// Entry GUID containing the latest balance entry.
+        /// Entry identifier containing the latest balance entry.
         /// </summary>
-        public Guid EntryGUID { get; set; }
+        public string EntryId { get; set; } = String.Empty;
 
         /// <summary>
         /// Name of the account.
@@ -58,9 +58,9 @@ namespace NetLedger
         public PendingTransactionSummary PendingDebits { get; set; } = new PendingTransactionSummary();
 
         /// <summary>
-        /// GUIDs of committed entries.
+        /// Identifiers of committed entries.
         /// </summary>
-        public List<Guid> Committed { get; set; } = new List<Guid>();
+        public List<string> Committed { get; set; } = new List<string>();
 
         /// <summary>
         /// Instantiate a balance object.
@@ -71,3 +71,4 @@ namespace NetLedger
         }
     }
 }
+

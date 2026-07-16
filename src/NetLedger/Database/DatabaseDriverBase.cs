@@ -3,6 +3,7 @@ namespace NetLedger.Database
     using System;
     using System.Collections.Generic;
     using System.Data;
+    using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Database.Interfaces;
@@ -29,6 +30,41 @@ namespace NetLedger.Database
         /// API key methods.
         /// </summary>
         public IApiKeyMethods ApiKeys { get; protected set; }
+
+        /// <summary>
+        /// Tenant methods.
+        /// </summary>
+        public ITenantMethods Tenants { get; protected set; }
+
+        /// <summary>
+        /// User methods.
+        /// </summary>
+        public IUserMethods Users { get; protected set; }
+
+        /// <summary>
+        /// Authentication session methods.
+        /// </summary>
+        public IAuthSessionMethods AuthSessions { get; protected set; }
+
+        /// <summary>
+        /// Account-user map methods.
+        /// </summary>
+        public IAccountUserMapMethods AccountUserMaps { get; protected set; }
+
+        /// <summary>
+        /// Audit record methods.
+        /// </summary>
+        public IAuditRecordMethods AuditRecords { get; protected set; }
+
+        /// <summary>
+        /// Request history methods.
+        /// </summary>
+        public IRequestHistoryMethods RequestHistory { get; protected set; }
+
+        /// <summary>
+        /// Role-based access control methods.
+        /// </summary>
+        public IRbacMethods Rbac { get; protected set; }
 
         /// <summary>
         /// Database settings.
@@ -115,6 +151,39 @@ namespace NetLedger.Database
         public abstract Task<IDatabaseTransaction> BeginTransactionAsync(CancellationToken token = default);
 
         /// <summary>
+        /// Acquire a database-backed account lock shared by all ledger instances using the same database.
+        /// </summary>
+        /// <param name="accountId">Account identifier.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Account lock releaser.</returns>
+        public async Task<IAsyncDisposable> AcquireAccountLockAsync(string accountId, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+
+            string ownerId = NetLedgerId.Generate("lck_");
+            Stopwatch sw = Stopwatch.StartNew();
+            TimeSpan timeout = TimeSpan.FromSeconds(Math.Max(5, Settings.ConnectionTimeoutSeconds));
+            TimeSpan delay = TimeSpan.FromMilliseconds(25);
+
+            while (true)
+            {
+                token.ThrowIfCancellationRequested();
+                await DeleteExpiredAccountLocksAsync(token).ConfigureAwait(false);
+
+                try
+                {
+                    await ExecuteQueryAsync(BuildInsertAccountLockQuery(accountId, ownerId), true, token).ConfigureAwait(false);
+                    return new DatabaseAccountLock(this, accountId, ownerId);
+                }
+                catch when (sw.Elapsed < timeout)
+                {
+                    await Task.Delay(delay, token).ConfigureAwait(false);
+                    if (delay < TimeSpan.FromMilliseconds(250)) delay += TimeSpan.FromMilliseconds(25);
+                }
+            }
+        }
+
+        /// <summary>
         /// Dispose of resources.
         /// </summary>
         public void Dispose()
@@ -169,6 +238,67 @@ namespace NetLedger.Database
             }
         }
 
+        internal async Task ReleaseAccountLockAsync(string accountId, string ownerId, CancellationToken token = default)
+        {
+            await ExecuteQueryAsync(BuildDeleteAccountLockQuery(accountId, ownerId), true, token).ConfigureAwait(false);
+        }
+
+        private async Task DeleteExpiredAccountLocksAsync(CancellationToken token)
+        {
+            await ExecuteQueryAsync(BuildDeleteExpiredAccountLocksQuery(), true, token).ConfigureAwait(false);
+        }
+
+        private string BuildInsertAccountLockQuery(string accountId, string ownerId)
+        {
+            string expiresUtc = DateTime.UtcNow.AddMinutes(5).ToString("yyyy-MM-dd HH:mm:ss.ffffff");
+            string createdUtc = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.ffffff");
+
+            switch (Settings.Type)
+            {
+                case DatabaseTypeEnum.Mysql:
+                    return "INSERT INTO `accountlocks` (`accountid`, `ownerid`, `expiresutc`, `createdutc`) VALUES ('" + Sanitize(accountId) + "', '" + ownerId + "', '" + expiresUtc + "', '" + createdUtc + "');";
+                case DatabaseTypeEnum.SqlServer:
+                    return "INSERT INTO [accountlocks] ([accountid], [ownerid], [expiresutc], [createdutc]) VALUES ('" + Sanitize(accountId) + "', '" + ownerId + "', '" + expiresUtc + "', '" + createdUtc + "');";
+                default:
+                    return "INSERT INTO accountlocks (accountid, ownerid, expiresutc, createdutc) VALUES ('" + Sanitize(accountId) + "', '" + ownerId + "', '" + expiresUtc + "', '" + createdUtc + "');";
+            }
+        }
+
+        private string BuildDeleteAccountLockQuery(string accountId, string ownerId)
+        {
+            switch (Settings.Type)
+            {
+                case DatabaseTypeEnum.Mysql:
+                    return "DELETE FROM `accountlocks` WHERE `accountid` = '" + Sanitize(accountId) + "' AND `ownerid` = '" + ownerId + "';";
+                case DatabaseTypeEnum.SqlServer:
+                    return "DELETE FROM [accountlocks] WHERE [accountid] = '" + Sanitize(accountId) + "' AND [ownerid] = '" + ownerId + "';";
+                default:
+                    return "DELETE FROM accountlocks WHERE accountid = '" + Sanitize(accountId) + "' AND ownerid = '" + ownerId + "';";
+            }
+        }
+
+        private string BuildDeleteExpiredAccountLocksQuery()
+        {
+            string now = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.ffffff");
+            switch (Settings.Type)
+            {
+                case DatabaseTypeEnum.Mysql:
+                    return "DELETE FROM `accountlocks` WHERE `expiresutc` < '" + now + "';";
+                case DatabaseTypeEnum.SqlServer:
+                    return "DELETE FROM [accountlocks] WHERE [expiresutc] < '" + now + "';";
+                default:
+                    return "DELETE FROM accountlocks WHERE expiresutc < '" + now + "';";
+            }
+        }
+
+        private string Sanitize(string input)
+        {
+            return input.Replace("'", "''");
+        }
+
         #endregion
     }
 }
+
+
+

@@ -8,70 +8,70 @@ export declare class EntryMethods {
     constructor(client: HttpClient);
     /**
      * Add a credit entry.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param amount The credit amount (must be positive).
      * @param notes Optional notes.
-     * @returns The GUID of the created entry.
+     * @returns The identifier of the created entry.
      */
-    addCredit(accountGuid: string, amount: number, notes?: string): Promise<string>;
+    addCredit(accountId: string, amount: number, notes?: string): Promise<string>;
     /**
      * Add multiple credit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param entries The credit entries to add.
-     * @returns The GUIDs of the created entries.
+     * @returns The identifiers of the created entries.
      */
-    addCredits(accountGuid: string, entries: EntryInput[]): Promise<string[]>;
+    addCredits(accountId: string, entries: EntryInput[]): Promise<string[]>;
     /**
      * Add a debit entry.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param amount The debit amount (must be positive).
      * @param notes Optional notes.
-     * @returns The GUID of the created entry.
+     * @returns The identifier of the created entry.
      */
-    addDebit(accountGuid: string, amount: number, notes?: string): Promise<string>;
+    addDebit(accountId: string, amount: number, notes?: string): Promise<string>;
     /**
      * Add multiple debit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param entries The debit entries to add.
-     * @returns The GUIDs of the created entries.
+     * @returns The identifiers of the created entries.
      */
-    addDebits(accountGuid: string, entries: EntryInput[]): Promise<string[]>;
+    addDebits(accountId: string, entries: EntryInput[]): Promise<string[]>;
     /**
      * Get all entries for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns All entries.
      */
-    getAll(accountGuid: string): Promise<Entry[]>;
+    getAll(accountId: string): Promise<Entry[]>;
     /**
      * Enumerate entries with filtering and pagination.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param query Query parameters.
      * @returns Enumeration result.
      */
-    enumerate(accountGuid: string, query?: EntryEnumerationQuery): Promise<EnumerationResult<Entry>>;
+    enumerate(accountId: string, query?: EntryEnumerationQuery): Promise<EnumerationResult<Entry>>;
     /**
      * Get all pending (uncommitted) entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns Pending entries.
      */
-    getPending(accountGuid: string): Promise<Entry[]>;
+    getPending(accountId: string): Promise<Entry[]>;
     /**
      * Get pending credit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns Pending credits.
      */
-    getPendingCredits(accountGuid: string): Promise<Entry[]>;
+    getPendingCredits(accountId: string): Promise<Entry[]>;
     /**
      * Get pending debit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns Pending debits.
      */
-    getPendingDebits(accountGuid: string): Promise<Entry[]>;
+    getPendingDebits(accountId: string): Promise<Entry[]>;
     /**
      * Cancel (delete) a pending entry.
-     * @param accountGuid The account GUID.
-     * @param entryGuid The entry GUID.
+     * @param accountId The account identifier.
+     * @param entryId The entry identifier.
      */
-    cancel(accountGuid: string, entryGuid: string): Promise<void>;
+    cancel(accountId: string, entryId: string): Promise<void>;
 }
 //# sourceMappingURL=entry.d.ts.map

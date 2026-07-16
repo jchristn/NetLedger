@@ -57,6 +57,16 @@ namespace NetLedger.Sdk.Methods
             return response.Data ?? throw new NetLedgerApiException(response.StatusCode, "No data returned from server.");
         }
 
+        /// <inheritdoc />
+        public async Task<string> GetOpenApiJsonAsync(CancellationToken cancellationToken = default)
+        {
+            return await _Client.SendRawStringAsync(
+                HttpMethod.Get,
+                "/openapi.json",
+                cancellationToken).ConfigureAwait(false);
+        }
+
         #endregion
     }
 }
+

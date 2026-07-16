@@ -19,17 +19,17 @@ class EntryMethods:
         """
         self._client = client
 
-    def add_credit(self, account_guid: str, amount: float, description: Optional[str] = None) -> str:
+    def add_credit(self, account_id: str, amount: float, description: Optional[str] = None) -> str:
         """
         Add a credit entry.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
             amount: The credit amount (must be positive).
             description: Optional description.
 
         Returns:
-            The GUID of the created entry.
+            The identifier of the created entry.
 
         Raises:
             NetLedgerValidationError: If amount is not positive.
@@ -43,25 +43,25 @@ class EntryMethods:
         if description:
             body['Notes'] = description
 
-        response = self._client.put(f'/v1/accounts/{account_guid}/credits', body)
+        response = self._client.put(f'/v1/accounts/{account_id}/credits', body)
         if not response.data:
             raise ValueError('No data returned from server')
-        # Server returns {EntryGuids: [guid]}, return the first GUID
-        entry_guids = response.data.get('EntryGuids', [])
-        if not entry_guids:
-            raise ValueError('No entry GUID returned from server')
-        return entry_guids[0]
+        # Server returns {EntryIds: [id]}, return the first identifier.
+        entry_ids = response.data.get('EntryIds', [])
+        if not entry_ids:
+            raise ValueError('No entry identifier returned from server')
+        return entry_ids[0]
 
-    def add_credits(self, account_guid: str, entries: List[EntryInput]) -> List[str]:
+    def add_credits(self, account_id: str, entries: List[EntryInput]) -> List[str]:
         """
         Add multiple credit entries.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
             entries: The credit entries to add.
 
         Returns:
-            The GUIDs of the created entries.
+            The identifiers of the created entries.
 
         Raises:
             NetLedgerValidationError: If entries is empty or any amount is not positive.
@@ -76,23 +76,31 @@ class EntryMethods:
                 raise NetLedgerValidationError('All amounts must be greater than zero', 'entries')
 
         # Server expects {Entries: [{Amount: X, Notes: Y}, ...]}
-        body = {'Entries': [{'Amount': e.amount, 'Notes': e.description} for e in entries]}
-        response = self._client.put(f'/v1/accounts/{account_guid}/credits', body)
+        body = {'Entries': [
+            {
+                'Amount': e.amount,
+                'Notes': e.description,
+                'Labels': e.labels,
+                'Tags': e.tags
+            }
+            for e in entries
+        ]}
+        response = self._client.put(f'/v1/accounts/{account_id}/credits', body)
         if not response.data:
             return []
-        return response.data.get('EntryGuids', [])
+        return response.data.get('EntryIds', [])
 
-    def add_debit(self, account_guid: str, amount: float, description: Optional[str] = None) -> str:
+    def add_debit(self, account_id: str, amount: float, description: Optional[str] = None) -> str:
         """
         Add a debit entry.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
             amount: The debit amount (must be positive).
             description: Optional description.
 
         Returns:
-            The GUID of the created entry.
+            The identifier of the created entry.
 
         Raises:
             NetLedgerValidationError: If amount is not positive.
@@ -106,25 +114,25 @@ class EntryMethods:
         if description:
             body['Notes'] = description
 
-        response = self._client.put(f'/v1/accounts/{account_guid}/debits', body)
+        response = self._client.put(f'/v1/accounts/{account_id}/debits', body)
         if not response.data:
             raise ValueError('No data returned from server')
-        # Server returns {EntryGuids: [guid]}, return the first GUID
-        entry_guids = response.data.get('EntryGuids', [])
-        if not entry_guids:
-            raise ValueError('No entry GUID returned from server')
-        return entry_guids[0]
+        # Server returns {EntryIds: [id]}, return the first identifier.
+        entry_ids = response.data.get('EntryIds', [])
+        if not entry_ids:
+            raise ValueError('No entry identifier returned from server')
+        return entry_ids[0]
 
-    def add_debits(self, account_guid: str, entries: List[EntryInput]) -> List[str]:
+    def add_debits(self, account_id: str, entries: List[EntryInput]) -> List[str]:
         """
         Add multiple debit entries.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
             entries: The debit entries to add.
 
         Returns:
-            The GUIDs of the created entries.
+            The identifiers of the created entries.
 
         Raises:
             NetLedgerValidationError: If entries is empty or any amount is not positive.
@@ -139,18 +147,26 @@ class EntryMethods:
                 raise NetLedgerValidationError('All amounts must be greater than zero', 'entries')
 
         # Server expects {Entries: [{Amount: X, Notes: Y}, ...]}
-        body = {'Entries': [{'Amount': e.amount, 'Notes': e.description} for e in entries]}
-        response = self._client.put(f'/v1/accounts/{account_guid}/debits', body)
+        body = {'Entries': [
+            {
+                'Amount': e.amount,
+                'Notes': e.description,
+                'Labels': e.labels,
+                'Tags': e.tags
+            }
+            for e in entries
+        ]}
+        response = self._client.put(f'/v1/accounts/{account_id}/debits', body)
         if not response.data:
             return []
-        return response.data.get('EntryGuids', [])
+        return response.data.get('EntryIds', [])
 
-    def get_all(self, account_guid: str) -> List[Entry]:
+    def get_all(self, account_id: str) -> List[Entry]:
         """
         Get all entries for an account.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Returns:
             All entries.
@@ -159,19 +175,19 @@ class EntryMethods:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error.
         """
-        response = self._client.get(f'/v1/accounts/{account_guid}/entries')
+        response = self._client.get(f'/v1/accounts/{account_id}/entries')
         if not response.data:
             return []
         # Server returns EnumerationResult<Entry>
         objects = response.data.get('Objects', [])
         return [Entry.from_dict(e) for e in objects]
 
-    def enumerate(self, account_guid: str, query: Optional[EntryEnumerationQuery] = None) -> EnumerationResult:
+    def enumerate(self, account_id: str, query: Optional[EntryEnumerationQuery] = None) -> EnumerationResult:
         """
         Enumerate entries with filtering and pagination.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
             query: Query parameters.
 
         Returns:
@@ -184,17 +200,17 @@ class EntryMethods:
         if query is None:
             query = EntryEnumerationQuery()
 
-        response = self._client.post(f'/v1/accounts/{account_guid}/entries/enumerate', query.to_dict())
+        response = self._client.post(f'/v1/accounts/{account_id}/entries/enumerate', query.to_dict())
         if not response.data:
             return EnumerationResult()
         return EnumerationResult.from_dict(response.data, Entry.from_dict)
 
-    def get_pending(self, account_guid: str) -> List[Entry]:
+    def get_pending(self, account_id: str) -> List[Entry]:
         """
         Get all pending (uncommitted) entries.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Returns:
             Pending entries.
@@ -203,17 +219,17 @@ class EntryMethods:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error.
         """
-        response = self._client.get(f'/v1/accounts/{account_guid}/entries/pending')
+        response = self._client.get(f'/v1/accounts/{account_id}/entries/pending')
         if not response.data:
             return []
         return [Entry.from_dict(e) for e in response.data]
 
-    def get_pending_credits(self, account_guid: str) -> List[Entry]:
+    def get_pending_credits(self, account_id: str) -> List[Entry]:
         """
         Get pending credit entries.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Returns:
             Pending credits.
@@ -222,17 +238,17 @@ class EntryMethods:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error.
         """
-        response = self._client.get(f'/v1/accounts/{account_guid}/entries/pending/credits')
+        response = self._client.get(f'/v1/accounts/{account_id}/entries/pending/credits')
         if not response.data:
             return []
         return [Entry.from_dict(e) for e in response.data]
 
-    def get_pending_debits(self, account_guid: str) -> List[Entry]:
+    def get_pending_debits(self, account_id: str) -> List[Entry]:
         """
         Get pending debit entries.
 
         Args:
-            account_guid: The account GUID.
+            account_id: The account identifier.
 
         Returns:
             Pending debits.
@@ -241,21 +257,21 @@ class EntryMethods:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error.
         """
-        response = self._client.get(f'/v1/accounts/{account_guid}/entries/pending/debits')
+        response = self._client.get(f'/v1/accounts/{account_id}/entries/pending/debits')
         if not response.data:
             return []
         return [Entry.from_dict(e) for e in response.data]
 
-    def cancel(self, account_guid: str, entry_guid: str) -> None:
+    def cancel(self, account_id: str, entry_id: str) -> None:
         """
         Cancel (delete) a pending entry.
 
         Args:
-            account_guid: The account GUID.
-            entry_guid: The entry GUID.
+            account_id: The account identifier.
+            entry_id: The entry identifier.
 
         Raises:
             NetLedgerConnectionError: If unable to connect to the server.
             NetLedgerApiError: If the server returns an error (404 if not found, 409 if committed).
         """
-        self._client.delete(f'/v1/accounts/{account_guid}/entries/{entry_guid}')
+        self._client.delete(f'/v1/accounts/{account_id}/entries/{entry_id}')

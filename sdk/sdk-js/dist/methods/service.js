@@ -31,6 +31,16 @@ class ServiceMethods {
         }
         return response.Data;
     }
+    /**
+     * Get the OpenAPI document.
+     */
+    async getOpenApiSpec() {
+        const response = await this.client.get('/openapi.json');
+        if (!response.Data) {
+            throw new Error('No data returned from server');
+        }
+        return response.Data;
+    }
 }
 exports.ServiceMethods = ServiceMethods;
 //# sourceMappingURL=service.js.map

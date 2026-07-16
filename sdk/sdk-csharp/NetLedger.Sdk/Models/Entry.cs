@@ -1,6 +1,7 @@
 namespace NetLedger.Sdk
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Represents the type of a ledger entry.
@@ -33,12 +34,17 @@ namespace NetLedger.Sdk
         /// <summary>
         /// The unique identifier for the entry.
         /// </summary>
-        public Guid GUID { get; set; }
+        public string Id { get; set; } = string.Empty;
 
         /// <summary>
-        /// The GUID of the account this entry belongs to.
+        /// The tenant identifier for the entry.
         /// </summary>
-        public Guid AccountGUID { get; set; }
+        public string TenantId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The Id of the account this entry belongs to.
+        /// </summary>
+        public string AccountId { get; set; } = string.Empty;
 
         /// <summary>
         /// The type of entry (Credit, Debit, or Balance).
@@ -56,9 +62,9 @@ namespace NetLedger.Sdk
         public string? Description { get; set; }
 
         /// <summary>
-        /// For balance entries, the GUID of the previous balance entry this replaces.
+        /// For balance entries, the Id of the previous balance entry this replaces.
         /// </summary>
-        public Guid? Replaces { get; set; }
+        public string? Replaces { get; set; }
 
         /// <summary>
         /// Indicates whether the entry has been committed.
@@ -66,9 +72,19 @@ namespace NetLedger.Sdk
         public bool IsCommitted { get; set; }
 
         /// <summary>
-        /// The GUID of the balance entry that committed this entry.
+        /// The Id of the balance entry that committed this entry.
         /// </summary>
-        public Guid? CommittedByGUID { get; set; }
+        public string? CommittedById { get; set; }
+
+        /// <summary>
+        /// Entry labels.
+        /// </summary>
+        public List<string> Labels { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Entry tags.
+        /// </summary>
+        public Dictionary<string, string> Tags { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// The UTC timestamp when the entry was committed.
@@ -79,6 +95,11 @@ namespace NetLedger.Sdk
         /// The UTC timestamp when the entry was created.
         /// </summary>
         public DateTime CreatedUtc { get; set; }
+
+        /// <summary>
+        /// The UTC timestamp when the entry was last updated.
+        /// </summary>
+        public DateTime LastUpdateUtc { get; set; }
 
         #endregion
 
@@ -94,3 +115,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

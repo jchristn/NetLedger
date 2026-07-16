@@ -18,7 +18,8 @@ from netledger_sdk import (
     EntryInput,
     AccountEnumerationQuery,
     EntryEnumerationQuery,
-    ApiKeyEnumerationQuery
+    ApiKeyEnumerationQuery,
+    RequestHistoryQuery
 )
 
 
@@ -39,8 +40,8 @@ class TestHarness:
         self.client = NetLedgerClient(endpoint, api_key)
         self.results: List[TestResult] = []
         self.total_start_time: float = 0
-        self.test_account_guid: str = ""
-        self.test_entry_guids: List[str] = []
+        self.test_account_id: str = ""
+        self.test_entry_ids: List[str] = []
 
     def run(self) -> int:
         """Run all tests and return exit code."""
@@ -59,6 +60,7 @@ class TestHarness:
             self._run_enumeration_tests()
             self._run_balance_tests()
             self._run_api_key_tests()
+            self._run_request_history_tests()
             self._run_cleanup_tests()
         except Exception as e:
             print(f"Fatal error: {e}")
@@ -82,6 +84,10 @@ class TestHarness:
             self._assert(self.client.service.get_info().name, "Service name is empty")
         ))
 
+        self._run_test("Get OpenAPI Spec", lambda: (
+            self._assert(self.client.service.get_openapi_spec().get("openapi") == "3.0.3", "OpenAPI version mismatch")
+        ))
+
         print()
 
     def _run_account_tests(self) -> None:
@@ -92,30 +98,30 @@ class TestHarness:
 
         def create_account():
             account = self.client.account.create(test_account_name, "Test notes")
-            self._assert(account.guid, "Account GUID is empty")
+            self._assert(account.id, "Account identifier is empty")
             self._assert(account.name == test_account_name, "Account name mismatch")
-            self.test_account_guid = account.guid
+            self.test_account_id = account.id
 
         self._run_test("Create Account", create_account)
 
         def check_exists():
-            self._assert(self.test_account_guid, "No account to check")
-            exists = self.client.account.exists(self.test_account_guid)
+            self._assert(self.test_account_id, "No account to check")
+            exists = self.client.account.exists(self.test_account_id)
             self._assert(exists, "Account should exist")
 
         self._run_test("Check Account Exists", check_exists)
 
         def get_account():
-            self._assert(self.test_account_guid, "No account to get")
-            account = self.client.account.get(self.test_account_guid)
-            self._assert(account.guid == self.test_account_guid, "Account GUID mismatch")
+            self._assert(self.test_account_id, "No account to get")
+            account = self.client.account.get(self.test_account_id)
+            self._assert(account.id == self.test_account_id, "Account identifier mismatch")
 
-        self._run_test("Get Account by GUID", get_account)
+        self._run_test("Get Account by identifier", get_account)
 
         def get_by_name():
-            self._assert(self.test_account_guid, "No account to get")
+            self._assert(self.test_account_id, "No account to get")
             account = self.client.account.get_by_name(test_account_name)
-            self._assert(account.guid == self.test_account_guid, "Account GUID mismatch")
+            self._assert(account.id == self.test_account_id, "Account identifier mismatch")
 
         self._run_test("Get Account by Name", get_by_name)
 
@@ -140,75 +146,75 @@ class TestHarness:
         """Run entry tests."""
         self._print_section_header("ENTRY TESTS")
 
-        if not self.test_account_guid:
+        if not self.test_account_id:
             print("  SKIPPED: No test account available")
             print()
             return
 
         def add_credit():
-            entry_guid = self.client.entry.add_credit(self.test_account_guid, 100.00, "Test credit")
-            self._assert(entry_guid, "Entry GUID is empty")
-            self.test_entry_guids.append(entry_guid)
+            entry_id = self.client.entry.add_credit(self.test_account_id, 100.00, "Test credit")
+            self._assert(entry_id, "Entry identifier is empty")
+            self.test_entry_ids.append(entry_id)
 
         self._run_test("Add Single Credit", add_credit)
 
         def add_debit():
-            entry_guid = self.client.entry.add_debit(self.test_account_guid, 25.50, "Test debit")
-            self._assert(entry_guid, "Entry GUID is empty")
-            self.test_entry_guids.append(entry_guid)
+            entry_id = self.client.entry.add_debit(self.test_account_id, 25.50, "Test debit")
+            self._assert(entry_id, "Entry identifier is empty")
+            self.test_entry_ids.append(entry_id)
 
         self._run_test("Add Single Debit", add_debit)
 
         def add_batch_credits():
-            entry_guids = self.client.entry.add_credits(self.test_account_guid, [
+            entry_ids = self.client.entry.add_credits(self.test_account_id, [
                 EntryInput(10.00, "Batch credit 1"),
                 EntryInput(20.00, "Batch credit 2"),
                 EntryInput(30.00, "Batch credit 3")
             ])
-            self._assert(len(entry_guids) == 3, f"Expected 3 entries, got {len(entry_guids)}")
-            for guid in entry_guids:
-                self.test_entry_guids.append(guid)
+            self._assert(len(entry_ids) == 3, f"Expected 3 entries, got {len(entry_ids)}")
+            for id in entry_ids:
+                self.test_entry_ids.append(id)
 
         self._run_test("Add Multiple Credits (Batch)", add_batch_credits)
 
         def add_batch_debits():
-            entry_guids = self.client.entry.add_debits(self.test_account_guid, [
+            entry_ids = self.client.entry.add_debits(self.test_account_id, [
                 EntryInput(5.00, "Batch debit 1"),
                 EntryInput(7.50, "Batch debit 2")
             ])
-            self._assert(len(entry_guids) == 2, f"Expected 2 entries, got {len(entry_guids)}")
-            for guid in entry_guids:
-                self.test_entry_guids.append(guid)
+            self._assert(len(entry_ids) == 2, f"Expected 2 entries, got {len(entry_ids)}")
+            for id in entry_ids:
+                self.test_entry_ids.append(id)
 
         self._run_test("Add Multiple Debits (Batch)", add_batch_debits)
 
         def get_all_entries():
-            entries = self.client.entry.get_all(self.test_account_guid)
-            self._assert(len(entries) >= len(self.test_entry_guids),
-                         f"Expected at least {len(self.test_entry_guids)} entries")
+            entries = self.client.entry.get_all(self.test_account_id)
+            self._assert(len(entries) >= len(self.test_entry_ids),
+                         f"Expected at least {len(self.test_entry_ids)} entries")
 
         self._run_test("Get All Entries", get_all_entries)
 
         def get_pending():
-            entries = self.client.entry.get_pending(self.test_account_guid)
+            entries = self.client.entry.get_pending(self.test_account_id)
             self._assert(len(entries) > 0, "Should have pending entries")
 
         self._run_test("Get Pending Entries", get_pending)
 
         def get_pending_credits():
-            entries = self.client.entry.get_pending_credits(self.test_account_guid)
+            entries = self.client.entry.get_pending_credits(self.test_account_id)
             self._assert(len(entries) > 0, "Should have pending credits")
 
         self._run_test("Get Pending Credits", get_pending_credits)
 
         def get_pending_debits():
-            entries = self.client.entry.get_pending_debits(self.test_account_guid)
+            entries = self.client.entry.get_pending_debits(self.test_account_id)
             self._assert(len(entries) > 0, "Should have pending debits")
 
         self._run_test("Get Pending Debits", get_pending_debits)
 
         def enumerate_entries():
-            result = self.client.entry.enumerate(self.test_account_guid, EntryEnumerationQuery(
+            result = self.client.entry.enumerate(self.test_account_id, EntryEnumerationQuery(
                 max_results=50,
                 ordering=EnumerationOrder.CREATED_DESCENDING
             ))
@@ -217,7 +223,7 @@ class TestHarness:
         self._run_test("Enumerate Entries", enumerate_entries)
 
         def enumerate_with_filter():
-            self.client.entry.enumerate(self.test_account_guid, EntryEnumerationQuery(
+            self.client.entry.enumerate(self.test_account_id, EntryEnumerationQuery(
                 max_results=50,
                 amount_min=10.00,
                 amount_max=50.00
@@ -230,14 +236,14 @@ class TestHarness:
 
         def add_for_cancel():
             nonlocal entry_to_cancel
-            entry_guid = self.client.entry.add_credit(self.test_account_guid, 1.00, "Entry to cancel")
-            entry_to_cancel = entry_guid
+            entry_id = self.client.entry.add_credit(self.test_account_id, 1.00, "Entry to cancel")
+            entry_to_cancel = entry_id
 
         self._run_test("Add Entry for Cancellation", add_for_cancel)
 
         def cancel_entry():
             self._assert(entry_to_cancel, "No entry to cancel")
-            self.client.entry.cancel(self.test_account_guid, entry_to_cancel)
+            self.client.entry.cancel(self.test_account_id, entry_to_cancel)
 
         self._run_test("Cancel Entry", cancel_entry)
 
@@ -247,40 +253,40 @@ class TestHarness:
         """Run comprehensive enumeration and pagination tests."""
         self._print_section_header("ENUMERATION AND PAGINATION TESTS")
 
-        if not self.test_account_guid:
+        if not self.test_account_id:
             print("  SKIPPED: No test account available")
             print()
             return
 
         # Create a dedicated account for enumeration tests with known data
-        enum_test_account_guid: Optional[str] = None
-        enum_entry_guids: List[str] = []
+        enum_test_account_id: Optional[str] = None
+        enum_entry_ids: List[str] = []
 
         def create_enum_test_account():
-            nonlocal enum_test_account_guid
+            nonlocal enum_test_account_id
             account_name = f"EnumTestAccount_{uuid.uuid4().hex[:8]}"
             account = self.client.account.create(account_name, "Account for enumeration tests")
-            self._assert(account.guid, "Enumeration test account GUID is empty")
-            enum_test_account_guid = account.guid
+            self._assert(account.id, "Enumeration test account identifier is empty")
+            enum_test_account_id = account.id
 
         self._run_test("Create Enumeration Test Account", create_enum_test_account)
 
         # Create entries with varying amounts for ordering tests
         # We need enough entries to test pagination (more than one page)
         def create_enum_test_entries():
-            nonlocal enum_entry_guids
-            self._assert(enum_test_account_guid, "No enumeration test account")
+            nonlocal enum_entry_ids
+            self._assert(enum_test_account_id, "No enumeration test account")
             # Create 15 entries with specific amounts to test ordering
             amounts = [10.00, 50.00, 25.00, 75.00, 5.00, 100.00, 30.00,
                       15.00, 60.00, 45.00, 80.00, 20.00, 90.00, 35.00, 55.00]
             for i, amount in enumerate(amounts):
-                entry_guid = self.client.entry.add_credit(
-                    enum_test_account_guid,
+                entry_id = self.client.entry.add_credit(
+                    enum_test_account_id,
                     amount,
                     f"Enum test entry {i+1}"
                 )
-                self._assert(entry_guid, f"Entry {i+1} GUID is empty")
-                enum_entry_guids.append(entry_guid)
+                self._assert(entry_id, f"Entry {i+1} identifier is empty")
+                enum_entry_ids.append(entry_id)
                 # Small delay to ensure distinct creation timestamps
                 time.sleep(0.05)
 
@@ -288,8 +294,8 @@ class TestHarness:
 
         # Test 1: Basic pagination - first page
         def test_pagination_first_page():
-            self._assert(enum_test_account_guid, "No enumeration test account")
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            self._assert(enum_test_account_id, "No enumeration test account")
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=5,
                 ordering=EnumerationOrder.CREATED_ASCENDING
             ))
@@ -308,9 +314,9 @@ class TestHarness:
 
         def test_pagination_middle_page():
             nonlocal first_page_token
-            self._assert(enum_test_account_guid, "No enumeration test account")
+            self._assert(enum_test_account_id, "No enumeration test account")
             # Get first page to obtain continuation token
-            first_result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            first_result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=5,
                 ordering=EnumerationOrder.CREATED_ASCENDING
             ))
@@ -318,7 +324,7 @@ class TestHarness:
             self._assert(first_page_token, "No continuation token from first page")
 
             # Get second page using continuation token
-            second_result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            second_result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=5,
                 ordering=EnumerationOrder.CREATED_ASCENDING,
                 continuation_token=first_page_token
@@ -334,19 +340,19 @@ class TestHarness:
 
         # Test 3: Pagination - last page
         def test_pagination_last_page():
-            self._assert(enum_test_account_guid, "No enumeration test account")
+            self._assert(enum_test_account_id, "No enumeration test account")
             # Get first two pages to reach the last page
-            first_result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            first_result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=5,
                 ordering=EnumerationOrder.CREATED_ASCENDING
             ))
-            second_result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            second_result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=5,
                 ordering=EnumerationOrder.CREATED_ASCENDING,
                 continuation_token=first_result.continuation_token
             ))
             # Get third (last) page
-            third_result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            third_result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=5,
                 ordering=EnumerationOrder.CREATED_ASCENDING,
                 continuation_token=second_result.continuation_token
@@ -365,8 +371,8 @@ class TestHarness:
 
         # Test 4: Ordering - CREATED_ASCENDING
         def test_ordering_created_ascending():
-            self._assert(enum_test_account_guid, "No enumeration test account")
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            self._assert(enum_test_account_id, "No enumeration test account")
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=15,
                 ordering=EnumerationOrder.CREATED_ASCENDING
             ))
@@ -383,8 +389,8 @@ class TestHarness:
 
         # Test 5: Ordering - CREATED_DESCENDING
         def test_ordering_created_descending():
-            self._assert(enum_test_account_guid, "No enumeration test account")
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            self._assert(enum_test_account_id, "No enumeration test account")
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=15,
                 ordering=EnumerationOrder.CREATED_DESCENDING
             ))
@@ -401,8 +407,8 @@ class TestHarness:
 
         # Test 6: Ordering - AMOUNT_ASCENDING
         def test_ordering_amount_ascending():
-            self._assert(enum_test_account_guid, "No enumeration test account")
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            self._assert(enum_test_account_id, "No enumeration test account")
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=15,
                 ordering=EnumerationOrder.AMOUNT_ASCENDING
             ))
@@ -421,8 +427,8 @@ class TestHarness:
 
         # Test 7: Ordering - AMOUNT_DESCENDING
         def test_ordering_amount_descending():
-            self._assert(enum_test_account_guid, "No enumeration test account")
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            self._assert(enum_test_account_id, "No enumeration test account")
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=15,
                 ordering=EnumerationOrder.AMOUNT_DESCENDING
             ))
@@ -441,7 +447,7 @@ class TestHarness:
 
         # Test 8: Pagination with ordering preserved across pages
         def test_pagination_preserves_ordering():
-            self._assert(enum_test_account_guid, "No enumeration test account")
+            self._assert(enum_test_account_id, "No enumeration test account")
             all_amounts: List[float] = []
 
             # Fetch all entries across multiple pages with AMOUNT_ASCENDING
@@ -449,7 +455,7 @@ class TestHarness:
                 max_results=5,
                 ordering=EnumerationOrder.AMOUNT_ASCENDING
             )
-            result = self.client.entry.enumerate(enum_test_account_guid, query)
+            result = self.client.entry.enumerate(enum_test_account_id, query)
             while result.objects:
                 for entry in result.objects:
                     all_amounts.append(entry.amount)
@@ -460,7 +466,7 @@ class TestHarness:
                     ordering=EnumerationOrder.AMOUNT_ASCENDING,
                     continuation_token=result.continuation_token
                 )
-                result = self.client.entry.enumerate(enum_test_account_guid, query)
+                result = self.client.entry.enumerate(enum_test_account_id, query)
 
             self._assert(len(all_amounts) == 15, f"Expected 15 entries across all pages, got {len(all_amounts)}")
             # Verify ordering is preserved across pages
@@ -472,8 +478,8 @@ class TestHarness:
 
         # Test 9: Single result page (all results fit in one page)
         def test_single_page_results():
-            self._assert(enum_test_account_guid, "No enumeration test account")
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            self._assert(enum_test_account_id, "No enumeration test account")
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=100,  # More than total entries
                 ordering=EnumerationOrder.CREATED_ASCENDING
             ))
@@ -492,7 +498,7 @@ class TestHarness:
                 f"EmptyAccount_{uuid.uuid4().hex[:8]}",
                 "Account with no entries"
             )
-            result = self.client.entry.enumerate(empty_account.guid, EntryEnumerationQuery(
+            result = self.client.entry.enumerate(empty_account.id, EntryEnumerationQuery(
                 max_results=10,
                 ordering=EnumerationOrder.CREATED_ASCENDING
             ))
@@ -502,20 +508,20 @@ class TestHarness:
             objects_count = len(result.objects) if result.objects else 0
             self._assert(objects_count == 0, f"Expected 0 objects, got {objects_count}")
             # Clean up
-            self.client.account.delete(empty_account.guid)
+            self.client.account.delete(empty_account.id)
 
         self._run_test("Pagination: Empty Results", test_empty_results)
 
         # Test 11: Account enumeration pagination
         def test_account_enumeration_pagination():
             # Create additional accounts for pagination testing
-            created_account_guids: List[str] = []
+            created_account_ids: List[str] = []
             for i in range(5):
                 acct = self.client.account.create(
                     f"PaginationTestAcct_{i}_{uuid.uuid4().hex[:4]}",
                     f"Pagination test account {i}"
                 )
-                created_account_guids.append(acct.guid)
+                created_account_ids.append(acct.id)
 
             # Test first page
             result = self.client.account.enumerate(AccountEnumerationQuery(max_results=3))
@@ -528,18 +534,18 @@ class TestHarness:
                 self._assert(result.records_remaining > 0, "records_remaining should be > 0 when not end_of_results")
 
             # Clean up created accounts
-            for guid in created_account_guids:
-                self.client.account.delete(guid)
+            for id in created_account_ids:
+                self.client.account.delete(id)
 
         self._run_test("Account Enumeration: Pagination Metadata", test_account_enumeration_pagination)
 
         # Test 12: API Key enumeration pagination
         def test_api_key_enumeration_pagination():
             # Create additional API keys for pagination testing
-            created_key_guids: List[str] = []
+            created_key_ids: List[str] = []
             for i in range(3):
                 key = self.client.api_key.create(f"PaginationTestKey_{i}", is_admin=False)
-                created_key_guids.append(key.guid)
+                created_key_ids.append(key.id)
 
             # Test enumeration
             result = self.client.api_key.enumerate(ApiKeyEnumerationQuery(max_results=2))
@@ -548,16 +554,16 @@ class TestHarness:
             self._assert(result.total_records > 0, f"Expected total_records > 0, got {result.total_records}")
 
             # Clean up created keys
-            for guid in created_key_guids:
-                self.client.api_key.revoke(guid)
+            for id in created_key_ids:
+                self.client.api_key.revoke(id)
 
         self._run_test("API Key Enumeration: Pagination Metadata", test_api_key_enumeration_pagination)
 
         # Test 13: Amount range filtering with pagination
         def test_amount_filter_with_pagination():
-            self._assert(enum_test_account_guid, "No enumeration test account")
+            self._assert(enum_test_account_id, "No enumeration test account")
             # Filter for entries between 20 and 60 (should get: 20, 25, 30, 35, 45, 50, 55, 60 = 8 entries)
-            result = self.client.entry.enumerate(enum_test_account_guid, EntryEnumerationQuery(
+            result = self.client.entry.enumerate(enum_test_account_id, EntryEnumerationQuery(
                 max_results=3,
                 amount_min=20.00,
                 amount_max=60.00,
@@ -578,8 +584,8 @@ class TestHarness:
 
         # Clean up enumeration test account
         def cleanup_enum_test_account():
-            if enum_test_account_guid:
-                self.client.account.delete(enum_test_account_guid)
+            if enum_test_account_id:
+                self.client.account.delete(enum_test_account_id)
 
         self._run_test("Cleanup Enumeration Test Account", cleanup_enum_test_account)
 
@@ -589,13 +595,13 @@ class TestHarness:
         """Run balance tests."""
         self._print_section_header("BALANCE TESTS")
 
-        if not self.test_account_guid:
+        if not self.test_account_id:
             print("  SKIPPED: No test account available")
             print()
             return
 
         def get_balance():
-            self.client.balance.get(self.test_account_guid)
+            self.client.balance.get(self.test_account_id)
 
         self._run_test("Get Balance", get_balance)
 
@@ -606,36 +612,36 @@ class TestHarness:
         self._run_test("Get All Balances", get_all_balances)
 
         def commit_all():
-            self.client.balance.commit(self.test_account_guid)
+            self.client.balance.commit(self.test_account_id)
 
         self._run_test("Commit All Pending Entries", commit_all)
 
         def get_balance_after():
-            self.client.balance.get(self.test_account_guid)
+            self.client.balance.get(self.test_account_id)
 
         self._run_test("Get Balance After Commit", get_balance_after)
 
         def verify_chain():
-            valid = self.client.balance.verify(self.test_account_guid)
+            valid = self.client.balance.verify(self.test_account_id)
             self._assert(valid, "Balance chain should be valid")
 
         self._run_test("Verify Balance Chain", verify_chain)
 
         def add_for_selective():
-            self.client.entry.add_credit(self.test_account_guid, 50.00, "Selective commit test")
-            self.client.entry.add_credit(self.test_account_guid, 75.00, "Selective commit test 2")
+            self.client.entry.add_credit(self.test_account_id, 50.00, "Selective commit test")
+            self.client.entry.add_credit(self.test_account_id, 75.00, "Selective commit test 2")
 
         self._run_test("Add Entries for Selective Commit", add_for_selective)
 
         def commit_specific():
-            pending = self.client.entry.get_pending(self.test_account_guid)
+            pending = self.client.entry.get_pending(self.test_account_id)
             if len(pending) > 0:
-                self.client.balance.commit(self.test_account_guid, [pending[0].guid])
+                self.client.balance.commit(self.test_account_id, [pending[0].id])
 
         self._run_test("Commit Specific Entries", commit_specific)
 
         def get_historical():
-            self.client.balance.get_as_of(self.test_account_guid, datetime.utcnow())
+            self.client.balance.get_as_of(self.test_account_id, datetime.utcnow())
 
         self._run_test("Get Historical Balance", get_historical)
 
@@ -645,14 +651,14 @@ class TestHarness:
         """Run API key tests."""
         self._print_section_header("API KEY TESTS")
 
-        created_key_guid: Optional[str] = None
+        created_key_id: Optional[str] = None
 
         def create_key():
-            nonlocal created_key_guid
+            nonlocal created_key_id
             key = self.client.api_key.create("Test SDK Key", is_admin=False)
-            self._assert(key.guid, "API key GUID is empty")
+            self._assert(key.id, "API key identifier is empty")
             self._assert(key.api_key, "API key value should be returned on creation")
-            created_key_guid = key.guid
+            created_key_id = key.id
 
         self._run_test("Create API Key", create_key)
 
@@ -663,10 +669,28 @@ class TestHarness:
         self._run_test("Enumerate API Keys", enumerate_keys)
 
         def revoke_key():
-            self._assert(created_key_guid, "No API key to revoke")
-            self.client.api_key.revoke(created_key_guid)
+            self._assert(created_key_id, "No API key to revoke")
+            self.client.api_key.revoke(created_key_id)
 
         self._run_test("Revoke API Key", revoke_key)
+
+        print()
+
+    def _run_request_history_tests(self) -> None:
+        """Run request history tests."""
+        self._print_section_header("REQUEST HISTORY TESTS")
+
+        def enumerate_history():
+            result = self.client.request_history.enumerate(RequestHistoryQuery(max_results=10))
+            self._assert(result.total_records is not None, "Request history total records missing")
+
+        self._run_test("Enumerate Request History", enumerate_history)
+
+        def summarize_history():
+            summary = self.client.request_history.summarize(RequestHistoryQuery(max_results=100, bucket_minutes=15))
+            self._assert(summary.total_count is not None, "Request history summary total count missing")
+
+        self._run_test("Summarize Request History", summarize_history)
 
         print()
 
@@ -675,12 +699,12 @@ class TestHarness:
         self._print_section_header("CLEANUP")
 
         def delete_test_account():
-            if self.test_account_guid:
-                self.client.account.delete(self.test_account_guid)
-                exists = self.client.account.exists(self.test_account_guid)
+            if self.test_account_id:
+                self.client.account.delete(self.test_account_id)
+                exists = self.client.account.exists(self.test_account_id)
                 self._assert(not exists, "Account should have been deleted")
 
-        if self.test_account_guid:
+        if self.test_account_id:
             self._run_test("Delete Test Account", delete_test_account)
 
         print()

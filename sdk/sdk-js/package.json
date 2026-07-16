@@ -1,6 +1,6 @@
 {
   "name": "netledger-sdk",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "SDK for interacting with the NetLedger Server REST API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

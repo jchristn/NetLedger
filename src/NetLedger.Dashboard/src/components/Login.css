@@ -17,6 +17,11 @@
   animation: slideUp 0.3s ease;
 }
 
+.login-shell {
+  width: 100%;
+  max-width: 400px;
+}
+
 .login-header {
   text-align: center;
   padding: 2rem 2rem 1.5rem;
@@ -80,17 +85,57 @@
   margin-bottom: 0.5rem;
 }
 
-.login-form input {
+.login-form input,
+.login-form select {
   padding: 0.75rem 1rem;
   font-size: 0.9375rem;
 }
 
-.login-submit {
-  width: 100%;
+.login-step-summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.375rem 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+  font-size: 0.8125rem;
+}
+
+.login-step-summary span {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.login-step-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.login-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.login-submit,
+.login-back {
   padding: 0.875rem 1rem;
   font-size: 1rem;
   font-weight: 600;
-  margin-top: 0.5rem;
+}
+
+.login-submit {
+  flex: 1;
+}
+
+.login-back {
+  flex: 0 0 auto;
 }
 
 .login-footer {
@@ -106,6 +151,51 @@
 
 .login-theme-toggle svg {
   display: block;
+}
+
+.login-default-credentials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.5rem;
+  margin-top: 0.75rem;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.login-default-credentials code {
+  color: inherit;
+  font-size: 0.75rem;
+}
+
+.login-default-password {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.login-default-password-value {
+  width: auto;
+}
+
+.login-default-password-value.hidden-value-display span {
+  min-height: 24px;
+  padding: 0.125rem 0.375rem;
+  border-color: rgba(156, 163, 175, 0.35);
+  background-color: transparent;
+  color: inherit;
+  font-size: 0.75rem;
+}
+
+.login-default-password-value .hidden-value-toggle {
+  width: 26px;
+  min-width: 26px;
+  border-color: rgba(156, 163, 175, 0.35);
+  background-color: transparent;
+  color: inherit;
 }
 
 /* Responsive */
@@ -129,5 +219,10 @@
 
   .login-title {
     font-size: 1.5rem;
+  }
+
+  .login-default-credentials,
+  .login-default-credentials code {
+    font-size: 0.65rem;
   }
 }

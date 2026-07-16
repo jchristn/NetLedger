@@ -11,28 +11,28 @@ class EntryMethods {
     }
     /**
      * Add a credit entry.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param amount The credit amount (must be positive).
      * @param notes Optional notes.
-     * @returns The GUID of the created entry.
+     * @returns The identifier of the created entry.
      */
-    async addCredit(accountGuid, amount, notes) {
+    async addCredit(accountId, amount, notes) {
         if (amount <= 0) {
             throw new errors_1.NetLedgerValidationError('Amount must be greater than zero', 'amount');
         }
-        const response = await this.client.put(`/v1/accounts/${accountGuid}/credits`, { Amount: amount, Notes: notes });
-        if (!response.Data || !response.Data.EntryGuids || response.Data.EntryGuids.length === 0) {
+        const response = await this.client.put(`/v1/accounts/${accountId}/credits`, { Amount: amount, Notes: notes });
+        if (!response.Data || !response.Data.EntryIds || response.Data.EntryIds.length === 0) {
             throw new Error('No data returned from server');
         }
-        return response.Data.EntryGuids[0];
+        return response.Data.EntryIds[0];
     }
     /**
      * Add multiple credit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param entries The credit entries to add.
-     * @returns The GUIDs of the created entries.
+     * @returns The identifiers of the created entries.
      */
-    async addCredits(accountGuid, entries) {
+    async addCredits(accountId, entries) {
         if (!entries || entries.length === 0) {
             throw new errors_1.NetLedgerValidationError('Entries array cannot be empty', 'entries');
         }
@@ -41,33 +41,33 @@ class EntryMethods {
                 throw new errors_1.NetLedgerValidationError('All amounts must be greater than zero', 'entries');
             }
         }
-        const response = await this.client.put(`/v1/accounts/${accountGuid}/credits`, { Entries: entries });
-        return response.Data?.EntryGuids || [];
+        const response = await this.client.put(`/v1/accounts/${accountId}/credits`, { Entries: entries });
+        return response.Data?.EntryIds || [];
     }
     /**
      * Add a debit entry.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param amount The debit amount (must be positive).
      * @param notes Optional notes.
-     * @returns The GUID of the created entry.
+     * @returns The identifier of the created entry.
      */
-    async addDebit(accountGuid, amount, notes) {
+    async addDebit(accountId, amount, notes) {
         if (amount <= 0) {
             throw new errors_1.NetLedgerValidationError('Amount must be greater than zero', 'amount');
         }
-        const response = await this.client.put(`/v1/accounts/${accountGuid}/debits`, { Amount: amount, Notes: notes });
-        if (!response.Data || !response.Data.EntryGuids || response.Data.EntryGuids.length === 0) {
+        const response = await this.client.put(`/v1/accounts/${accountId}/debits`, { Amount: amount, Notes: notes });
+        if (!response.Data || !response.Data.EntryIds || response.Data.EntryIds.length === 0) {
             throw new Error('No data returned from server');
         }
-        return response.Data.EntryGuids[0];
+        return response.Data.EntryIds[0];
     }
     /**
      * Add multiple debit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param entries The debit entries to add.
-     * @returns The GUIDs of the created entries.
+     * @returns The identifiers of the created entries.
      */
-    async addDebits(accountGuid, entries) {
+    async addDebits(accountId, entries) {
         if (!entries || entries.length === 0) {
             throw new errors_1.NetLedgerValidationError('Entries array cannot be empty', 'entries');
         }
@@ -76,62 +76,62 @@ class EntryMethods {
                 throw new errors_1.NetLedgerValidationError('All amounts must be greater than zero', 'entries');
             }
         }
-        const response = await this.client.put(`/v1/accounts/${accountGuid}/debits`, { Entries: entries });
-        return response.Data?.EntryGuids || [];
+        const response = await this.client.put(`/v1/accounts/${accountId}/debits`, { Entries: entries });
+        return response.Data?.EntryIds || [];
     }
     /**
      * Get all entries for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns All entries.
      */
-    async getAll(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}/entries`);
+    async getAll(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}/entries`);
         return response.Data || [];
     }
     /**
      * Enumerate entries with filtering and pagination.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param query Query parameters.
      * @returns Enumeration result.
      */
-    async enumerate(accountGuid, query) {
-        const response = await this.client.post(`/v1/accounts/${accountGuid}/entries/enumerate`, query || {});
+    async enumerate(accountId, query) {
+        const response = await this.client.post(`/v1/accounts/${accountId}/entries/enumerate`, query || {});
         return response.Data || { TotalRecords: 0, RecordsRemaining: 0, EndOfResults: true };
     }
     /**
      * Get all pending (uncommitted) entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns Pending entries.
      */
-    async getPending(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}/entries/pending`);
+    async getPending(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}/entries/pending`);
         return response.Data || [];
     }
     /**
      * Get pending credit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns Pending credits.
      */
-    async getPendingCredits(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}/entries/pending/credits`);
+    async getPendingCredits(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}/entries/pending/credits`);
         return response.Data || [];
     }
     /**
      * Get pending debit entries.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns Pending debits.
      */
-    async getPendingDebits(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}/entries/pending/debits`);
+    async getPendingDebits(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}/entries/pending/debits`);
         return response.Data || [];
     }
     /**
      * Cancel (delete) a pending entry.
-     * @param accountGuid The account GUID.
-     * @param entryGuid The entry GUID.
+     * @param accountId The account identifier.
+     * @param entryId The entry identifier.
      */
-    async cancel(accountGuid, entryGuid) {
-        await this.client.delete(`/v1/accounts/${accountGuid}/entries/${entryGuid}`);
+    async cancel(accountId, entryId) {
+        await this.client.delete(`/v1/accounts/${accountId}/entries/${entryId}`);
     }
 }
 exports.EntryMethods = EntryMethods;

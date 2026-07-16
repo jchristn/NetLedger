@@ -1,6 +1,8 @@
 namespace NetLedger.Sdk
 {
     using System;
+    using System.IO;
+    using System.Net;
     using System.Net.Http;
     using System.Net.Http.Headers;
     using System.Text;
@@ -21,7 +23,7 @@ namespace NetLedger.Sdk
     /// </remarks>
     /// <example>
     /// <code>
-    /// using var client = new NetLedgerClient("http://localhost:8080", "your-api-key");
+    /// using NetLedgerClient client = new NetLedgerClient("http://localhost:8080", "your-api-key");
     ///
     /// // Check service health
     /// bool isHealthy = await client.Service.HealthCheckAsync();
@@ -30,10 +32,10 @@ namespace NetLedger.Sdk
     /// Account account = await client.Account.CreateAsync("My Account");
     ///
     /// // Add a credit
-    /// Entry credit = await client.Entry.AddCreditAsync(account.GUID, 100.00m, "Initial deposit");
+    /// Entry credit = await client.Entry.AddCreditAsync(account.Id, 100.00m, "Initial deposit");
     ///
     /// // Get balance
-    /// Balance balance = await client.Balance.GetAsync(account.GUID);
+    /// Balance balance = await client.Balance.GetAsync(account.Id);
     /// </code>
     /// </example>
     public class NetLedgerClient : IDisposable
@@ -81,6 +83,22 @@ namespace NetLedger.Sdk
         }
 
         /// <summary>
+        /// Identity and security administration operations.
+        /// </summary>
+        public IIdentityMethods Identity
+        {
+            get { return _IdentityMethods; }
+        }
+
+        /// <summary>
+        /// Request history operations.
+        /// </summary>
+        public IRequestHistoryMethods RequestHistory
+        {
+            get { return _RequestHistoryMethods; }
+        }
+
+        /// <summary>
         /// The base URL of the NetLedger server.
         /// </summary>
         public string BaseUrl
@@ -109,7 +127,9 @@ namespace NetLedger.Sdk
 
         private readonly string _BaseUrl;
         private readonly string _ApiKey;
+        private readonly string? _TenantId;
         private readonly HttpClient _HttpClient;
+        private readonly bool _OwnsHttpClient;
         private readonly JsonSerializerOptions _SerializeOptions;
         private readonly JsonSerializerOptions _DeserializeOptions;
         private int _TimeoutMs = 30000;
@@ -120,6 +140,8 @@ namespace NetLedger.Sdk
         private readonly IEntryMethods _Entry;
         private readonly IBalanceMethods _Balance;
         private readonly IApiKeyMethods _ApiKeyMethods;
+        private readonly IIdentityMethods _IdentityMethods;
+        private readonly IRequestHistoryMethods _RequestHistoryMethods;
 
         #endregion
 
@@ -132,17 +154,55 @@ namespace NetLedger.Sdk
         /// <param name="apiKey">The API key for authentication.</param>
         /// <exception cref="ArgumentNullException">Thrown when baseUrl or apiKey is null or empty.</exception>
         public NetLedgerClient(string baseUrl, string apiKey)
+            : this(baseUrl, apiKey, null)
+        {
+        }
+
+        /// <summary>
+        /// Instantiate a new tenant-scoped NetLedger client.
+        /// </summary>
+        /// <param name="baseUrl">The base URL of the NetLedger server.</param>
+        /// <param name="apiKey">The API key or credential access key for authentication.</param>
+        /// <param name="tenantId">Tenant identifier for x-tenant-id.</param>
+        /// <exception cref="ArgumentNullException">Thrown when baseUrl or apiKey is null or empty.</exception>
+        public NetLedgerClient(string baseUrl, string apiKey, string? tenantId)
+            : this(baseUrl, apiKey, tenantId, new HttpClient(), true)
+        {
+        }
+
+        /// <summary>
+        /// Instantiate a new tenant-scoped NetLedger client using an externally-managed HTTP client.
+        /// </summary>
+        /// <param name="baseUrl">The base URL of the NetLedger server.</param>
+        /// <param name="apiKey">The API key or credential access key for authentication.</param>
+        /// <param name="tenantId">Tenant identifier for x-tenant-id.</param>
+        /// <param name="httpClient">Externally-managed HTTP client.</param>
+        /// <exception cref="ArgumentNullException">Thrown when baseUrl, apiKey, or httpClient is null or empty.</exception>
+        public NetLedgerClient(string baseUrl, string apiKey, string? tenantId, HttpClient httpClient)
+            : this(baseUrl, apiKey, tenantId, httpClient, false)
+        {
+        }
+
+        private NetLedgerClient(string baseUrl, string apiKey, string? tenantId, HttpClient httpClient, bool ownsHttpClient)
         {
             if (string.IsNullOrWhiteSpace(baseUrl))
                 throw new ArgumentNullException(nameof(baseUrl), "Base URL cannot be null or empty.");
             if (string.IsNullOrWhiteSpace(apiKey))
                 throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty.");
+            if (httpClient == null)
+                throw new ArgumentNullException(nameof(httpClient));
 
             _BaseUrl = baseUrl.TrimEnd('/');
             _ApiKey = apiKey;
+            _TenantId = tenantId;
 
-            _HttpClient = new HttpClient();
+            _HttpClient = httpClient;
+            _OwnsHttpClient = ownsHttpClient;
             _HttpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _ApiKey);
+            if (!String.IsNullOrEmpty(_TenantId))
+            {
+                _HttpClient.DefaultRequestHeaders.Add("x-tenant-id", _TenantId);
+            }
             _HttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             _SerializeOptions = new JsonSerializerOptions
@@ -165,6 +225,8 @@ namespace NetLedger.Sdk
             _Entry = new EntryMethods(this);
             _Balance = new BalanceMethods(this);
             _ApiKeyMethods = new ApiKeyMethods(this);
+            _IdentityMethods = new IdentityMethods(this);
+            _RequestHistoryMethods = new RequestHistoryMethods(this);
         }
 
         #endregion
@@ -210,12 +272,11 @@ namespace NetLedger.Sdk
 
             try
             {
-                using HttpResponseMessage response = await _HttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
-
-                string responseBody = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                using HttpResponseMessage response = await _HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
 
                 if (!response.IsSuccessStatusCode)
                 {
+                    string responseBody = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
                     ErrorResponse? error = null;
                     try
                     {
@@ -232,12 +293,13 @@ namespace NetLedger.Sdk
                         error?.Description);
                 }
 
-                if (string.IsNullOrWhiteSpace(responseBody))
+                if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)
                 {
                     return new ApiResponse<T>(default, (int)response.StatusCode);
                 }
 
-                T? data = JsonSerializer.Deserialize<T>(responseBody, _DeserializeOptions);
+                await using Stream responseStream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                T? data = await JsonSerializer.DeserializeAsync<T>(responseStream, _DeserializeOptions, cts.Token).ConfigureAwait(false);
                 return new ApiResponse<T>(data, (int)response.StatusCode);
             }
             catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -282,6 +344,43 @@ namespace NetLedger.Sdk
         }
 
         /// <summary>
+        /// Send an HTTP request and return the raw response body.
+        /// </summary>
+        internal async Task<string> SendRawStringAsync(
+            HttpMethod method,
+            string path,
+            CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_Disposed, nameof(NetLedgerClient));
+
+            string url = $"{_BaseUrl}{path}";
+
+            using HttpRequestMessage request = new HttpRequestMessage(method, url);
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_TimeoutMs);
+
+            try
+            {
+                using HttpResponseMessage response = await _HttpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
+                string responseBody = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new NetLedgerApiException((int)response.StatusCode, response.ReasonPhrase ?? "Unknown error", responseBody);
+                }
+
+                return responseBody;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new NetLedgerConnectionException("Request timed out.", null);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new NetLedgerConnectionException("Failed to connect to the server.", ex);
+            }
+        }
+
+        /// <summary>
         /// Get the JSON deserializer options.
         /// </summary>
         internal JsonSerializerOptions GetJsonOptions()
@@ -303,7 +402,10 @@ namespace NetLedger.Sdk
             {
                 if (disposing)
                 {
-                    _HttpClient?.Dispose();
+                    if (_OwnsHttpClient)
+                    {
+                        _HttpClient?.Dispose();
+                    }
                 }
 
                 _Disposed = true;
@@ -313,3 +415,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

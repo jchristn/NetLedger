@@ -1,0 +1,60 @@
+.hidden-value-control {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  width: 100%;
+}
+
+.hidden-value-control input,
+.hidden-value-control code,
+.hidden-value-control span {
+  min-width: 0;
+  flex: 1;
+}
+
+.hidden-value-control input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.hidden-value-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background-color: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hidden-value-toggle:hover:not(:disabled),
+.hidden-value-toggle:focus-visible:not(:disabled) {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.hidden-value-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.hidden-value-display code,
+.hidden-value-display span {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -59,13 +59,17 @@
 .topbar-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: none;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-md);
+  text-decoration: none;
   transition: all var(--transition-fast);
 }
 

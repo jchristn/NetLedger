@@ -1,4 +1,4 @@
-﻿namespace NetLedger
+namespace NetLedger
 {
     using System.Runtime.Serialization;
     using System.Text.Json.Serialization;
@@ -30,3 +30,4 @@
         AmountDescending
     }
 }
+

@@ -39,6 +39,33 @@ namespace NetLedger.Database
         }
 
         /// <summary>
+        /// Tenant identifier filter.
+        /// </summary>
+        public string TenantId
+        {
+            get { return _TenantId; }
+            set { _TenantId = value; }
+        }
+
+        /// <summary>
+        /// User identifier used to restrict account enumeration to mapped accounts.
+        /// </summary>
+        public string MappedUserId
+        {
+            get { return _MappedUserId; }
+            set { _MappedUserId = value; }
+        }
+
+        /// <summary>
+        /// User identifier filter for user-owned resources.
+        /// </summary>
+        public string UserId
+        {
+            get { return _UserId; }
+            set { _UserId = value; }
+        }
+
+        /// <summary>
         /// Entry type filter.
         /// </summary>
         public EntryType? EntryType
@@ -63,6 +90,60 @@ namespace NetLedger.Database
         {
             get { return _AmountMaximum; }
             set { _AmountMaximum = value; }
+        }
+
+        /// <summary>
+        /// Minimum credit amount filter.
+        /// </summary>
+        public decimal? CreditMinimum
+        {
+            get { return _CreditMinimum; }
+            set { _CreditMinimum = value; }
+        }
+
+        /// <summary>
+        /// Maximum credit amount filter.
+        /// </summary>
+        public decimal? CreditMaximum
+        {
+            get { return _CreditMaximum; }
+            set { _CreditMaximum = value; }
+        }
+
+        /// <summary>
+        /// Minimum debit amount filter.
+        /// </summary>
+        public decimal? DebitMinimum
+        {
+            get { return _DebitMinimum; }
+            set { _DebitMinimum = value; }
+        }
+
+        /// <summary>
+        /// Maximum debit amount filter.
+        /// </summary>
+        public decimal? DebitMaximum
+        {
+            get { return _DebitMaximum; }
+            set { _DebitMaximum = value; }
+        }
+
+        /// <summary>
+        /// Labels that must all exist on the record.
+        /// </summary>
+        public List<string> Labels
+        {
+            get { return _Labels; }
+            set { _Labels = MetadataValidator.NormalizeLabels(value); }
+        }
+
+        /// <summary>
+        /// Tags that must all match on the record.
+        /// </summary>
+        public Dictionary<string, string> Tags
+        {
+            get { return _Tags; }
+            set { _Tags = MetadataValidator.NormalizeTags(value); }
         }
 
         /// <summary>
@@ -132,14 +213,23 @@ namespace NetLedger.Database
         private DateTime? _StartTimeUtc = null;
         private DateTime? _EndTimeUtc = null;
         private string _SearchTerm = null;
+        private string _TenantId = null;
+        private string _MappedUserId = null;
+        private string _UserId = null;
         private EntryType? _EntryType = null;
         private decimal? _AmountMinimum = null;
         private decimal? _AmountMaximum = null;
+        private decimal? _CreditMinimum = null;
+        private decimal? _CreditMaximum = null;
+        private decimal? _DebitMinimum = null;
+        private decimal? _DebitMaximum = null;
         private bool? _IsCommitted = null;
         private bool _ExcludeBalanceEntries = true;
         private EnumerationOrderEnum _Ordering = EnumerationOrderEnum.CreatedDescending;
         private int _Skip = 0;
         private int _MaxResults = 1000;
+        private List<string> _Labels = new List<string>();
+        private Dictionary<string, string> _Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         private static readonly string _TimestampFormat = "yyyy-MM-dd HH:mm:ss.ffffffZ";
 
@@ -167,8 +257,17 @@ namespace NetLedger.Database
             filter.StartTimeUtc = query.CreatedAfterUtc;
             filter.EndTimeUtc = query.CreatedBeforeUtc;
             filter.SearchTerm = query.SearchTerm;
+            filter.TenantId = query.TenantId;
+            filter.MappedUserId = query.MappedUserId;
+            filter.UserId = query.UserId;
             filter.AmountMinimum = query.AmountMinimum;
             filter.AmountMaximum = query.AmountMaximum;
+            filter.CreditMinimum = query.CreditMinimum;
+            filter.CreditMaximum = query.CreditMaximum;
+            filter.DebitMinimum = query.DebitMinimum;
+            filter.DebitMaximum = query.DebitMaximum;
+            filter.Labels = query.Labels;
+            filter.Tags = query.Tags;
             filter.Ordering = query.Ordering;
             filter.Skip = query.Skip;
             filter.MaxResults = query.MaxResults;
@@ -203,6 +302,11 @@ namespace NetLedger.Database
                 conditions.Add("description LIKE " + FormatLikePattern("%" + SanitizeString(SearchTerm) + "%", dbType));
             }
 
+            if (!String.IsNullOrEmpty(TenantId))
+            {
+                conditions.Add(FormatColumn("tenantid", dbType) + " = '" + SanitizeString(TenantId) + "'");
+            }
+
             if (EntryType.HasValue)
             {
                 conditions.Add("type = " + FormatEntryType(EntryType.Value, dbType));
@@ -218,6 +322,26 @@ namespace NetLedger.Database
                 conditions.Add("amount <= " + AmountMaximum.Value.ToString());
             }
 
+            if (CreditMinimum.HasValue)
+            {
+                conditions.Add("(type != " + FormatEntryType(NetLedger.EntryType.Credit, dbType) + " OR amount >= " + CreditMinimum.Value.ToString() + ")");
+            }
+
+            if (CreditMaximum.HasValue)
+            {
+                conditions.Add("(type != " + FormatEntryType(NetLedger.EntryType.Credit, dbType) + " OR amount <= " + CreditMaximum.Value.ToString() + ")");
+            }
+
+            if (DebitMinimum.HasValue)
+            {
+                conditions.Add("(type != " + FormatEntryType(NetLedger.EntryType.Debit, dbType) + " OR amount >= " + DebitMinimum.Value.ToString() + ")");
+            }
+
+            if (DebitMaximum.HasValue)
+            {
+                conditions.Add("(type != " + FormatEntryType(NetLedger.EntryType.Debit, dbType) + " OR amount <= " + DebitMaximum.Value.ToString() + ")");
+            }
+
             if (IsCommitted.HasValue)
             {
                 conditions.Add(FormatIsCommittedCondition(IsCommitted.Value, dbType));
@@ -227,6 +351,8 @@ namespace NetLedger.Database
             {
                 conditions.Add("type != " + FormatEntryType(NetLedger.EntryType.Balance, dbType));
             }
+
+            AddMetadataConditions(conditions, dbType);
 
             if (conditions.Count == 0)
                 return String.Empty;
@@ -256,6 +382,66 @@ namespace NetLedger.Database
             if (!String.IsNullOrEmpty(SearchTerm))
             {
                 conditions.Add("name LIKE " + FormatLikePattern("%" + SanitizeString(SearchTerm) + "%", dbType));
+            }
+
+            if (!String.IsNullOrEmpty(TenantId))
+            {
+                conditions.Add(FormatColumn("tenantid", dbType) + " = '" + SanitizeString(TenantId) + "'");
+            }
+
+            if (!String.IsNullOrEmpty(MappedUserId))
+            {
+                List<string> mappingConditions = new List<string>();
+                mappingConditions.Add("accountusermaps.accountid = " + FormatColumn("guid", dbType));
+                mappingConditions.Add("accountusermaps.userid = '" + SanitizeString(MappedUserId) + "'");
+                if (!String.IsNullOrEmpty(TenantId))
+                {
+                    mappingConditions.Add("accountusermaps.tenantid = '" + SanitizeString(TenantId) + "'");
+                }
+
+                conditions.Add("EXISTS (SELECT 1 FROM accountusermaps WHERE " + String.Join(" AND ", mappingConditions) + ")");
+            }
+
+            AddMetadataConditions(conditions, dbType);
+
+            if (conditions.Count == 0)
+                return String.Empty;
+
+            return String.Join(" AND ", conditions);
+        }
+
+        /// <summary>
+        /// Build the WHERE clause conditions for credentials (without WHERE keyword).
+        /// </summary>
+        /// <param name="dbType">Database type for syntax differences.</param>
+        /// <returns>WHERE clause conditions or empty string.</returns>
+        public string BuildCredentialConditions(DatabaseTypeEnum dbType)
+        {
+            List<string> conditions = new List<string>();
+
+            if (StartTimeUtc.HasValue)
+            {
+                conditions.Add("createdutc >= " + FormatTimestamp(StartTimeUtc.Value, dbType));
+            }
+
+            if (EndTimeUtc.HasValue)
+            {
+                conditions.Add("createdutc <= " + FormatTimestamp(EndTimeUtc.Value, dbType));
+            }
+
+            if (!String.IsNullOrEmpty(SearchTerm))
+            {
+                conditions.Add("name LIKE " + FormatLikePattern("%" + SanitizeString(SearchTerm) + "%", dbType));
+            }
+
+            if (!String.IsNullOrEmpty(TenantId))
+            {
+                conditions.Add(FormatColumn("tenantid", dbType) + " = '" + SanitizeString(TenantId) + "'");
+            }
+
+            if (!String.IsNullOrEmpty(UserId))
+            {
+                conditions.Add(FormatColumn("userid", dbType) + " = '" + SanitizeString(UserId) + "'");
             }
 
             if (conditions.Count == 0)
@@ -393,6 +579,37 @@ namespace NetLedger.Database
             }
         }
 
+        private void AddMetadataConditions(List<string> conditions, DatabaseTypeEnum dbType)
+        {
+            foreach (string label in Labels)
+            {
+                conditions.Add(FormatColumn("labels", dbType) + " LIKE " + FormatLikePattern("%\"" + SanitizeString(label) + "\"%", dbType));
+            }
+
+            foreach (KeyValuePair<string, string> tag in Tags)
+            {
+                conditions.Add(FormatColumn("tags", dbType) + " LIKE " + FormatLikePattern("%\"" + SanitizeString(tag.Key) + "\":\"" + SanitizeString(tag.Value) + "\"%", dbType));
+            }
+        }
+
+        private string FormatColumn(string column, DatabaseTypeEnum dbType)
+        {
+            switch (dbType)
+            {
+                case DatabaseTypeEnum.SqlServer:
+                    return "[" + column + "]";
+                case DatabaseTypeEnum.Mysql:
+                    return "`" + column + "`";
+                case DatabaseTypeEnum.Postgresql:
+                case DatabaseTypeEnum.Sqlite:
+                default:
+                    return column;
+            }
+        }
+
         #endregion
     }
 }
+
+
+

@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/.vscode/
+**/.git/
+**/.gitignore
+**/.dockerignore
+**/dist/
+**/coverage/
+**/__pycache__/
+**/*.user
+**/*.suo
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.log

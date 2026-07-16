@@ -15,23 +15,23 @@ class AccountMethods {
      * @param notes Optional notes.
      * @returns The created account.
      */
-    async create(name, notes) {
+    async create(name, notes, labels, tags) {
         if (!name || name.trim() === '') {
             throw new errors_1.NetLedgerValidationError('Account name cannot be empty', 'name');
         }
-        const response = await this.client.put('/v1/accounts', { Name: name, Notes: notes });
+        const response = await this.client.put('/v1/accounts', { Name: name, Notes: notes, Labels: labels, Tags: tags });
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
         return response.Data;
     }
     /**
-     * Get an account by GUID.
-     * @param accountGuid The account GUID.
+     * Get an account by identifier.
+     * @param accountId The account identifier.
      * @returns The account.
      */
-    async get(accountGuid) {
-        const response = await this.client.get(`/v1/accounts/${accountGuid}`);
+    async get(accountId) {
+        const response = await this.client.get(`/v1/accounts/${accountId}`);
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -55,18 +55,18 @@ class AccountMethods {
     }
     /**
      * Check if an account exists.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the account exists.
      */
-    async exists(accountGuid) {
-        return await this.client.head(`/v1/accounts/${accountGuid}`);
+    async exists(accountId) {
+        return await this.client.head(`/v1/accounts/${accountId}`);
     }
     /**
      * Delete an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      */
-    async delete(accountGuid) {
-        await this.client.delete(`/v1/accounts/${accountGuid}`);
+    async delete(accountId) {
+        await this.client.delete(`/v1/accounts/${accountId}`);
     }
     /**
      * Enumerate accounts with optional filtering and pagination.
@@ -82,6 +82,11 @@ class AccountMethods {
                 params.append('skip', query.Skip.toString());
             if (query.SearchTerm)
                 params.append('searchTerm', query.SearchTerm);
+            if (query.Labels && query.Labels.length > 0)
+                params.append('labels', query.Labels.join(','));
+            if (query.Tags && Object.keys(query.Tags).length > 0) {
+                params.append('tags', Object.entries(query.Tags).map(([key, value]) => `${key}=${value}`).join(','));
+            }
         }
         const queryString = params.toString();
         const path = queryString ? `/v1/accounts?${queryString}` : '/v1/accounts';

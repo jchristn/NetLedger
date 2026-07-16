@@ -2,14 +2,19 @@ import React from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import './Dashboard.css'
 
 const pageTitles = {
-  '/': 'Home',
-  '/api-keys': 'API Keys',
+  '/home': 'Home',
+  '/credentials': 'Credentials',
+  '/api-keys': 'Credentials',
+  '/tenants': 'Tenants',
+  '/users': 'Users',
   '/accounts': 'Accounts',
-  '/entries': 'Entries'
+  '/entries': 'Entries',
+  '/request-history': 'Request History',
+  '/api-explorer': 'API Explorer'
 }
 
 export default function Dashboard() {

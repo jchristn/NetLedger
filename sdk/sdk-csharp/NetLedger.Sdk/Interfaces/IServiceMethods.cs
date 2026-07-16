@@ -23,5 +23,13 @@ namespace NetLedger.Sdk.Interfaces
         /// <exception cref="NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
         /// <exception cref="NetLedgerApiException">Thrown when the server returns an error.</exception>
         Task<ServiceInfo> GetInfoAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Get the OpenAPI document JSON.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>OpenAPI JSON document.</returns>
+        Task<string> GetOpenApiJsonAsync(CancellationToken cancellationToken = default);
     }
 }
+

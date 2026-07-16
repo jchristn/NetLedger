@@ -21,7 +21,7 @@ namespace Test.ServerAutomated
         private static int _FailCount = 0;
         private static Stopwatch _TotalStopwatch = new Stopwatch();
         private static bool _NoCleanup = false;
-        private static List<Guid> _RetainedAccounts = new List<Guid>();
+        private static List<string> _RetainedAccounts = new List<string>();
 
         #endregion
 
@@ -183,9 +183,9 @@ namespace Test.ServerAutomated
 
             await TestAsync("Create account with name only", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("Test Account " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-                bool result = account != null && account.GUID != Guid.Empty;
-                if (result) await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("Test Account " + UniqueSuffix(8)).ConfigureAwait(false);
+                bool result = account != null && account.Id != String.Empty;
+                if (result) await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return result;
             }).ConfigureAwait(false);
 
@@ -193,20 +193,20 @@ namespace Test.ServerAutomated
             {
                 Account input = new Account
                 {
-                    Name = "Test Account " + Guid.NewGuid().ToString("N").Substring(0, 8)
+                    Name = "Test Account " + UniqueSuffix(8)
                 };
                 Account account = await _Client!.Account.CreateAsync(input).ConfigureAwait(false);
-                bool result = account != null && account.GUID != Guid.Empty;
-                if (result) await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                bool result = account != null && account.Id != String.Empty;
+                if (result) await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return result;
             }).ConfigureAwait(false);
 
             await TestAsync("Created account has correct name", async () =>
             {
-                string expectedName = "NameTest " + Guid.NewGuid().ToString("N").Substring(0, 8);
+                string expectedName = "NameTest " + UniqueSuffix(8);
                 Account account = await _Client!.Account.CreateAsync(expectedName).ConfigureAwait(false);
                 bool result = account != null && account.Name == expectedName;
-                if (account != null) await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                if (account != null) await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return result;
             }).ConfigureAwait(false);
 
@@ -223,13 +223,13 @@ namespace Test.ServerAutomated
             Console.WriteLine("");
 
             // Use a simple name without spaces to avoid URL encoding issues
-            string testName = "RetrievalTest" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            string testName = "RetrievalTest" + UniqueSuffix(8);
             Account createdAccount = await _Client!.Account.CreateAsync(testName).ConfigureAwait(false);
 
-            await TestAsync("Get account by GUID", async () =>
+            await TestAsync("Get account by identifier", async () =>
             {
-                Account account = await _Client!.Account.GetAsync(createdAccount.GUID).ConfigureAwait(false);
-                return account != null && account.GUID == createdAccount.GUID;
+                Account account = await _Client!.Account.GetAsync(createdAccount.Id).ConfigureAwait(false);
+                return account != null && account.Id == createdAccount.Id;
             }).ConfigureAwait(false);
 
             await TestAsync("Get account by name", async () =>
@@ -240,21 +240,21 @@ namespace Test.ServerAutomated
 
             await TestAsync("Check account exists returns true", async () =>
             {
-                bool exists = await _Client!.Account.ExistsAsync(createdAccount.GUID).ConfigureAwait(false);
+                bool exists = await _Client!.Account.ExistsAsync(createdAccount.Id).ConfigureAwait(false);
                 return exists;
             }).ConfigureAwait(false);
 
             await TestAsync("Check non-existent account returns false", async () =>
             {
-                bool exists = await _Client!.Account.ExistsAsync(Guid.NewGuid()).ConfigureAwait(false);
+                bool exists = await _Client!.Account.ExistsAsync(MissingId()).ConfigureAwait(false);
                 return !exists;
             }).ConfigureAwait(false);
 
-            await TestAsync("Get non-existent account by GUID throws 404", async () =>
+            await TestAsync("Get non-existent account by identifier throws 404", async () =>
             {
                 try
                 {
-                    await _Client!.Account.GetAsync(Guid.NewGuid()).ConfigureAwait(false);
+                    await _Client!.Account.GetAsync(MissingId()).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -267,7 +267,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Account.GetByNameAsync("NonExistent" + Guid.NewGuid().ToString("N")).ConfigureAwait(false);
+                    await _Client!.Account.GetByNameAsync("NonExistent" + UniqueSuffix(24)).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -277,7 +277,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(createdAccount.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(createdAccount.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -291,40 +291,40 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Credit and Debit Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Transaction Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Transaction Test " + UniqueSuffix(8)).ConfigureAwait(false);
 
             await TestAsync("Add credit", async () =>
             {
-                Entry entry = await _Client!.Entry.AddCreditAsync(account.GUID, 50.00m, "Test credit").ConfigureAwait(false);
-                return entry != null && entry.GUID != Guid.Empty && entry.Type == EntryType.Credit && entry.Amount == 50.00m;
+                Entry entry = await _Client!.Entry.AddCreditAsync(account.Id, 50.00m, "Test credit").ConfigureAwait(false);
+                return entry != null && entry.Id != String.Empty && entry.Type == EntryType.Credit && entry.Amount == 50.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Add debit", async () =>
             {
-                Entry entry = await _Client!.Entry.AddDebitAsync(account.GUID, 25.00m, "Test debit").ConfigureAwait(false);
-                return entry != null && entry.GUID != Guid.Empty && entry.Type == EntryType.Debit && entry.Amount == 25.00m;
+                Entry entry = await _Client!.Entry.AddDebitAsync(account.Id, 25.00m, "Test debit").ConfigureAwait(false);
+                return entry != null && entry.Id != String.Empty && entry.Type == EntryType.Debit && entry.Amount == 25.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Add credit with description", async () =>
             {
-                Entry entry = await _Client!.Entry.AddCreditAsync(account.GUID, 10.00m, "Credit with notes").ConfigureAwait(false);
+                Entry entry = await _Client!.Entry.AddCreditAsync(account.Id, 10.00m, "Credit with notes").ConfigureAwait(false);
                 return entry != null && entry.Description == "Credit with notes";
             }).ConfigureAwait(false);
 
-            await TestAsync("Entry has correct account GUID", async () =>
+            await TestAsync("Entry has correct account identifier", async () =>
             {
-                Entry entry = await _Client!.Entry.AddCreditAsync(account.GUID, 5.00m).ConfigureAwait(false);
-                return entry.AccountGUID == account.GUID;
+                Entry entry = await _Client!.Entry.AddCreditAsync(account.Id, 5.00m).ConfigureAwait(false);
+                return entry.AccountId == account.Id;
             }).ConfigureAwait(false);
 
             await TestAsync("Entry is initially uncommitted", async () =>
             {
-                Entry entry = await _Client!.Entry.AddCreditAsync(account.GUID, 3.00m).ConfigureAwait(false);
+                Entry entry = await _Client!.Entry.AddCreditAsync(account.Id, 3.00m).ConfigureAwait(false);
                 return !entry.IsCommitted;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -338,7 +338,7 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Batch Operation Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Batch Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Batch Test " + UniqueSuffix(8)).ConfigureAwait(false);
 
             await TestAsync("Add multiple credits in batch", async () =>
             {
@@ -348,7 +348,7 @@ namespace Test.ServerAutomated
                     new EntryInput(20.00m, "Batch credit 2"),
                     new EntryInput(30.00m, "Batch credit 3")
                 };
-                List<Entry> entries = await _Client!.Entry.AddCreditsAsync(account.GUID, credits).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.AddCreditsAsync(account.Id, credits).ConfigureAwait(false);
                 return entries != null && entries.Count == 3;
             }).ConfigureAwait(false);
 
@@ -359,33 +359,33 @@ namespace Test.ServerAutomated
                     new EntryInput(5.00m, "Batch debit 1"),
                     new EntryInput(10.00m, "Batch debit 2")
                 };
-                List<Entry> entries = await _Client!.Entry.AddDebitsAsync(account.GUID, debits).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.AddDebitsAsync(account.Id, debits).ConfigureAwait(false);
                 return entries != null && entries.Count == 2;
             }).ConfigureAwait(false);
 
             await TestAsync("Batch operations affect pending balance correctly", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 // Credits: 10 + 20 + 30 = 60, Debits: 5 + 10 = 15, Net = 45
                 return balance.PendingBalance == 45.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Batch credits return correct types", async () =>
             {
-                Account account2 = await _Client!.Account.CreateAsync("Batch Test 2 " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account2 = await _Client!.Account.CreateAsync("Batch Test 2 " + UniqueSuffix(8)).ConfigureAwait(false);
                 List<EntryInput> credits = new List<EntryInput>
                 {
                     new EntryInput(100.00m),
                     new EntryInput(200.00m)
                 };
-                List<Entry> entries = await _Client!.Entry.AddCreditsAsync(account2.GUID, credits).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.AddCreditsAsync(account2.Id, credits).ConfigureAwait(false);
                 bool allCredits = entries.All(e => e.Type == EntryType.Credit);
-                await CleanupAccountAsync(account2.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account2.Id).ConfigureAwait(false);
                 return allCredits;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -399,44 +399,44 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Balance Calculation Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Balance Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Balance Test " + UniqueSuffix(8)).ConfigureAwait(false);
 
             await TestAsync("New account has zero balance", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m && balance.PendingBalance == 0m;
             }).ConfigureAwait(false);
 
-            await _Client.Entry.AddCreditAsync(account.GUID, 100.00m, "Test credit").ConfigureAwait(false);
-            await _Client.Entry.AddDebitAsync(account.GUID, 30.00m, "Test debit").ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 100.00m, "Test credit").ConfigureAwait(false);
+            await _Client.Entry.AddDebitAsync(account.Id, 30.00m, "Test debit").ConfigureAwait(false);
 
             await TestAsync("Pending balance reflects uncommitted entries", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m && balance.PendingBalance == 70.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Pending credits count is correct", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.PendingCredits != null && balance.PendingCredits.Count == 1;
             }).ConfigureAwait(false);
 
             await TestAsync("Pending debits count is correct", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.PendingDebits != null && balance.PendingDebits.Count == 1;
             }).ConfigureAwait(false);
 
             await TestAsync("Pending credits total is correct", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.PendingCredits != null && balance.PendingCredits.Total == 100.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Pending debits total is correct", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.PendingDebits != null && balance.PendingDebits.Total == 30.00m;
             }).ConfigureAwait(false);
 
@@ -447,7 +447,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -461,56 +461,56 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Commit Operation Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("CommitTest" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-            await _Client.Entry.AddCreditAsync(account.GUID, 100.00m).ConfigureAwait(false);
-            await _Client.Entry.AddDebitAsync(account.GUID, 30.00m).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("CommitTest" + UniqueSuffix(8)).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 100.00m).ConfigureAwait(false);
+            await _Client.Entry.AddDebitAsync(account.Id, 30.00m).ConfigureAwait(false);
 
             await TestAsync("Commit all pending entries updates balance", async () =>
             {
                 // Server returns Balance object, not CommitResult with EntriesCommitted
-                await _Client!.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                await _Client!.Balance.CommitAsync(account.Id).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 70.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Committed balance equals pending balance after commit", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 70.00m && balance.PendingBalance == 70.00m;
             }).ConfigureAwait(false);
 
-            Entry credit1 = await _Client.Entry.AddCreditAsync(account.GUID, 20.00m).ConfigureAwait(false);
-            await _Client.Entry.AddCreditAsync(account.GUID, 30.00m).ConfigureAwait(false);
-            await _Client.Entry.AddDebitAsync(account.GUID, 10.00m).ConfigureAwait(false);
+            Entry credit1 = await _Client.Entry.AddCreditAsync(account.Id, 20.00m).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 30.00m).ConfigureAwait(false);
+            await _Client.Entry.AddDebitAsync(account.Id, 10.00m).ConfigureAwait(false);
 
             await TestAsync("Commit specific entries only", async () =>
             {
-                await _Client!.Balance.CommitAsync(account.GUID, new List<Guid> { credit1.GUID }).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                await _Client!.Balance.CommitAsync(account.Id, new List<string> { credit1.Id }).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 // Started with 70, committed +20, so committed = 90, pending = 90 + 30 - 10 = 110
                 return balance.CommittedBalance == 90.00m && balance.PendingBalance == 110.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Commit returns CommitResult", async () =>
             {
-                Entry credit3 = await _Client!.Entry.AddCreditAsync(account.GUID, 5.00m).ConfigureAwait(false);
-                CommitResult result = await _Client.Balance.CommitAsync(account.GUID, new List<Guid> { credit3.GUID }).ConfigureAwait(false);
+                Entry credit3 = await _Client!.Entry.AddCreditAsync(account.Id, 5.00m).ConfigureAwait(false);
+                CommitResult result = await _Client.Balance.CommitAsync(account.Id, new List<string> { credit3.Id }).ConfigureAwait(false);
                 // The server returns Balance, SDK wraps it - just verify we get a result
                 return result != null;
             }).ConfigureAwait(false);
 
             await TestAsync("Commit with no pending entries succeeds", async () =>
             {
-                Account emptyAccount = await _Client!.Account.CreateAsync("EmptyCommitTest" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account emptyAccount = await _Client!.Account.CreateAsync("EmptyCommitTest" + UniqueSuffix(8)).ConfigureAwait(false);
                 // Commit on empty account should not throw
-                CommitResult result = await _Client.Balance.CommitAsync(emptyAccount.GUID).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(emptyAccount.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(emptyAccount.GUID).ConfigureAwait(false);
+                CommitResult result = await _Client.Balance.CommitAsync(emptyAccount.Id).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(emptyAccount.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(emptyAccount.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -524,39 +524,39 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Pending Entries Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Pending Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-            await _Client.Entry.AddCreditAsync(account.GUID, 25.00m).ConfigureAwait(false);
-            await _Client.Entry.AddCreditAsync(account.GUID, 35.00m).ConfigureAwait(false);
-            await _Client.Entry.AddDebitAsync(account.GUID, 15.00m).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Pending Test " + UniqueSuffix(8)).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 25.00m).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 35.00m).ConfigureAwait(false);
+            await _Client.Entry.AddDebitAsync(account.Id, 15.00m).ConfigureAwait(false);
 
             await TestAsync("Get pending entries returns all", async () =>
             {
-                List<Entry> entries = await _Client!.Entry.GetPendingAsync(account.GUID).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.GetPendingAsync(account.Id).ConfigureAwait(false);
                 return entries != null && entries.Count == 3;
             }).ConfigureAwait(false);
 
             await TestAsync("Get pending credits only", async () =>
             {
-                List<Entry> entries = await _Client!.Entry.GetPendingCreditsAsync(account.GUID).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.GetPendingCreditsAsync(account.Id).ConfigureAwait(false);
                 return entries != null && entries.Count == 2 && entries.All(e => e.Type == EntryType.Credit);
             }).ConfigureAwait(false);
 
             await TestAsync("Get pending debits only", async () =>
             {
-                List<Entry> entries = await _Client!.Entry.GetPendingDebitsAsync(account.GUID).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.GetPendingDebitsAsync(account.Id).ConfigureAwait(false);
                 return entries != null && entries.Count == 1 && entries.All(e => e.Type == EntryType.Debit);
             }).ConfigureAwait(false);
 
-            await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+            await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
 
             await TestAsync("Get pending entries after commit returns empty", async () =>
             {
-                List<Entry> entries = await _Client!.Entry.GetPendingAsync(account.GUID).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.GetPendingAsync(account.Id).ConfigureAwait(false);
                 return entries != null && entries.Count == 0;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -570,35 +570,35 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Entry Enumeration Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Enum Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Enum Test " + UniqueSuffix(8)).ConfigureAwait(false);
 
             // Add entries with varying amounts
             for (int i = 1; i <= 25; i++)
             {
                 decimal amount = i * 10m;
-                await _Client.Entry.AddCreditAsync(account.GUID, amount, $"Credit {i}").ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(account.Id, amount, $"Credit {i}").ConfigureAwait(false);
                 await Task.Delay(10).ConfigureAwait(false);
-                await _Client.Entry.AddDebitAsync(account.GUID, amount, $"Debit {i}").ConfigureAwait(false);
+                await _Client.Entry.AddDebitAsync(account.Id, amount, $"Debit {i}").ConfigureAwait(false);
                 await Task.Delay(10).ConfigureAwait(false);
             }
 
             await TestAsync("Enumerate all entries", async () =>
             {
-                List<Entry> entries = await _Client!.Entry.GetAllAsync(account.GUID).ConfigureAwait(false);
+                List<Entry> entries = await _Client!.Entry.GetAllAsync(account.Id).ConfigureAwait(false);
                 return entries != null && entries.Count == 50;
             }).ConfigureAwait(false);
 
             await TestAsync("Enumerate with MaxResults", async () =>
             {
                 EntryEnumerationQuery query = new EntryEnumerationQuery { MaxResults = 10 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.Objects != null && result.Objects.Count == 10 && result.TotalRecords == 50;
             }).ConfigureAwait(false);
 
             await TestAsync("Enumerate with Skip pagination", async () =>
             {
                 EntryEnumerationQuery query = new EntryEnumerationQuery { MaxResults = 10, Skip = 10 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.Objects != null && result.Objects.Count == 10 && result.RecordsRemaining == 30;
             }).ConfigureAwait(false);
 
@@ -609,7 +609,7 @@ namespace Test.ServerAutomated
                     MaxResults = 10,
                     Ordering = EnumerationOrder.CreatedDescending
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 for (int i = 1; i < result.Objects!.Count; i++)
                 {
                     if (result.Objects[i].CreatedUtc > result.Objects[i - 1].CreatedUtc)
@@ -625,7 +625,7 @@ namespace Test.ServerAutomated
                     MaxResults = 10,
                     Ordering = EnumerationOrder.CreatedAscending
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 for (int i = 1; i < result.Objects!.Count; i++)
                 {
                     if (result.Objects[i].CreatedUtc < result.Objects[i - 1].CreatedUtc)
@@ -641,7 +641,7 @@ namespace Test.ServerAutomated
                     MaxResults = 10,
                     Ordering = EnumerationOrder.AmountDescending
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 for (int i = 1; i < result.Objects!.Count; i++)
                 {
                     if (result.Objects[i].Amount > result.Objects[i - 1].Amount)
@@ -657,7 +657,7 @@ namespace Test.ServerAutomated
                     MaxResults = 10,
                     Ordering = EnumerationOrder.AmountAscending
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 for (int i = 1; i < result.Objects!.Count; i++)
                 {
                     if (result.Objects[i].Amount < result.Objects[i - 1].Amount)
@@ -673,7 +673,7 @@ namespace Test.ServerAutomated
                     MaxResults = 100,
                     AmountMinimum = 100.00m
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.Objects != null && result.Objects.All(e => e.Amount >= 100.00m);
             }).ConfigureAwait(false);
 
@@ -684,7 +684,7 @@ namespace Test.ServerAutomated
                     MaxResults = 100,
                     AmountMaximum = 50.00m
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.Objects != null && result.Objects.All(e => e.Amount <= 50.00m);
             }).ConfigureAwait(false);
 
@@ -696,7 +696,7 @@ namespace Test.ServerAutomated
                     AmountMinimum = 50.00m,
                     AmountMaximum = 100.00m
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.Objects != null && result.Objects.All(e => e.Amount >= 50.00m && e.Amount <= 100.00m);
             }).ConfigureAwait(false);
 
@@ -709,36 +709,36 @@ namespace Test.ServerAutomated
                     CreatedAfterUtc = now.AddMinutes(-10),
                     CreatedBeforeUtc = now.AddMinutes(10)
                 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.Objects != null && result.Objects.Count > 0;
             }).ConfigureAwait(false);
 
             await TestAsync("Enumerate with ContinuationToken", async () =>
             {
                 EntryEnumerationQuery query = new EntryEnumerationQuery { MaxResults = 10 };
-                EnumerationResult<Entry> result1 = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result1 = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
 
                 if (string.IsNullOrEmpty(result1.ContinuationToken))
                     return false;
 
                 query.ContinuationToken = result1.ContinuationToken;
                 query.Skip = 0;
-                EnumerationResult<Entry> result2 = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result2 = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
 
                 // Second page should have different entries
                 return result2.Objects != null && result2.Objects.Count > 0 &&
-                       result2.Objects[0].GUID != result1.Objects![0].GUID;
+                       result2.Objects[0].Id != result1.Objects![0].Id;
             }).ConfigureAwait(false);
 
             await TestAsync("Enumerate EndOfResults is accurate", async () =>
             {
                 EntryEnumerationQuery query = new EntryEnumerationQuery { MaxResults = 100 };
-                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.GUID, query).ConfigureAwait(false);
+                EnumerationResult<Entry> result = await _Client!.Entry.EnumerateAsync(account.Id, query).ConfigureAwait(false);
                 return result.EndOfResults && result.RecordsRemaining == 0;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -752,22 +752,22 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Entry Cancellation Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Cancel Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-            Entry credit = await _Client.Entry.AddCreditAsync(account.GUID, 50.00m).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Cancel Test " + UniqueSuffix(8)).ConfigureAwait(false);
+            Entry credit = await _Client.Entry.AddCreditAsync(account.Id, 50.00m).ConfigureAwait(false);
 
             await TestAsync("Cancel pending entry", async () =>
             {
-                await _Client!.Entry.CancelAsync(account.GUID, credit.GUID).ConfigureAwait(false);
-                List<Entry> entries = await _Client.Entry.GetPendingAsync(account.GUID).ConfigureAwait(false);
+                await _Client!.Entry.CancelAsync(account.Id, credit.Id).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.GetPendingAsync(account.Id).ConfigureAwait(false);
                 return entries.Count == 0;
             }).ConfigureAwait(false);
 
             await TestAsync("Pending balance updates after cancellation", async () =>
             {
-                Entry credit1 = await _Client!.Entry.AddCreditAsync(account.GUID, 100.00m).ConfigureAwait(false);
-                Balance balanceBefore = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Entry.CancelAsync(account.GUID, credit1.GUID).ConfigureAwait(false);
-                Balance balanceAfter = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Entry credit1 = await _Client!.Entry.AddCreditAsync(account.Id, 100.00m).ConfigureAwait(false);
+                Balance balanceBefore = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
+                await _Client.Entry.CancelAsync(account.Id, credit1.Id).ConfigureAwait(false);
+                Balance balanceAfter = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balanceBefore.PendingBalance != balanceAfter.PendingBalance;
             }).ConfigureAwait(false);
 
@@ -775,7 +775,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Entry.CancelAsync(account.GUID, Guid.NewGuid()).ConfigureAwait(false);
+                    await _Client!.Entry.CancelAsync(account.Id, MissingId()).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -785,7 +785,7 @@ namespace Test.ServerAutomated
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -800,7 +800,7 @@ namespace Test.ServerAutomated
             Console.WriteLine("");
 
             // Create test accounts with a unique prefix
-            string prefix = "EnumTest" + Guid.NewGuid().ToString("N").Substring(0, 6);
+            string prefix = "EnumTest" + UniqueSuffix(6);
             List<Account> createdAccounts = new List<Account>();
             for (int i = 0; i < 10; i++)
             {
@@ -854,7 +854,7 @@ namespace Test.ServerAutomated
             // Cleanup
             foreach (Account acct in createdAccounts)
             {
-                await CleanupAccountAsync(acct.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(acct.Id).ConfigureAwait(false);
             }
 
             Console.WriteLine("");
@@ -869,15 +869,15 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Historical Balance Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("HistoricalTest" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("HistoricalTest" + UniqueSuffix(8)).ConfigureAwait(false);
 
             // Record timestamp before any commits
             DateTime timestampBeforeFirstCommit = DateTime.UtcNow;
             await Task.Delay(100).ConfigureAwait(false);
 
             // Add and commit first set
-            await _Client.Entry.AddCreditAsync(account.GUID, 100.00m).ConfigureAwait(false);
-            await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 100.00m).ConfigureAwait(false);
+            await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
 
             // Wait and record timestamp after first commit
             await Task.Delay(100).ConfigureAwait(false);
@@ -885,29 +885,29 @@ namespace Test.ServerAutomated
             await Task.Delay(100).ConfigureAwait(false);
 
             // Add and commit second set
-            await _Client.Entry.AddCreditAsync(account.GUID, 50.00m).ConfigureAwait(false);
-            await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 50.00m).ConfigureAwait(false);
+            await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
 
             await TestAsync("GetBalanceAsOf returns zero before first commit", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsOfAsync(account.GUID, timestampBeforeFirstCommit).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsOfAsync(account.Id, timestampBeforeFirstCommit).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m;
             }).ConfigureAwait(false);
 
             await TestAsync("GetBalanceAsOf returns balance after first commit", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsOfAsync(account.GUID, timestampAfterFirstCommit).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsOfAsync(account.Id, timestampAfterFirstCommit).ConfigureAwait(false);
                 return balance.CommittedBalance == 100.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("GetBalanceAsOf returns current balance for future date", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsOfAsync(account.GUID, DateTime.UtcNow.AddHours(1)).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsOfAsync(account.Id, DateTime.UtcNow.AddHours(1)).ConfigureAwait(false);
                 return balance.CommittedBalance == 150.00m;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -921,32 +921,32 @@ namespace Test.ServerAutomated
             Console.WriteLine("--- Balance Chain Verification Tests ---");
             Console.WriteLine("");
 
-            Account account = await _Client!.Account.CreateAsync("Chain Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+            Account account = await _Client!.Account.CreateAsync("Chain Test " + UniqueSuffix(8)).ConfigureAwait(false);
 
             // Build up a chain of commits
-            await _Client.Entry.AddCreditAsync(account.GUID, 10.00m).ConfigureAwait(false);
-            await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 10.00m).ConfigureAwait(false);
+            await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
 
-            await _Client.Entry.AddCreditAsync(account.GUID, 20.00m).ConfigureAwait(false);
-            await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+            await _Client.Entry.AddCreditAsync(account.Id, 20.00m).ConfigureAwait(false);
+            await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
 
-            await _Client.Entry.AddDebitAsync(account.GUID, 5.00m).ConfigureAwait(false);
-            await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+            await _Client.Entry.AddDebitAsync(account.Id, 5.00m).ConfigureAwait(false);
+            await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
 
             await TestAsync("VerifyBalanceChain returns true for valid chain", async () =>
             {
-                bool isValid = await _Client!.Balance.VerifyAsync(account.GUID).ConfigureAwait(false);
+                bool isValid = await _Client!.Balance.VerifyAsync(account.Id).ConfigureAwait(false);
                 return isValid;
             }).ConfigureAwait(false);
 
             await TestAsync("Final balance is correct after chain", async () =>
             {
-                Balance balance = await _Client!.Balance.GetAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client!.Balance.GetAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 25.00m;
             }).ConfigureAwait(false);
 
             // Cleanup
-            await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+            await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
             Console.WriteLine("");
         }
@@ -964,7 +964,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Entry.AddCreditAsync(Guid.NewGuid(), 10.00m).ConfigureAwait(false);
+                    await _Client!.Entry.AddCreditAsync(MissingId(), 10.00m).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -977,7 +977,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Entry.AddDebitAsync(Guid.NewGuid(), 10.00m).ConfigureAwait(false);
+                    await _Client!.Entry.AddDebitAsync(MissingId(), 10.00m).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -990,7 +990,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Balance.GetAsync(Guid.NewGuid()).ConfigureAwait(false);
+                    await _Client!.Balance.GetAsync(MissingId()).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -1003,7 +1003,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Balance.CommitAsync(Guid.NewGuid()).ConfigureAwait(false);
+                    await _Client!.Balance.CommitAsync(MissingId()).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -1016,7 +1016,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Account.DeleteAsync(Guid.NewGuid()).ConfigureAwait(false);
+                    await _Client!.Account.DeleteAsync(MissingId()).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -1029,7 +1029,7 @@ namespace Test.ServerAutomated
             {
                 try
                 {
-                    await _Client!.Balance.VerifyAsync(Guid.NewGuid()).ConfigureAwait(false);
+                    await _Client!.Balance.VerifyAsync(MissingId()).ConfigureAwait(false);
                     return false;
                 }
                 catch (NetLedgerApiException ex) when (ex.StatusCode == 404)
@@ -1052,27 +1052,27 @@ namespace Test.ServerAutomated
 
             await TestAsync("Multiple commits on same account", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("EdgeTest1" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-                await _Client.Entry.AddCreditAsync(account.GUID, 10.00m).ConfigureAwait(false);
-                await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Entry.AddCreditAsync(account.GUID, 20.00m).ConfigureAwait(false);
-                await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
-                await _Client.Entry.AddCreditAsync(account.GUID, 30.00m).ConfigureAwait(false);
-                await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest1" + UniqueSuffix(8)).ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(account.Id, 10.00m).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(account.Id, 20.00m).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(account.Id, 30.00m).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 60.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Large number of pending entries", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("EdgeTest2" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest2" + UniqueSuffix(8)).ConfigureAwait(false);
                 for (int i = 0; i < 50; i++)
                 {
-                    await _Client.Entry.AddCreditAsync(account.GUID, 1.00m).ConfigureAwait(false);
+                    await _Client.Entry.AddCreditAsync(account.Id, 1.00m).ConfigureAwait(false);
                 }
-                List<Entry> entries = await _Client.Entry.GetPendingAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.GetPendingAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return entries.Count == 50;
             }).ConfigureAwait(false);
 
@@ -1080,61 +1080,61 @@ namespace Test.ServerAutomated
             {
                 string longName = "LongName_" + new string('A', 200);
                 Account account = await _Client!.Account.CreateAsync(longName).ConfigureAwait(false);
-                Account retrieved = await _Client.Account.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account retrieved = await _Client.Account.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return retrieved.Name == longName;
             }).ConfigureAwait(false);
 
             await TestAsync("Very long entry description", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("EdgeTest3" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest3" + UniqueSuffix(8)).ConfigureAwait(false);
                 string longDesc = new string('B', 200);
-                Entry entry = await _Client.Entry.AddCreditAsync(account.GUID, 10.00m, longDesc).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Entry entry = await _Client.Entry.AddCreditAsync(account.Id, 10.00m, longDesc).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return entry.Description == longDesc;
             }).ConfigureAwait(false);
 
             await TestAsync("Partial commit of pending entries", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("EdgeTest4" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-                Entry credit1 = await _Client.Entry.AddCreditAsync(account.GUID, 10.00m).ConfigureAwait(false);
-                Entry credit2 = await _Client.Entry.AddCreditAsync(account.GUID, 20.00m).ConfigureAwait(false);
-                Entry credit3 = await _Client.Entry.AddCreditAsync(account.GUID, 30.00m).ConfigureAwait(false);
-                await _Client.Balance.CommitAsync(account.GUID, new List<Guid> { credit1.GUID, credit3.GUID }).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest4" + UniqueSuffix(8)).ConfigureAwait(false);
+                Entry credit1 = await _Client.Entry.AddCreditAsync(account.Id, 10.00m).ConfigureAwait(false);
+                Entry credit2 = await _Client.Entry.AddCreditAsync(account.Id, 20.00m).ConfigureAwait(false);
+                Entry credit3 = await _Client.Entry.AddCreditAsync(account.Id, 30.00m).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id, new List<string> { credit1.Id, credit3.Id }).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 40.00m && balance.PendingBalance == 60.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Mix of credits and debits resulting in zero", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("EdgeTest5" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-                await _Client.Entry.AddCreditAsync(account.GUID, 100.00m).ConfigureAwait(false);
-                await _Client.Entry.AddDebitAsync(account.GUID, 100.00m).ConfigureAwait(false);
-                await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest5" + UniqueSuffix(8)).ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(account.Id, 100.00m).ConfigureAwait(false);
+                await _Client.Entry.AddDebitAsync(account.Id, 100.00m).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == 0m;
             }).ConfigureAwait(false);
 
             await TestAsync("Mix of credits and debits resulting in negative", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("EdgeTest6" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
-                await _Client.Entry.AddCreditAsync(account.GUID, 50.00m).ConfigureAwait(false);
-                await _Client.Entry.AddDebitAsync(account.GUID, 100.00m).ConfigureAwait(false);
-                await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest6" + UniqueSuffix(8)).ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(account.Id, 50.00m).ConfigureAwait(false);
+                await _Client.Entry.AddDebitAsync(account.Id, 100.00m).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return balance.CommittedBalance == -50.00m;
             }).ConfigureAwait(false);
 
             await TestAsync("Account creation timestamp is set", async () =>
             {
                 DateTime before = DateTime.UtcNow.AddSeconds(-1);
-                Account account = await _Client!.Account.CreateAsync("EdgeTest7" + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("EdgeTest7" + UniqueSuffix(8)).ConfigureAwait(false);
                 DateTime after = DateTime.UtcNow.AddSeconds(1);
-                Account retrieved = await _Client.Account.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Account retrieved = await _Client.Account.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 return retrieved.CreatedUtc >= before && retrieved.CreatedUtc <= after;
             }).ConfigureAwait(false);
 
@@ -1153,7 +1153,7 @@ namespace Test.ServerAutomated
             await TestAsync("Create 50 accounts in reasonable time", async () =>
             {
                 Stopwatch sw = Stopwatch.StartNew();
-                string prefix = "Perf_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+                string prefix = "Perf_" + UniqueSuffix(6);
                 List<Account> accounts = new List<Account>();
 
                 for (int i = 0; i < 50; i++)
@@ -1167,7 +1167,7 @@ namespace Test.ServerAutomated
                 // Cleanup
                 foreach (Account acct in accounts)
                 {
-                    await CleanupAccountAsync(acct.GUID).ConfigureAwait(false);
+                    await CleanupAccountAsync(acct.Id).ConfigureAwait(false);
                 }
 
                 return sw.Elapsed.TotalSeconds < 30;
@@ -1175,34 +1175,34 @@ namespace Test.ServerAutomated
 
             await TestAsync("Add 100 entries in reasonable time", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("Perf Test " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("Perf Test " + UniqueSuffix(8)).ConfigureAwait(false);
                 Stopwatch sw = Stopwatch.StartNew();
 
                 for (int i = 0; i < 100; i++)
                 {
-                    await _Client.Entry.AddCreditAsync(account.GUID, 1.00m).ConfigureAwait(false);
+                    await _Client.Entry.AddCreditAsync(account.Id, 1.00m).ConfigureAwait(false);
                 }
 
                 sw.Stop();
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
                 return sw.Elapsed.TotalSeconds < 30;
             }).ConfigureAwait(false);
 
             await TestAsync("Commit 50 entries in reasonable time", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("Perf Test 2 " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("Perf Test 2 " + UniqueSuffix(8)).ConfigureAwait(false);
 
                 for (int i = 0; i < 50; i++)
                 {
-                    await _Client.Entry.AddCreditAsync(account.GUID, 1.00m).ConfigureAwait(false);
+                    await _Client.Entry.AddCreditAsync(account.Id, 1.00m).ConfigureAwait(false);
                 }
 
                 Stopwatch sw = Stopwatch.StartNew();
-                await _Client.Balance.CommitAsync(account.GUID).ConfigureAwait(false);
+                await _Client.Balance.CommitAsync(account.Id).ConfigureAwait(false);
                 sw.Stop();
 
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
                 return sw.Elapsed.TotalSeconds < 10;
             }).ConfigureAwait(false);
@@ -1221,17 +1221,17 @@ namespace Test.ServerAutomated
 
             await TestAsync("Concurrent credits to same account are handled correctly", async () =>
             {
-                Account account = await _Client!.Account.CreateAsync("Concurrent Test 1 " + Guid.NewGuid().ToString("N").Substring(0, 8)).ConfigureAwait(false);
+                Account account = await _Client!.Account.CreateAsync("Concurrent Test 1 " + UniqueSuffix(8)).ConfigureAwait(false);
 
                 List<Task<Entry>> tasks = new List<Task<Entry>>();
                 for (int i = 0; i < 10; i++)
                 {
-                    tasks.Add(_Client.Entry.AddCreditAsync(account.GUID, 10.00m));
+                    tasks.Add(_Client.Entry.AddCreditAsync(account.Id, 10.00m));
                 }
                 await Task.WhenAll(tasks).ConfigureAwait(false);
 
-                Balance balance = await _Client.Balance.GetAsync(account.GUID).ConfigureAwait(false);
-                await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(account.Id).ConfigureAwait(false);
+                await CleanupAccountAsync(account.Id).ConfigureAwait(false);
 
                 return balance.PendingBalance == 100.00m;
             }).ConfigureAwait(false);
@@ -1239,7 +1239,7 @@ namespace Test.ServerAutomated
             await TestAsync("Concurrent operations on different accounts work correctly", async () =>
             {
                 List<Task<Account>> accountTasks = new List<Task<Account>>();
-                string prefix = "Concurrent_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+                string prefix = "Concurrent_" + UniqueSuffix(6);
 
                 for (int i = 0; i < 5; i++)
                 {
@@ -1250,28 +1250,28 @@ namespace Test.ServerAutomated
                 List<Task<Entry>> creditTasks = new List<Task<Entry>>();
                 foreach (Account account in accounts)
                 {
-                    creditTasks.Add(_Client!.Entry.AddCreditAsync(account.GUID, 100.00m));
+                    creditTasks.Add(_Client!.Entry.AddCreditAsync(account.Id, 100.00m));
                 }
                 await Task.WhenAll(creditTasks).ConfigureAwait(false);
 
                 List<Task> commitTasks = new List<Task>();
                 foreach (Account account in accounts)
                 {
-                    commitTasks.Add(_Client!.Balance.CommitAsync(account.GUID));
+                    commitTasks.Add(_Client!.Balance.CommitAsync(account.Id));
                 }
                 await Task.WhenAll(commitTasks).ConfigureAwait(false);
 
                 List<Task<Balance>> balanceTasks = new List<Task<Balance>>();
                 foreach (Account account in accounts)
                 {
-                    balanceTasks.Add(_Client!.Balance.GetAsync(account.GUID));
+                    balanceTasks.Add(_Client!.Balance.GetAsync(account.Id));
                 }
                 Balance[] balances = await Task.WhenAll(balanceTasks).ConfigureAwait(false);
 
                 // Cleanup
                 foreach (Account account in accounts)
                 {
-                    await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                    await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 }
 
                 return balances.All(b => b.CommittedBalance == 100.00m);
@@ -1279,7 +1279,7 @@ namespace Test.ServerAutomated
 
             await TestAsync("Concurrent account creation works correctly", async () =>
             {
-                string prefix = "ConcCreate_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+                string prefix = "ConcCreate_" + UniqueSuffix(6);
                 List<Task<Account>> tasks = new List<Task<Account>>();
 
                 for (int i = 0; i < 10; i++)
@@ -1289,12 +1289,12 @@ namespace Test.ServerAutomated
 
                 Account[] accounts = await Task.WhenAll(tasks).ConfigureAwait(false);
 
-                bool allUnique = accounts.Select(a => a.GUID).Distinct().Count() == 10;
+                bool allUnique = accounts.Select(a => a.Id).Distinct().Count() == 10;
 
                 // Cleanup
                 foreach (Account account in accounts)
                 {
-                    await CleanupAccountAsync(account.GUID).ConfigureAwait(false);
+                    await CleanupAccountAsync(account.Id).ConfigureAwait(false);
                 }
 
                 return allUnique;
@@ -1307,18 +1307,18 @@ namespace Test.ServerAutomated
 
         #region Test-Infrastructure
 
-        static async Task CleanupAccountAsync(Guid accountGuid)
+        static async Task CleanupAccountAsync(string accountId)
         {
             if (_NoCleanup)
             {
-                if (!_RetainedAccounts.Contains(accountGuid))
+                if (!_RetainedAccounts.Contains(accountId))
                 {
-                    _RetainedAccounts.Add(accountGuid);
+                    _RetainedAccounts.Add(accountId);
                 }
             }
             else
             {
-                await _Client!.Account.DeleteAsync(accountGuid).ConfigureAwait(false);
+                await _Client!.Account.DeleteAsync(accountId).ConfigureAwait(false);
             }
         }
 
@@ -1410,11 +1410,22 @@ namespace Test.ServerAutomated
             {
                 Console.WriteLine("");
                 Console.WriteLine($"Cleanup skipped. {_RetainedAccounts.Count} test account(s) retained on server:");
-                foreach (Guid guid in _RetainedAccounts)
+                foreach (string accountId in _RetainedAccounts)
                 {
-                    Console.WriteLine($"  - {guid}");
+                    Console.WriteLine($"  - {accountId}");
                 }
             }
+        }
+
+        static string UniqueSuffix(int length)
+        {
+            string value = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString("x") + Random.Shared.NextInt64(0, Int64.MaxValue).ToString("x");
+            return value.Length <= length ? value : value.Substring(value.Length - length);
+        }
+
+        static string MissingId()
+        {
+            return "missing_" + UniqueSuffix(16);
         }
 
         #endregion

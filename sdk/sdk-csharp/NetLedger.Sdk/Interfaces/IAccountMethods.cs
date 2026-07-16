@@ -22,9 +22,9 @@ namespace NetLedger.Sdk.Interfaces
         Task<Account> CreateAsync(string name, string? notes = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Create a new account with a specific GUID.
+        /// Create a new account with a specific Id.
         /// </summary>
-        /// <param name="account">The account to create (GUID will be used if provided).</param>
+        /// <param name="account">The account to create (Id will be used if provided).</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>The created account.</returns>
         /// <exception cref="ArgumentNullException">Thrown when account is null.</exception>
@@ -33,14 +33,14 @@ namespace NetLedger.Sdk.Interfaces
         Task<Account> CreateAsync(Account account, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Get an account by its GUID.
+        /// Get an account by its Id.
         /// </summary>
-        /// <param name="accountGuid">The GUID of the account.</param>
+        /// <param name="accountId">The Id of the account.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>The account.</returns>
         /// <exception cref="NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
         /// <exception cref="NetLedgerApiException">Thrown when the server returns an error (404 if not found).</exception>
-        Task<Account> GetAsync(Guid accountGuid, CancellationToken cancellationToken = default);
+        Task<Account> GetAsync(string accountId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get an account by its name.
@@ -56,21 +56,21 @@ namespace NetLedger.Sdk.Interfaces
         /// <summary>
         /// Check if an account exists.
         /// </summary>
-        /// <param name="accountGuid">The GUID of the account.</param>
+        /// <param name="accountId">The Id of the account.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>True if the account exists, false otherwise.</returns>
         /// <exception cref="NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
-        Task<bool> ExistsAsync(Guid accountGuid, CancellationToken cancellationToken = default);
+        Task<bool> ExistsAsync(string accountId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Delete an account.
         /// </summary>
-        /// <param name="accountGuid">The GUID of the account to delete.</param>
+        /// <param name="accountId">The Id of the account to delete.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>Task representing the async operation.</returns>
         /// <exception cref="NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
         /// <exception cref="NetLedgerApiException">Thrown when the server returns an error (404 if not found).</exception>
-        Task DeleteAsync(Guid accountGuid, CancellationToken cancellationToken = default);
+        Task DeleteAsync(string accountId, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Enumerate accounts with optional filtering and pagination.
@@ -83,3 +83,4 @@ namespace NetLedger.Sdk.Interfaces
         Task<EnumerationResult<Account>> EnumerateAsync(AccountEnumerationQuery? query = null, CancellationToken cancellationToken = default);
     }
 }
+

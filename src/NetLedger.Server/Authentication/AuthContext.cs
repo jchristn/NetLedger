@@ -29,6 +29,11 @@ namespace NetLedger.Server.Authentication
         InactiveApiKey,
 
         /// <summary>
+        /// Session is inactive or expired.
+        /// </summary>
+        InactiveSession,
+
+        /// <summary>
         /// Authentication not required.
         /// </summary>
         NotRequired
@@ -63,13 +68,49 @@ namespace NetLedger.Server.Authentication
         public ApiKey? ApiKey { get; set; }
 
         /// <summary>
+        /// Authenticated user, if any.
+        /// </summary>
+        public User? User { get; set; }
+
+        /// <summary>
+        /// Authenticated session, if any.
+        /// </summary>
+        public AuthSession? Session { get; set; }
+
+        /// <summary>
+        /// Tenant identifier.
+        /// </summary>
+        public string? TenantId { get; set; }
+
+        /// <summary>
+        /// Principal identifier.
+        /// </summary>
+        public string? PrincipalId { get; set; }
+
+        /// <summary>
+        /// Principal type.
+        /// </summary>
+        public string? PrincipalType { get; set; }
+
+        /// <summary>
         /// Whether the authenticated user has admin privileges.
         /// </summary>
         public bool IsAdmin
         {
             get
             {
-                return ApiKey?.IsAdmin ?? false;
+                return (ApiKey?.IsAdmin ?? false) || (User?.IsAdmin ?? false);
+            }
+        }
+
+        /// <summary>
+        /// Whether the authenticated user has tenant administrator privileges.
+        /// </summary>
+        public bool IsTenantAdmin
+        {
+            get
+            {
+                return User?.IsTenantAdmin ?? false;
             }
         }
 
@@ -94,12 +135,35 @@ namespace NetLedger.Server.Authentication
         /// </summary>
         /// <param name="apiKey">Authenticated API key.</param>
         /// <returns>Authentication context.</returns>
-        public static AuthContext Success(ApiKey apiKey)
+        public static AuthContext Success(ApiKey apiKey, User? user = null)
         {
             return new AuthContext
             {
                 Result = AuthResult.Success,
-                ApiKey = apiKey
+                ApiKey = apiKey,
+                User = user,
+                TenantId = apiKey.TenantId,
+                PrincipalId = apiKey.Id,
+                PrincipalType = "Credential"
+            };
+        }
+
+        /// <summary>
+        /// Create a successful authentication context.
+        /// </summary>
+        /// <param name="user">Authenticated user.</param>
+        /// <param name="session">Authenticated session.</param>
+        /// <returns>Authentication context.</returns>
+        public static AuthContext Success(User user, AuthSession session)
+        {
+            return new AuthContext
+            {
+                Result = AuthResult.Success,
+                User = user,
+                Session = session,
+                TenantId = user.TenantId,
+                PrincipalId = user.Id,
+                PrincipalType = "User"
             };
         }
 

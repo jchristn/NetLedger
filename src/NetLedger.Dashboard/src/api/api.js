@@ -3,16 +3,52 @@
  * Handles all communication with the NetLedger.Server backend
  */
 
+export class NetLedgerApiError extends Error {
+  constructor(message, options = {}) {
+    super(message)
+    this.name = 'NetLedgerApiError'
+    this.status = options.status || 0
+    this.statusText = options.statusText || ''
+    this.data = options.data || null
+    this.path = options.path || ''
+  }
+}
+
 export class NetLedgerApi {
-  constructor(baseUrl, apiKey) {
+  constructor(baseUrl, apiKey, tenantId = '', options = {}) {
     this.baseUrl = baseUrl.replace(/\/+$/, '')
     this.apiKey = apiKey
+    this.tenantId = tenantId
+    this.onAuthenticationFailed = typeof options.onAuthenticationFailed === 'function' ? options.onAuthenticationFailed : null
+  }
+
+  handleAuthenticationFailure(error) {
+    if (this.apiKey && error?.status === 401 && this.onAuthenticationFailed) {
+      this.onAuthenticationFailed(error)
+    }
+  }
+
+  extractRouteTenantId(path) {
+    const match = path.match(/^\/v1(?:\.0\/api)?\/tenants\/([^/?#]+)/i)
+    return match ? decodeURIComponent(match[1]) : ''
+  }
+
+  resolveTenantHeader(path, requestOptions = {}) {
+    if (requestOptions.suppressTenantHeader) return ''
+
+    if (this.extractRouteTenantId(path)) return ''
+
+    if (Object.prototype.hasOwnProperty.call(requestOptions, 'tenantId')) {
+      return requestOptions.tenantId || ''
+    }
+
+    return this.tenantId || ''
   }
 
   /**
    * Make an authenticated request to the API
    */
-  async request(method, path, body = null, queryParams = null) {
+  async request(method, path, body = null, queryParams = null, requestOptions = {}) {
     let url = `${this.baseUrl}${path}`
 
     if (queryParams) {
@@ -35,17 +71,21 @@ export class NetLedgerApi {
     if (this.apiKey) {
       headers['Authorization'] = `Bearer ${this.apiKey}`
     }
+    const tenantHeader = this.resolveTenantHeader(path, requestOptions)
+    if (tenantHeader) {
+      headers['x-tenant-id'] = tenantHeader
+    }
 
-    const options = {
+    const fetchOptions = {
       method,
       headers
     }
 
     if (body && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-      options.body = JSON.stringify(body)
+      fetchOptions.body = JSON.stringify(body)
     }
 
-    const response = await fetch(url, options)
+    const response = await fetch(url, fetchOptions)
 
     // Handle no content responses
     if (response.status === 204) {
@@ -58,15 +98,28 @@ export class NetLedgerApi {
       data = await response.json()
     } catch {
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const error = new NetLedgerApiError(`HTTP ${response.status}: ${response.statusText}`, {
+          status: response.status,
+          statusText: response.statusText,
+          path
+        })
+        this.handleAuthenticationFailure(error)
+        throw error
       }
       return null
     }
 
     // Check for API-level errors
     if (!response.ok) {
-      const errorMessage = data?.Error?.Message || data?.error?.message || data?.message || `HTTP ${response.status}`
-      throw new Error(errorMessage)
+      const errorMessage = data?.Error?.Message || data?.error?.message || data?.message || data?.Description || data?.description || `HTTP ${response.status}`
+      const error = new NetLedgerApiError(errorMessage, {
+        status: response.status,
+        statusText: response.statusText,
+        data,
+        path
+      })
+      this.handleAuthenticationFailure(error)
+      throw error
     }
 
     // Return data from response wrapper if present (handle both PascalCase and camelCase)
@@ -83,20 +136,98 @@ export class NetLedgerApi {
   }
 
   // Convenience methods
-  async get(path, queryParams = null) {
-    return this.request('GET', path, null, queryParams)
+  async get(path, queryParams = null, requestOptions = {}) {
+    return this.request('GET', path, null, queryParams, requestOptions)
   }
 
-  async post(path, body = null, queryParams = null) {
-    return this.request('POST', path, body, queryParams)
+  async post(path, body = null, queryParams = null, requestOptions = {}) {
+    return this.request('POST', path, body, queryParams, requestOptions)
   }
 
-  async put(path, body = null, queryParams = null) {
-    return this.request('PUT', path, body, queryParams)
+  async put(path, body = null, queryParams = null, requestOptions = {}) {
+    return this.request('PUT', path, body, queryParams, requestOptions)
   }
 
-  async delete(path, queryParams = null) {
-    return this.request('DELETE', path, null, queryParams)
+  async delete(path, queryParams = null, requestOptions = {}) {
+    return this.request('DELETE', path, null, queryParams, requestOptions)
+  }
+
+  async requestRaw(method, path, options = {}) {
+    let url = `${this.baseUrl}${path}`
+    const {
+      body = null,
+      headers: extraHeaders = {},
+      queryParams = null,
+      signal = null
+    } = options
+
+    if (queryParams) {
+      const params = new URLSearchParams()
+      Object.entries(queryParams).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') {
+          params.append(key, value)
+        }
+      })
+      const queryString = params.toString()
+      if (queryString) {
+        url += url.includes('?') ? `&${queryString}` : `?${queryString}`
+      }
+    }
+
+    const headers = { ...extraHeaders }
+    if (body !== null && body !== undefined && body !== '' && !headers['Content-Type'] && !headers['content-type']) {
+      headers['Content-Type'] = 'application/json'
+    }
+    if (this.apiKey && !headers.Authorization && !headers.authorization) {
+      headers.Authorization = `Bearer ${this.apiKey}`
+    }
+    const tenantHeader = this.resolveTenantHeader(path, options)
+    if (tenantHeader && !headers['x-tenant-id'] && !headers['X-Tenant-Id']) {
+      headers['x-tenant-id'] = tenantHeader
+    }
+
+    const started = performance.now()
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body !== null && body !== undefined && method !== 'GET' && method !== 'HEAD' ? body : undefined,
+      signal
+    })
+    const text = await response.text()
+    const responseHeaders = {}
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value
+    })
+
+    let json = null
+    try {
+      json = text ? JSON.parse(text) : null
+    } catch {
+      json = null
+    }
+
+    const result = {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders,
+      text,
+      json,
+      contentType: response.headers.get('content-type') || '',
+      durationMs: performance.now() - started,
+      requestId: response.headers.get('x-request-id') || response.headers.get('x-netledger-request-id') || ''
+    }
+
+    if (!result.ok && result.status === 401) {
+      this.handleAuthenticationFailure(new NetLedgerApiError('Authentication failed', {
+        status: result.status,
+        statusText: result.statusText,
+        data: json,
+        path
+      }))
+    }
+
+    return result
   }
 
   // ==================== Service Endpoints ====================
@@ -108,12 +239,43 @@ export class NetLedgerApi {
     return this.get('/')
   }
 
+  async getOpenApiSpec() {
+    const response = await this.requestRaw('GET', '/openapi.json')
+    if (!response.ok) {
+      throw new NetLedgerApiError(`HTTP ${response.status}: ${response.statusText}`, {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.json,
+        path: '/openapi.json'
+      })
+    }
+    return response.json
+  }
+
+  // ==================== Authentication Endpoints ====================
+
+  async discoverTenants(email) {
+    return this.post('/v1/auth/tenants', { Email: email })
+  }
+
+  async loginWithPassword(tenantId, email, password) {
+    return this.post('/v1/auth/login', { TenantId: tenantId, Email: email, Password: password })
+  }
+
+  async logoutSession() {
+    return this.post('/v1/auth/logout')
+  }
+
+  async getEffectivePermissions() {
+    return this.get('/v1/me/permissions')
+  }
+
   // ==================== Account Endpoints ====================
 
   /**
    * Create a new account
    */
-  async createAccount(name, initialBalance = null, notes = null) {
+  async createAccount(name, initialBalance = null, notes = null, labels = [], tags = {}, tenantId = null) {
     const body = { Name: name }
     if (initialBalance !== null) {
       body.InitialBalance = initialBalance
@@ -121,7 +283,10 @@ export class NetLedgerApi {
     if (notes !== null) {
       body.Notes = notes
     }
-    return this.put('/v1/accounts', body)
+    body.Labels = labels
+    body.Tags = tags
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts` : '/v1/accounts'
+    return this.put(path, body)
   }
 
   /**
@@ -134,24 +299,33 @@ export class NetLedgerApi {
       ordering = 'CreatedDescending',
       search = null,
       startTime = null,
-      endTime = null
+      endTime = null,
+      labels = null,
+      tags = null,
+      tenantId = null,
+      suppressTenantHeader = false
     } = options
 
-    return this.get('/v1/accounts', {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts` : '/v1/accounts'
+    return this.get(path, {
       maxResults,
       skip,
       ordering,
       search,
       startTime,
-      endTime
+      endTime,
+      labels: Array.isArray(labels) ? labels.join(',') : labels,
+      tags: tags && typeof tags === 'object' ? Object.entries(tags).map(([key, value]) => `${key}=${value}`).join(',') : tags
+    }, {
+      suppressTenantHeader
     })
   }
 
   /**
-   * Get a specific account by GUID
+   * Get a specific account by ID
    */
-  async getAccount(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}`)
+  async getAccount(accountId) {
+    return this.get(`/v1/accounts/${accountId}`)
   }
 
   /**
@@ -164,8 +338,16 @@ export class NetLedgerApi {
   /**
    * Delete an account
    */
-  async deleteAccount(accountGuid) {
-    return this.delete(`/v1/accounts/${accountGuid}`)
+  async deleteAccount(accountId) {
+    return this.delete(`/v1/accounts/${accountId}`)
+  }
+
+  async mapAccountUser(tenantId, accountId, userId) {
+    return this.put(`/v1/tenants/${tenantId}/accounts/${accountId}/users/${userId}`)
+  }
+
+  async listAccountUsers(tenantId, accountId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/accounts/${accountId}/users`, options)
   }
 
   // ==================== Balance Endpoints ====================
@@ -173,29 +355,38 @@ export class NetLedgerApi {
   /**
    * Get balance for an account
    */
-  async getBalance(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}/balance`)
+  async getBalance(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/balance` : `/v1/accounts/${accountId}/balance`
+    return this.get(path)
   }
 
   /**
    * Get historical balance as of a specific time
    */
-  async getBalanceAsOf(accountGuid, asOf) {
-    return this.get(`/v1/accounts/${accountGuid}/balance/asof`, { asOf })
+  async getBalanceAsOf(accountId, asOf, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/balance/asof` : `/v1/accounts/${accountId}/balance/asof`
+    return this.get(path, { asOf })
   }
 
   /**
    * Get all account balances
    */
-  async getAllBalances() {
-    return this.get('/v1/balances')
+  async getAllBalances(options = {}) {
+    const {
+      tenantId = null,
+      suppressTenantHeader = false
+    } = options
+
+    return this.get('/v1/balances', tenantId ? { tenantId } : null, {
+      suppressTenantHeader: suppressTenantHeader || Boolean(tenantId)
+    })
   }
 
   /**
    * Verify balance chain integrity
    */
-  async verifyBalance(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}/verify`)
+  async verifyBalance(accountId) {
+    return this.get(`/v1/accounts/${accountId}/verify`)
   }
 
   // ==================== Entry Endpoints ====================
@@ -203,97 +394,124 @@ export class NetLedgerApi {
   /**
    * Add credits to an account
    */
-  async addCredits(accountGuid, entries, isCommitted = false) {
+  async addCredits(accountId, entries, isCommitted = false, tenantId = null) {
     // Server expects AddEntriesRequest with Entries array of { Amount, Notes }
     const body = {
       Entries: entries.map(e => ({
         Amount: e.amount || e.Amount,
-        Notes: e.description || e.Description || e.notes || e.Notes || ''
+        Notes: e.description || e.Description || e.notes || e.Notes || '',
+        Labels: e.labels || e.Labels || [],
+        Tags: e.tags || e.Tags || {}
       })),
       IsCommitted: isCommitted
     }
-    return this.put(`/v1/accounts/${accountGuid}/credits`, body)
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/credits` : `/v1/accounts/${accountId}/credits`
+    return this.put(path, body)
   }
 
   /**
    * Add debits to an account
    */
-  async addDebits(accountGuid, entries, isCommitted = false) {
+  async addDebits(accountId, entries, isCommitted = false, tenantId = null) {
     // Server expects AddEntriesRequest with Entries array of { Amount, Notes }
     const body = {
       Entries: entries.map(e => ({
         Amount: e.amount || e.Amount,
-        Notes: e.description || e.Description || e.notes || e.Notes || ''
+        Notes: e.description || e.Description || e.notes || e.Notes || '',
+        Labels: e.labels || e.Labels || [],
+        Tags: e.tags || e.Tags || {}
       })),
       IsCommitted: isCommitted
     }
-    return this.put(`/v1/accounts/${accountGuid}/debits`, body)
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/debits` : `/v1/accounts/${accountId}/debits`
+    return this.put(path, body)
   }
 
   /**
    * List entries for an account with pagination
    */
-  async listEntries(accountGuid, options = {}) {
+  async listEntries(accountId, options = {}) {
     const {
       maxResults = 50,
       skip = 0,
       ordering = 'CreatedDescending',
+      search = null,
       startTime = null,
       endTime = null,
       amountMin = null,
-      amountMax = null
+      amountMax = null,
+      creditMin = null,
+      creditMax = null,
+      debitMin = null,
+      debitMax = null,
+      labels = null,
+      tags = null,
+      tenantId = null
     } = options
 
-    return this.get(`/v1/accounts/${accountGuid}/entries`, {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries` : `/v1/accounts/${accountId}/entries`
+    return this.get(path, {
       maxResults,
       skip,
       ordering,
+      search,
       startTime,
       endTime,
       amountMin,
-      amountMax
+      amountMax,
+      creditMin,
+      creditMax,
+      debitMin,
+      debitMax,
+      labels: Array.isArray(labels) ? labels.join(',') : labels,
+      tags: tags && typeof tags === 'object' ? Object.entries(tags).map(([key, value]) => `${key}=${value}`).join(',') : tags
     })
   }
 
   /**
    * Get pending entries for an account
    */
-  async getPendingEntries(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}/entries/pending`)
+  async getPendingEntries(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/pending` : `/v1/accounts/${accountId}/entries/pending`
+    return this.get(path)
   }
 
   /**
    * Get pending credits for an account
    */
-  async getPendingCredits(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}/entries/pending/credits`)
+  async getPendingCredits(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/pending/credits` : `/v1/accounts/${accountId}/entries/pending/credits`
+    return this.get(path)
   }
 
   /**
    * Get pending debits for an account
    */
-  async getPendingDebits(accountGuid) {
-    return this.get(`/v1/accounts/${accountGuid}/entries/pending/debits`)
+  async getPendingDebits(accountId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/pending/debits` : `/v1/accounts/${accountId}/entries/pending/debits`
+    return this.get(path)
   }
 
   /**
    * Cancel a pending entry
    */
-  async cancelEntry(accountGuid, entryGuid) {
-    return this.delete(`/v1/accounts/${accountGuid}/entries/${entryGuid}`)
+  async cancelEntry(accountId, entryId, tenantId = null) {
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/entries/${entryId}` : `/v1/accounts/${accountId}/entries/${entryId}`
+    return this.delete(path)
   }
 
   /**
    * Commit pending entries
    */
-  async commitEntries(accountGuid, options = {}) {
+  async commitEntries(accountId, options = {}) {
     const {
       maxResults = 1000,
       startTime = null,
       endTime = null,
       amountMin = null,
       amountMax = null,
-      entryGuids = null
+      entryIds = null,
+      tenantId = null
     } = options
 
     const body = {
@@ -304,15 +522,16 @@ export class NetLedgerApi {
       MaximumAmount: amountMax
     }
 
-    // If specific entry GUIDs are provided, use them
-    if (entryGuids && entryGuids.length > 0) {
-      body.EntryGuids = entryGuids
+    // If specific entry IDs are provided, use them
+    if (entryIds && entryIds.length > 0) {
+      body.EntryIds = entryIds
     }
 
-    return this.post(`/v1/accounts/${accountGuid}/commit`, body)
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}/commit` : `/v1/accounts/${accountId}/commit`
+    return this.post(path, body)
   }
 
-  // ==================== API Key Endpoints ====================
+  // ==================== Credential Endpoints ====================
 
   /**
    * List API keys (admin only)
@@ -327,7 +546,7 @@ export class NetLedgerApi {
       createdBeforeUtc = null
     } = options
 
-    return this.get('/v1/apikeys', {
+    return this.get('/v1/credentials', {
       maxResults,
       skip,
       ordering,
@@ -340,18 +559,89 @@ export class NetLedgerApi {
   /**
    * Create a new API key (admin only)
    */
-  async createApiKey(name, isAdmin = false) {
-    return this.put('/v1/apikeys', {
-      Name: name,
-      IsAdmin: isAdmin
+  async createApiKey(name) {
+    return this.put('/v1/credentials', {
+      Name: name
     })
   }
 
   /**
    * Revoke an API key (admin only)
    */
-  async revokeApiKey(apiKeyGuid) {
-    return this.delete(`/v1/apikeys/${apiKeyGuid}`)
+  async revokeApiKey(credentialId) {
+    return this.delete(`/v1/credentials/${credentialId}`)
+  }
+
+  async listTenants(options = {}) {
+    return this.get('/v1/tenants', options)
+  }
+
+  async readTenant(tenantId) {
+    return this.get(`/v1/tenants/${tenantId}`)
+  }
+
+  async createTenant(tenant) {
+    return this.put('/v1/tenants', tenant)
+  }
+
+  async listUsers(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/users`, options)
+  }
+
+  async readUser(tenantId, userId) {
+    return this.get(`/v1/tenants/${tenantId}/users/${userId}`)
+  }
+
+  async createUser(tenantId, user) {
+    return this.put(`/v1/tenants/${tenantId}/users`, user)
+  }
+
+  async listSessions(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/sessions`, options)
+  }
+
+  async listAudit(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/audit`, options)
+  }
+
+  async listRoles(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/roles`, options)
+  }
+
+  async createRole(tenantId, role) {
+    return this.put(`/v1/tenants/${tenantId}/roles`, role)
+  }
+
+  async listPermissions(tenantId, options = {}) {
+    return this.get(`/v1/tenants/${tenantId}/permissions`, options)
+  }
+
+  async createPermission(tenantId, permission) {
+    return this.put(`/v1/tenants/${tenantId}/permissions`, permission)
+  }
+
+  async assignUserRole(tenantId, userId, assignment) {
+    return this.put(`/v1/tenants/${tenantId}/users/${userId}/roles`, assignment)
+  }
+
+  async listRequestHistory(options = {}) {
+    return this.get('/v1.0/api/request-history', options)
+  }
+
+  async summarizeRequestHistory(options = {}) {
+    return this.get('/v1.0/api/request-history/summary', options)
+  }
+
+  async readRequestHistoryEntry(id) {
+    return this.get(`/v1.0/api/request-history/${encodeURIComponent(id)}`)
+  }
+
+  async deleteRequestHistoryEntry(id) {
+    return this.delete(`/v1.0/api/request-history/${encodeURIComponent(id)}`)
+  }
+
+  async deleteRequestHistory(options = {}) {
+    return this.delete('/v1.0/api/request-history', options)
   }
 }
 
@@ -377,7 +667,7 @@ export function normalizeEnumerationResult(result) {
 
 /**
  * Normalize balances from the API (dictionary format)
- * Converts { "guid1": Balance, "guid2": Balance } to array format
+ * Converts { "id1": Balance, "id2": Balance } to array format
  */
 export function normalizeBalances(balancesDict) {
   if (!balancesDict) {
@@ -389,11 +679,11 @@ export function normalizeBalances(balancesDict) {
     return balancesDict
   }
 
-  // Convert dictionary to array with accountGuid attached
-  return Object.entries(balancesDict).map(([guid, balance]) => ({
+  // Convert dictionary to array with accountId attached
+  return Object.entries(balancesDict).map(([id, balance]) => ({
     ...balance,
-    accountGuid: guid,
-    AccountGuid: guid
+    accountId: id,
+    AccountId: id
   }))
 }
 
@@ -427,13 +717,22 @@ export function formatDate(dateString) {
   if (!dateString) return '-'
 
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  if (Number.isNaN(date.getTime())) return '-'
+
+  const text = String(dateString)
+  const fractionalMatch = text.match(/\.(\d+)/)
+  const fractionalSeconds = fractionalMatch
+    ? fractionalMatch[1].slice(0, 6).padEnd(6, '0')
+    : String(date.getUTCMilliseconds()).padStart(3, '0').padEnd(6, '0')
+
+  const year = date.getUTCFullYear()
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const hours = String(date.getUTCHours()).padStart(2, '0')
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+  const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${fractionalSeconds}Z`
 }
 
 /**
@@ -448,10 +747,10 @@ export function formatDateForApi(date) {
 }
 
 /**
- * Truncate a GUID for display
+ * Truncate an ID for display
  */
-export function truncateGuid(guid) {
-  if (!guid) return '-'
-  if (guid.length <= 13) return guid
-  return `${guid.substring(0, 8)}...${guid.substring(guid.length - 4)}`
+export function truncateId(id) {
+  if (!id) return '-'
+  if (id.length <= 13) return id
+  return `${id.substring(0, 8)}...${id.substring(id.length - 4)}`
 }

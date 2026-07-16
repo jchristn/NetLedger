@@ -1,6 +1,7 @@
 """HTTP client for making API requests."""
 
 import requests
+from requests.adapters import HTTPAdapter
 from typing import Any, Dict, Optional, TypeVar, Generic
 from .exceptions import NetLedgerConnectionError, NetLedgerApiError
 
@@ -11,16 +12,24 @@ T = TypeVar('T')
 class ApiResponse(Generic[T]):
     """Represents an API response."""
 
-    def __init__(self, data: Optional[T], status_code: int, request_guid: Optional[str] = None):
+    def __init__(self, data: Optional[T], status_code: int, request_id: Optional[str] = None):
         self.data = data
         self.status_code = status_code
-        self.request_guid = request_guid
+        self.request_id = request_id
 
 
 class HttpClient:
     """HTTP client for making API requests."""
 
-    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        timeout_seconds: float = 30.0,
+        tenant_id: Optional[str] = None,
+        pool_connections: int = 10,
+        pool_maxsize: int = 20
+    ):
         """
         Initialize the HTTP client.
 
@@ -31,13 +40,20 @@ class HttpClient:
         """
         self.base_url = base_url.rstrip('/')
         self.api_key = api_key
+        self.tenant_id = tenant_id
         self.timeout = timeout_seconds
         self.session = requests.Session()
-        self.session.headers.update({
+        adapter = HTTPAdapter(pool_connections=pool_connections, pool_maxsize=pool_maxsize)
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+        headers = {
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-        })
+        }
+        if tenant_id:
+            headers['x-tenant-id'] = tenant_id
+        self.session.headers.update(headers)
 
     def get(self, path: str) -> ApiResponse:
         """Make a GET request."""
@@ -54,6 +70,10 @@ class HttpClient:
     def delete(self, path: str) -> None:
         """Make a DELETE request."""
         self._request('DELETE', path)
+
+    def delete_with_response(self, path: str) -> ApiResponse:
+        """Make a DELETE request and return a response body."""
+        return self._request('DELETE', path)
 
     def head(self, path: str) -> bool:
         """Make a HEAD request to check if a resource exists."""
@@ -90,18 +110,18 @@ class HttpClient:
 
                 raise NetLedgerApiError(response.status_code, error_message, error_details)
 
-            # Get request GUID from header
-            request_guid = response.headers.get('x-request-guid')
+            # Get request identifier from header
+            request_id = response.headers.get('x-request-id')
 
             if not response.text or response.text.strip() == '':
-                return ApiResponse(None, response.status_code, request_guid)
+                return ApiResponse(None, response.status_code, request_id)
 
             try:
                 data = response.json()
                 return ApiResponse(
                     data=data,
                     status_code=response.status_code,
-                    request_guid=request_guid
+                    request_id=request_id
                 )
             except ValueError:
                 raise NetLedgerApiError(response.status_code, 'Failed to parse response')

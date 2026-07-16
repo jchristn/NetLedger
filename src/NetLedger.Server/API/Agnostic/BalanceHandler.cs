@@ -4,6 +4,7 @@ namespace NetLedger.Server.API.Agnostic
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
     using NetLedger.Server.Settings;
     using SyslogLogging;
@@ -19,6 +20,7 @@ namespace NetLedger.Server.API.Agnostic
         private readonly ServerSettings _Settings;
         private readonly LoggingModule _Logging;
         private readonly Ledger _Ledger;
+        private readonly AuthorizationService _AuthorizationService;
 
         #endregion
 
@@ -30,11 +32,12 @@ namespace NetLedger.Server.API.Agnostic
         /// <param name="settings">Server settings.</param>
         /// <param name="logging">Logging module.</param>
         /// <param name="ledger">Ledger instance.</param>
-        internal BalanceHandler(ServerSettings settings, LoggingModule logging, Ledger ledger)
+        internal BalanceHandler(ServerSettings settings, LoggingModule logging, Ledger ledger, AuthorizationService authorizationService)
         {
             _Settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _Logging = logging ?? throw new ArgumentNullException(nameof(logging));
             _Ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
+            _AuthorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
 
             _Logging.Debug(_Header + "initialized");
         }
@@ -51,19 +54,22 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with balance.</returns>
         internal async Task<ResponseContext> GetBalanceAsync(RequestContext req, CancellationToken token = default)
         {
-            if (!req.AccountGuid.HasValue)
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
+            ResponseContext? authz = await AuthorizeAsync(req, "Balance", "Read", null, token).ConfigureAwait(false);
+            if (authz != null) return authz;
+
             // Verify account exists
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid.Value, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
 
-            Balance balance = await _Ledger.GetBalanceAsync(req.AccountGuid.Value, true, token).ConfigureAwait(false);
+            Balance balance = await _Ledger.GetBalanceAsync(req.AccountId, true, token).ConfigureAwait(false);
 
             return new ResponseContext(req, balance);
         }
@@ -76,9 +82,9 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with historical balance.</returns>
         internal async Task<ResponseContext> GetBalanceAsOfAsync(RequestContext req, CancellationToken token = default)
         {
-            if (!req.AccountGuid.HasValue)
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
             if (!req.AsOfUtc.HasValue)
@@ -86,21 +92,24 @@ namespace NetLedger.Server.API.Agnostic
                 return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "asOf query parameter is required");
             }
 
+            ResponseContext? authz = await AuthorizeAsync(req, "Balance", "Read", null, token).ConfigureAwait(false);
+            if (authz != null) return authz;
+
             // Verify account exists
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid.Value, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
 
             decimal balance = await _Ledger.GetBalanceAsOfAsync(
-                req.AccountGuid.Value,
+                req.AccountId,
                 req.AsOfUtc.Value,
                 token).ConfigureAwait(false);
 
             return new ResponseContext(req, new
             {
-                accountGuid = req.AccountGuid.Value,
+                accountId = req.AccountId,
                 asOfUtc = req.AsOfUtc.Value,
                 balance
             });
@@ -114,7 +123,24 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with all balances.</returns>
         internal async Task<ResponseContext> GetAllBalancesAsync(RequestContext req, CancellationToken token = default)
         {
-            Dictionary<Guid, Balance> balances = await _Ledger.GetAllBalancesAsync(token).ConfigureAwait(false);
+            ResponseContext? authz = await AuthorizeAsync(req, "Balance", "Read", null, token).ConfigureAwait(false);
+            if (authz != null) return authz;
+
+            Dictionary<string, Balance> balances;
+            string? tenantId = ResolveEnumerationTenant(req);
+            if (req.Auth?.IsAdmin == true && String.IsNullOrEmpty(tenantId))
+            {
+                balances = await _Ledger.GetAllBalancesAsync(token).ConfigureAwait(false);
+            }
+            else
+            {
+                EnumerationResult<Account> accounts = await _Ledger.EnumerateAccountsAsync(new EnumerationQuery
+                {
+                    TenantId = tenantId
+                }, token).ConfigureAwait(false);
+
+                balances = await _Ledger.GetBalancesForAccountsAsync(accounts.Objects, true, token).ConfigureAwait(false);
+            }
 
             return new ResponseContext(req, balances);
         }
@@ -127,24 +153,27 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with balance after commit.</returns>
         internal async Task<ResponseContext> CommitAsync(RequestContext req, CancellationToken token = default)
         {
-            if (!req.AccountGuid.HasValue)
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
+            ResponseContext? authz = await AuthorizeAsync(req, "Balance", "Execute", null, token).ConfigureAwait(false);
+            if (authz != null) return authz;
+
             // Verify account exists
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid.Value, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
 
             CommitRequest? commitReq = req.DeserializeBody<CommitRequest>();
-            List<Guid>? entryGuids = commitReq?.EntryGuids;
+            List<string>? entryIds = commitReq?.EntryIds;
 
             Balance balance = await _Ledger.CommitEntriesAsync(
-                req.AccountGuid.Value,
-                entryGuids,
+                req.AccountId,
+                entryIds,
                 true,
                 token).ConfigureAwait(false);
 
@@ -159,36 +188,55 @@ namespace NetLedger.Server.API.Agnostic
         /// <returns>Response context with verification result.</returns>
         internal async Task<ResponseContext> VerifyBalanceChainAsync(RequestContext req, CancellationToken token = default)
         {
-            if (!req.AccountGuid.HasValue)
+            if (String.IsNullOrEmpty(req.AccountId))
             {
-                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account GUID is required");
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
             }
 
+            ResponseContext? authz = await AuthorizeAsync(req, "Balance", "Read", null, token).ConfigureAwait(false);
+            if (authz != null) return authz;
+
             // Verify account exists
-            Account? account = await _Ledger.GetAccountByGuidAsync(req.AccountGuid.Value, token).ConfigureAwait(false);
+            Account? account = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
             if (account == null)
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
 
-            bool isValid = await _Ledger.VerifyBalanceChainAsync(req.AccountGuid.Value, token).ConfigureAwait(false);
+            bool isValid = await _Ledger.VerifyBalanceChainAsync(req.AccountId, token).ConfigureAwait(false);
 
             return new ResponseContext(req, new
             {
-                accountGuid = req.AccountGuid.Value,
+                accountId = req.AccountId,
                 isValid
             });
         }
 
         #endregion
 
-        #region Private-Classes
+        #region Private-Methods
 
-        private class CommitRequest
+        private async Task<ResponseContext?> AuthorizeAsync(RequestContext req, string resourceType, string operationType, string? resourceId, CancellationToken token)
         {
-            public List<Guid>? EntryGuids { get; set; }
+            AuthorizationDecision decision = await _AuthorizationService.AuthorizeAsync(req, resourceType, operationType, resourceId, token).ConfigureAwait(false);
+            if (decision.Permitted) return null;
+            ApiErrorEnum error = String.Equals(decision.Reason, "Authentication required", StringComparison.Ordinal)
+                ? ApiErrorEnum.Unauthorized
+                : ApiErrorEnum.Forbidden;
+            return ResponseContext.FromError(req, error, null, decision.Reason);
+        }
+
+        private string? ResolveEnumerationTenant(RequestContext req)
+        {
+            if (req.Auth?.IsAdmin == true) return req.TenantId;
+            if (req.Auth?.IsAuthenticated == true) return req.TenantId ?? req.Auth.TenantId;
+            return req.TenantId;
         }
 
         #endregion
     }
 }
+
+
+
+

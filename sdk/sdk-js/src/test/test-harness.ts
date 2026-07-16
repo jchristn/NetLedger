@@ -11,9 +11,9 @@ class TestHarness {
     private client: NetLedgerClient;
     private results: TestResult[] = [];
     private totalStartTime: number = 0;
-    private testAccountGuid: string = '';
-    private testEntryGuids: string[] = [];
-    private enumerationTestAccountGuid: string = '';
+    private testAccountID: string = '';
+    private testEntryIDs: string[] = [];
+    private enumerationTestAccountID: string = '';
 
     constructor(endpoint: string, apiKey: string) {
         this.client = new NetLedgerClient(endpoint, apiKey);
@@ -35,6 +35,7 @@ class TestHarness {
             await this.runBalanceTests();
             await this.runEnumerationTests();
             await this.runApiKeyTests();
+            await this.runRequestHistoryTests();
             await this.runCleanupTests();
         } catch (err) {
             console.error('Fatal error:', err);
@@ -59,6 +60,11 @@ class TestHarness {
             if (!info.Name) throw new Error('Service name is empty');
         });
 
+        await this.runTest('Get OpenAPI Spec', async () => {
+            const spec = await this.client.service.getOpenApiSpec();
+            if (spec.openapi !== '3.0.3') throw new Error('OpenAPI version mismatch');
+        });
+
         console.log();
     }
 
@@ -69,27 +75,27 @@ class TestHarness {
 
         await this.runTest('Create Account', async () => {
             const account = await this.client.account.create(testAccountName, 'Test notes');
-            if (!account.GUID) throw new Error('Account GUID is empty');
+            if (!account.Id) throw new Error('Account ID is empty');
             if (account.Name !== testAccountName) throw new Error('Account name mismatch');
-            this.testAccountGuid = account.GUID;
+            this.testAccountID = account.Id;
         });
 
         await this.runTest('Check Account Exists', async () => {
-            if (!this.testAccountGuid) throw new Error('No account to check');
-            const exists = await this.client.account.exists(this.testAccountGuid);
+            if (!this.testAccountID) throw new Error('No account to check');
+            const exists = await this.client.account.exists(this.testAccountID);
             if (!exists) throw new Error('Account should exist');
         });
 
-        await this.runTest('Get Account by GUID', async () => {
-            if (!this.testAccountGuid) throw new Error('No account to get');
-            const account = await this.client.account.get(this.testAccountGuid);
-            if (account.GUID !== this.testAccountGuid) throw new Error('Account GUID mismatch');
+        await this.runTest('Get Account by ID', async () => {
+            if (!this.testAccountID) throw new Error('No account to get');
+            const account = await this.client.account.get(this.testAccountID);
+            if (account.Id !== this.testAccountID) throw new Error('Account ID mismatch');
         });
 
         await this.runTest('Get Account by Name', async () => {
-            if (!this.testAccountGuid) throw new Error('No account to get');
+            if (!this.testAccountID) throw new Error('No account to get');
             const account = await this.client.account.getByName(testAccountName);
-            if (account.GUID !== this.testAccountGuid) throw new Error('Account GUID mismatch');
+            if (account.Id !== this.testAccountID) throw new Error('Account ID mismatch');
         });
 
         await this.runTest('Enumerate Accounts', async () => {
@@ -111,67 +117,67 @@ class TestHarness {
     private async runEntryTests(): Promise<void> {
         this.printSectionHeader('ENTRY TESTS');
 
-        if (!this.testAccountGuid) {
+        if (!this.testAccountID) {
             console.log('  SKIPPED: No test account available');
             console.log();
             return;
         }
 
         await this.runTest('Add Single Credit', async () => {
-            const entryGuid = await this.client.entry.addCredit(this.testAccountGuid, 100.00, 'Test credit');
-            if (!entryGuid) throw new Error('Entry GUID is empty');
-            this.testEntryGuids.push(entryGuid);
+            const entryID = await this.client.entry.addCredit(this.testAccountID, 100.00, 'Test credit');
+            if (!entryID) throw new Error('Entry ID is empty');
+            this.testEntryIDs.push(entryID);
         });
 
         await this.runTest('Add Single Debit', async () => {
-            const entryGuid = await this.client.entry.addDebit(this.testAccountGuid, 25.50, 'Test debit');
-            if (!entryGuid) throw new Error('Entry GUID is empty');
-            this.testEntryGuids.push(entryGuid);
+            const entryID = await this.client.entry.addDebit(this.testAccountID, 25.50, 'Test debit');
+            if (!entryID) throw new Error('Entry ID is empty');
+            this.testEntryIDs.push(entryID);
         });
 
         await this.runTest('Add Multiple Credits (Batch)', async () => {
-            const entryGuids = await this.client.entry.addCredits(this.testAccountGuid, [
+            const entryIDs = await this.client.entry.addCredits(this.testAccountID, [
                 { Amount: 10.00, Notes: 'Batch credit 1' },
                 { Amount: 20.00, Notes: 'Batch credit 2' },
                 { Amount: 30.00, Notes: 'Batch credit 3' }
             ]);
-            if (entryGuids.length !== 3) throw new Error(`Expected 3 entries, got ${entryGuids.length}`);
-            entryGuids.forEach(guid => this.testEntryGuids.push(guid));
+            if (entryIDs.length !== 3) throw new Error(`Expected 3 entries, got ${entryIDs.length}`);
+            entryIDs.forEach(ID => this.testEntryIDs.push(ID));
         });
 
         await this.runTest('Add Multiple Debits (Batch)', async () => {
-            const entryGuids = await this.client.entry.addDebits(this.testAccountGuid, [
+            const entryIDs = await this.client.entry.addDebits(this.testAccountID, [
                 { Amount: 5.00, Notes: 'Batch debit 1' },
                 { Amount: 7.50, Notes: 'Batch debit 2' }
             ]);
-            if (entryGuids.length !== 2) throw new Error(`Expected 2 entries, got ${entryGuids.length}`);
-            entryGuids.forEach(guid => this.testEntryGuids.push(guid));
+            if (entryIDs.length !== 2) throw new Error(`Expected 2 entries, got ${entryIDs.length}`);
+            entryIDs.forEach(ID => this.testEntryIDs.push(ID));
         });
 
         await this.runTest('Get All Entries', async () => {
-            const entries = await this.client.entry.getAll(this.testAccountGuid);
-            if (entries.length < this.testEntryGuids.length) {
-                throw new Error(`Expected at least ${this.testEntryGuids.length} entries`);
+            const entries = await this.client.entry.getAll(this.testAccountID);
+            if (entries.length < this.testEntryIDs.length) {
+                throw new Error(`Expected at least ${this.testEntryIDs.length} entries`);
             }
         });
 
         await this.runTest('Get Pending Entries', async () => {
-            const entries = await this.client.entry.getPending(this.testAccountGuid);
+            const entries = await this.client.entry.getPending(this.testAccountID);
             if (entries.length === 0) throw new Error('Should have pending entries');
         });
 
         await this.runTest('Get Pending Credits', async () => {
-            const entries = await this.client.entry.getPendingCredits(this.testAccountGuid);
+            const entries = await this.client.entry.getPendingCredits(this.testAccountID);
             if (entries.length === 0) throw new Error('Should have pending credits');
         });
 
         await this.runTest('Get Pending Debits', async () => {
-            const entries = await this.client.entry.getPendingDebits(this.testAccountGuid);
+            const entries = await this.client.entry.getPendingDebits(this.testAccountID);
             if (entries.length === 0) throw new Error('Should have pending debits');
         });
 
         await this.runTest('Enumerate Entries', async () => {
-            const result = await this.client.entry.enumerate(this.testAccountGuid, {
+            const result = await this.client.entry.enumerate(this.testAccountID, {
                 MaxResults: 50,
                 Ordering: EnumerationOrder.CreatedDescending
             });
@@ -179,7 +185,7 @@ class TestHarness {
         });
 
         await this.runTest('Enumerate Entries with Amount Filter', async () => {
-            await this.client.entry.enumerate(this.testAccountGuid, {
+            await this.client.entry.enumerate(this.testAccountID, {
                 MaxResults: 50,
                 AmountMinimum: 10.00,
                 AmountMaximum: 50.00
@@ -189,12 +195,12 @@ class TestHarness {
 
         let entryToCancel: string | undefined;
         await this.runTest('Add Entry for Cancellation', async () => {
-            entryToCancel = await this.client.entry.addCredit(this.testAccountGuid, 1.00, 'Entry to cancel');
+            entryToCancel = await this.client.entry.addCredit(this.testAccountID, 1.00, 'Entry to cancel');
         });
 
         await this.runTest('Cancel Entry', async () => {
             if (!entryToCancel) throw new Error('No entry to cancel');
-            await this.client.entry.cancel(this.testAccountGuid, entryToCancel);
+            await this.client.entry.cancel(this.testAccountID, entryToCancel);
         });
 
         console.log();
@@ -203,14 +209,14 @@ class TestHarness {
     private async runBalanceTests(): Promise<void> {
         this.printSectionHeader('BALANCE TESTS');
 
-        if (!this.testAccountGuid) {
+        if (!this.testAccountID) {
             console.log('  SKIPPED: No test account available');
             console.log();
             return;
         }
 
         await this.runTest('Get Balance', async () => {
-            await this.client.balance.get(this.testAccountGuid);
+            await this.client.balance.get(this.testAccountID);
         });
 
         await this.runTest('Get All Balances', async () => {
@@ -219,32 +225,32 @@ class TestHarness {
         });
 
         await this.runTest('Commit All Pending Entries', async () => {
-            await this.client.balance.commit(this.testAccountGuid);
+            await this.client.balance.commit(this.testAccountID);
         });
 
         await this.runTest('Get Balance After Commit', async () => {
-            await this.client.balance.get(this.testAccountGuid);
+            await this.client.balance.get(this.testAccountID);
         });
 
         await this.runTest('Verify Balance Chain', async () => {
-            const valid = await this.client.balance.verify(this.testAccountGuid);
+            const valid = await this.client.balance.verify(this.testAccountID);
             if (!valid) throw new Error('Balance chain should be valid');
         });
 
         await this.runTest('Add Entries for Selective Commit', async () => {
-            await this.client.entry.addCredit(this.testAccountGuid, 50.00, 'Selective commit test');
-            await this.client.entry.addCredit(this.testAccountGuid, 75.00, 'Selective commit test 2');
+            await this.client.entry.addCredit(this.testAccountID, 50.00, 'Selective commit test');
+            await this.client.entry.addCredit(this.testAccountID, 75.00, 'Selective commit test 2');
         });
 
         await this.runTest('Commit Specific Entries', async () => {
-            const pending = await this.client.entry.getPending(this.testAccountGuid);
+            const pending = await this.client.entry.getPending(this.testAccountID);
             if (pending.length > 0) {
-                await this.client.balance.commit(this.testAccountGuid, [pending[0].GUID]);
+                await this.client.balance.commit(this.testAccountID, [pending[0].Id]);
             }
         });
 
         await this.runTest('Get Historical Balance', async () => {
-            await this.client.balance.getAsOf(this.testAccountGuid, new Date());
+            await this.client.balance.getAsOf(this.testAccountID, new Date());
         });
 
         console.log();
@@ -258,11 +264,11 @@ class TestHarness {
 
         await this.runTest('Create Enumeration Test Account', async () => {
             const account = await this.client.account.create(enumerationAccountName, 'Account for enumeration tests');
-            if (!account.GUID) throw new Error('Account GUID is empty');
-            this.enumerationTestAccountGuid = account.GUID;
+            if (!account.Id) throw new Error('Account ID is empty');
+            this.enumerationTestAccountID = account.Id;
         });
 
-        if (!this.enumerationTestAccountGuid) {
+        if (!this.enumerationTestAccountID) {
             console.log('  SKIPPED: No enumeration test account available');
             console.log();
             return;
@@ -276,9 +282,9 @@ class TestHarness {
                 const amount = amounts[i];
                 // Alternate between credits and debits
                 if (i % 2 === 0) {
-                    await this.client.entry.addCredit(this.enumerationTestAccountGuid, amount, `Enum test credit ${amount}`);
+                    await this.client.entry.addCredit(this.enumerationTestAccountID, amount, `Enum test credit ${amount}`);
                 } else {
-                    await this.client.entry.addDebit(this.enumerationTestAccountGuid, amount, `Enum test debit ${amount}`);
+                    await this.client.entry.addDebit(this.enumerationTestAccountID, amount, `Enum test debit ${amount}`);
                 }
                 // Small delay to ensure distinct creation timestamps
                 await new Promise(resolve => setTimeout(resolve, 50));
@@ -287,7 +293,7 @@ class TestHarness {
 
         // Test 1: Basic enumeration with result field validation
         await this.runTest('Enumerate Entries - Validate TotalRecords', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 100
             });
             if (result.TotalRecords !== 15) {
@@ -300,7 +306,7 @@ class TestHarness {
 
         // Test 2: Pagination - First page with small MaxResults
         await this.runTest('Enumerate Entries - First Page (MaxResults=5)', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 5
             });
             if (result.TotalRecords !== 15) {
@@ -324,14 +330,14 @@ class TestHarness {
         let firstPageToken: string | undefined;
         await this.runTest('Enumerate Entries - Second Page with ContinuationToken', async () => {
             // Get first page
-            const firstPage = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const firstPage = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 5
             });
             firstPageToken = firstPage.ContinuationToken;
             if (!firstPageToken) throw new Error('No continuation token from first page');
 
             // Get second page
-            const secondPage = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const secondPage = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 5,
                 ContinuationToken: firstPageToken
             });
@@ -357,7 +363,7 @@ class TestHarness {
             let lastPage;
 
             do {
-                const page = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+                const page = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                     MaxResults: 5,
                     ContinuationToken: continuationToken
                 });
@@ -384,22 +390,22 @@ class TestHarness {
 
         // Test 5: Complete pagination - Verify no duplicates across pages
         await this.runTest('Enumerate Entries - No Duplicates Across Pages', async () => {
-            const allGuids: Set<string> = new Set();
+            const allIDs: Set<string> = new Set();
             let continuationToken: string | undefined;
             let totalEntriesCollected = 0;
 
             do {
-                const page = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+                const page = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                     MaxResults: 4,
                     ContinuationToken: continuationToken
                 });
 
                 if (page.Objects) {
                     for (const entry of page.Objects) {
-                        if (allGuids.has(entry.GUID)) {
-                            throw new Error(`Duplicate entry GUID found: ${entry.GUID}`);
+                        if (allIDs.has(entry.Id)) {
+                            throw new Error(`Duplicate entry ID found: ${entry.Id}`);
                         }
-                        allGuids.add(entry.GUID);
+                        allIDs.add(entry.Id);
                         totalEntriesCollected++;
                     }
                 }
@@ -414,7 +420,7 @@ class TestHarness {
 
         // Test 6: Ordering - CreatedAscending
         await this.runTest('Enumerate Entries - Order CreatedAscending', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 15,
                 Ordering: EnumerationOrder.CreatedAscending
             });
@@ -433,7 +439,7 @@ class TestHarness {
 
         // Test 7: Ordering - CreatedDescending
         await this.runTest('Enumerate Entries - Order CreatedDescending', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 15,
                 Ordering: EnumerationOrder.CreatedDescending
             });
@@ -452,7 +458,7 @@ class TestHarness {
 
         // Test 8: Ordering - AmountAscending
         await this.runTest('Enumerate Entries - Order AmountAscending', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 15,
                 Ordering: EnumerationOrder.AmountAscending
             });
@@ -475,7 +481,7 @@ class TestHarness {
 
         // Test 9: Ordering - AmountDescending
         await this.runTest('Enumerate Entries - Order AmountDescending', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 15,
                 Ordering: EnumerationOrder.AmountDescending
             });
@@ -502,7 +508,7 @@ class TestHarness {
             let continuationToken: string | undefined;
 
             do {
-                const page = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+                const page = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                     MaxResults: 5,
                     Ordering: EnumerationOrder.AmountAscending,
                     ContinuationToken: continuationToken
@@ -537,13 +543,13 @@ class TestHarness {
 
             // Get first account
             const firstPage = await this.client.account.enumerate({ MaxResults: 1 });
-            const firstAccountGuid = firstPage.Objects?.[0]?.GUID;
+            const firstAccountID = firstPage.Objects?.[0]?.Id;
 
             // Skip first account
             const skippedPage = await this.client.account.enumerate({ MaxResults: 1, Skip: 1 });
-            const skippedAccountGuid = skippedPage.Objects?.[0]?.GUID;
+            const skippedAccountID = skippedPage.Objects?.[0]?.Id;
 
-            if (firstAccountGuid === skippedAccountGuid) {
+            if (firstAccountID === skippedAccountID) {
                 throw new Error('Skip parameter did not skip the first account');
             }
 
@@ -585,7 +591,7 @@ class TestHarness {
         // Test 13: Entry enumeration with amount filter combined with ordering
         await this.runTest('Enumerate Entries - Amount Filter with Ordering', async () => {
             // Filter for amounts between 50 and 100 inclusive, ordered by amount descending
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 15,
                 AmountMinimum: 50,
                 AmountMaximum: 100,
@@ -618,7 +624,7 @@ class TestHarness {
 
         // Test 14: MaxResults boundary - requesting more than available
         await this.runTest('Enumerate Entries - MaxResults Exceeds Available', async () => {
-            const result = await this.client.entry.enumerate(this.enumerationTestAccountGuid, {
+            const result = await this.client.entry.enumerate(this.enumerationTestAccountID, {
                 MaxResults: 1000  // Much more than the 15 we have
             });
 
@@ -635,8 +641,8 @@ class TestHarness {
 
         // Cleanup: Delete the enumeration test account
         await this.runTest('Delete Enumeration Test Account', async () => {
-            await this.client.account.delete(this.enumerationTestAccountGuid);
-            const exists = await this.client.account.exists(this.enumerationTestAccountGuid);
+            await this.client.account.delete(this.enumerationTestAccountID);
+            const exists = await this.client.account.exists(this.enumerationTestAccountID);
             if (exists) throw new Error('Account should have been deleted');
         });
 
@@ -646,13 +652,14 @@ class TestHarness {
     private async runApiKeyTests(): Promise<void> {
         this.printSectionHeader('API KEY TESTS');
 
-        let createdKeyGuid: string | undefined;
+        let createdKeyID: string | undefined;
 
         await this.runTest('Create API Key', async () => {
-            const key = await this.client.apiKey.create('Test SDK Key', false);
-            if (!key.GUID) throw new Error('API key GUID is empty');
-            if (!key.Key) throw new Error('API key value should be returned on creation');
-            createdKeyGuid = key.GUID;
+            const response = await this.client.apiKey.create('Test SDK Key', false);
+            if (!response.Credential?.Id) throw new Error('API key ID is empty');
+            if (!response.Credential.Key) throw new Error('API key value should be returned on creation');
+            if (!response.SecretKey) throw new Error('Secret key should be returned on creation');
+            createdKeyID = response.Credential.Id;
         });
 
         await this.runTest('Enumerate API Keys', async () => {
@@ -661,8 +668,24 @@ class TestHarness {
         });
 
         await this.runTest('Revoke API Key', async () => {
-            if (!createdKeyGuid) throw new Error('No API key to revoke');
-            await this.client.apiKey.revoke(createdKeyGuid);
+            if (!createdKeyID) throw new Error('No API key to revoke');
+            await this.client.apiKey.revoke(createdKeyID);
+        });
+
+        console.log();
+    }
+
+    private async runRequestHistoryTests(): Promise<void> {
+        this.printSectionHeader('REQUEST HISTORY TESTS');
+
+        await this.runTest('Enumerate Request History', async () => {
+            const result = await this.client.requestHistory.enumerate({ MaxResults: 10 });
+            if (result.TotalRecords === undefined) throw new Error('Request history total records missing');
+        });
+
+        await this.runTest('Summarize Request History', async () => {
+            const summary = await this.client.requestHistory.summarize({ MaxResults: 100, BucketMinutes: 15 });
+            if (summary.TotalCount === undefined) throw new Error('Request history summary total count missing');
         });
 
         console.log();
@@ -671,10 +694,10 @@ class TestHarness {
     private async runCleanupTests(): Promise<void> {
         this.printSectionHeader('CLEANUP');
 
-        if (this.testAccountGuid) {
+        if (this.testAccountID) {
             await this.runTest('Delete Test Account', async () => {
-                await this.client.account.delete(this.testAccountGuid);
-                const exists = await this.client.account.exists(this.testAccountGuid);
+                await this.client.account.delete(this.testAccountID);
+                const exists = await this.client.account.exists(this.testAccountID);
                 if (exists) throw new Error('Account should have been deleted');
             });
         }

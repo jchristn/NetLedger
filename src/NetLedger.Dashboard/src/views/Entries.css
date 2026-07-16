@@ -28,18 +28,18 @@
   width: 100%;
 }
 
-.account-guid-input {
+.account-id-input {
   min-width: 320px;
 }
 
-.account-guid-input label {
+.account-id-input label {
   display: block;
   margin-bottom: 0.375rem;
   font-weight: 600;
   font-size: 0.875rem;
 }
 
-.account-guid-input input {
+.account-id-input input {
   width: 100%;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
   font-size: 0.875rem;
@@ -54,6 +54,91 @@
   display: flex;
   gap: 0.5rem;
   margin-left: auto;
+}
+
+.entry-search-panel {
+  display: grid;
+  gap: 0;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.entry-search-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.entry-search-toggle:hover {
+  background-color: var(--bg-hover);
+}
+
+.entry-search-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.entry-search-toggle-icon {
+  flex: 0 0 auto;
+  transition: transform var(--transition-fast);
+}
+
+.entry-search-toggle-icon.open {
+  transform: rotate(90deg);
+}
+
+.entry-search-toggle-meta {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.entry-search-panel-body {
+  display: grid;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.entry-search-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 0.875rem;
+  align-items: start;
+}
+
+.entry-filter-field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.entry-filter-field-wide {
+  grid-column: span 2;
+}
+
+.entry-filter-field label {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.entry-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 /* Checkbox label */
@@ -118,14 +203,14 @@
   margin-left: 0.25rem;
 }
 
-/* GUID cell */
-.guid-cell-wrapper {
+/* ID cell */
+.id-cell-wrapper {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.guid-cell {
+.id-cell {
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
   font-size: 0.8125rem;
   color: var(--text-secondary);
@@ -138,6 +223,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
+}
+
+.entry-tags {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Empty state icon */
@@ -167,12 +260,41 @@
     min-width: 120px;
   }
 
+  .entry-search-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .entry-search-toggle {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .entry-search-toggle-meta {
+    white-space: normal;
+  }
+
   .balance-summary {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 @media (max-width: 480px) {
+  .entry-search-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-filter-field-wide {
+    grid-column: span 1;
+  }
+
+  .entry-filter-actions {
+    flex-direction: column-reverse;
+  }
+
+  .entry-filter-actions .btn {
+    width: 100%;
+  }
+
   .balance-summary {
     grid-template-columns: 1fr;
   }

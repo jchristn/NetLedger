@@ -11,9 +11,9 @@ namespace NetLedger.Sdk
         #region Public-Members
 
         /// <summary>
-        /// The GUIDs of specific entries to commit. If null or empty, all pending entries will be committed.
+        /// The Ids of specific entries to commit. If null or empty, all pending entries will be committed.
         /// </summary>
-        public List<Guid>? EntryGuids { get; set; }
+        public List<string>? EntryIds { get; set; }
 
         #endregion
 
@@ -29,19 +29,19 @@ namespace NetLedger.Sdk
         /// <summary>
         /// Instantiate a new commit request for specific entries.
         /// </summary>
-        /// <param name="entryGuids">The GUIDs of entries to commit.</param>
-        public CommitRequest(List<Guid>? entryGuids)
+        /// <param name="entryIds">The Ids of entries to commit.</param>
+        public CommitRequest(List<string>? entryIds)
         {
-            EntryGuids = entryGuids;
+            EntryIds = entryIds;
         }
 
         /// <summary>
         /// Instantiate a new commit request for specific entries.
         /// </summary>
-        /// <param name="entryGuids">The GUIDs of entries to commit.</param>
-        public CommitRequest(params Guid[] entryGuids)
+        /// <param name="entryIds">The Ids of entries to commit.</param>
+        public CommitRequest(params string[] entryIds)
         {
-            EntryGuids = new List<Guid>(entryGuids);
+            EntryIds = new List<string>(entryIds);
         }
 
         #endregion
@@ -83,3 +83,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

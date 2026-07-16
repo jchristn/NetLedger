@@ -43,3 +43,15 @@ class ServiceMethods:
         if not response.data:
             raise ValueError('No data returned from server')
         return ServiceInfo.from_dict(response.data)
+
+    def get_openapi_spec(self) -> dict:
+        """
+        Get the OpenAPI document.
+
+        Returns:
+            OpenAPI document as a dictionary.
+        """
+        response = self._client.get('/openapi.json')
+        if not response.data:
+            raise ValueError('No data returned from server')
+        return response.data

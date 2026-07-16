@@ -34,4 +34,15 @@ export class ServiceMethods {
         }
         return response.Data;
     }
+
+    /**
+     * Get the OpenAPI document.
+     */
+    async getOpenApiSpec(): Promise<Record<string, unknown>> {
+        const response = await this.client.get<Record<string, unknown>>('/openapi.json');
+        if (!response.Data) {
+            throw new Error('No data returned from server');
+        }
+        return response.Data;
+    }
 }

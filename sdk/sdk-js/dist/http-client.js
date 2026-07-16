@@ -42,10 +42,13 @@ const errors_1 = require("./errors");
  * HTTP client for making API requests.
  */
 class HttpClient {
-    constructor(baseUrl, apiKey, timeoutMs = 30000) {
+    constructor(baseUrl, apiKey, timeoutMs = 30000, tenantId) {
         this.baseUrl = baseUrl.replace(/\/$/, '');
         this.apiKey = apiKey;
+        this.tenantId = tenantId;
         this.timeoutMs = timeoutMs;
+        this.httpAgent = new http.Agent({ keepAlive: true });
+        this.httpsAgent = new https.Agent({ keepAlive: true });
     }
     /**
      * Make a GET request.
@@ -72,6 +75,12 @@ class HttpClient {
         await this.request('DELETE', path);
     }
     /**
+     * Make a DELETE request and return a response body.
+     */
+    async deleteWithResponse(path) {
+        return this.request('DELETE', path);
+    }
+    /**
      * Make a HEAD request.
      */
     async head(path) {
@@ -85,9 +94,11 @@ class HttpClient {
                 port: url.port || (isHttps ? 443 : 80),
                 path: url.pathname + url.search,
                 timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
-                    'Accept': 'application/json'
+                    'Accept': 'application/json',
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {})
                 }
             };
             const req = lib.request(options, (res) => {
@@ -118,9 +129,11 @@ class HttpClient {
                 port: url.port || (isHttps ? 443 : 80),
                 path: url.pathname + url.search,
                 timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
                 headers: {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Accept': 'application/json',
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {}),
                     ...(bodyData ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyData) } : {})
                 }
             };

@@ -12,7 +12,17 @@ namespace NetLedger.Sdk
         /// <summary>
         /// The unique identifier for the API key.
         /// </summary>
-        public Guid GUID { get; set; }
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The tenant identifier.
+        /// </summary>
+        public string TenantId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The owning user identifier.
+        /// </summary>
+        public string UserId { get; set; } = string.Empty;
 
         /// <summary>
         /// The display name for the API key.
@@ -23,6 +33,11 @@ namespace NetLedger.Sdk
         /// The API key value (only returned when created).
         /// </summary>
         public string? Key { get; set; }
+
+        /// <summary>
+        /// The last four characters of the credential secret key.
+        /// </summary>
+        public string SecretKeyLast4 { get; set; } = string.Empty;
 
         /// <summary>
         /// Indicates whether the API key is active.
@@ -73,3 +88,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

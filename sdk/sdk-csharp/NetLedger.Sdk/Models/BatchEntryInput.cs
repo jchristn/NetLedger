@@ -1,6 +1,7 @@
 namespace NetLedger.Sdk
 {
     using System;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Input for creating a single entry (credit or debit).
@@ -18,6 +19,16 @@ namespace NetLedger.Sdk
         /// Optional notes for the entry.
         /// </summary>
         public string? Notes { get; set; }
+
+        /// <summary>
+        /// Labels to attach to the entry.
+        /// </summary>
+        public List<string> Labels { get; set; } = new List<string>();
+
+        /// <summary>
+        /// Tags to attach to the entry.
+        /// </summary>
+        public Dictionary<string, string> Tags { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         #endregion
 
@@ -53,3 +64,4 @@ namespace NetLedger.Sdk
         #endregion
     }
 }
+

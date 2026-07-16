@@ -8,17 +8,17 @@ export declare class BalanceMethods {
     constructor(client: HttpClient);
     /**
      * Get the current balance for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns The account balance.
      */
-    get(accountGuid: string): Promise<Balance>;
+    get(accountId: string): Promise<Balance>;
     /**
      * Get the historical balance as of a specific time.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @param asOfUtc The UTC timestamp.
      * @returns The balance as of that time.
      */
-    getAsOf(accountGuid: string, asOfUtc: Date): Promise<HistoricalBalance>;
+    getAsOf(accountId: string, asOfUtc: Date): Promise<HistoricalBalance>;
     /**
      * Get balances for all accounts.
      * @returns All account balances.
@@ -26,22 +26,22 @@ export declare class BalanceMethods {
     getAll(): Promise<Balance[]>;
     /**
      * Commit all pending entries for an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns The commit result.
      */
-    commit(accountGuid: string): Promise<CommitResult>;
+    commit(accountId: string): Promise<CommitResult>;
     /**
      * Commit specific entries for an account.
-     * @param accountGuid The account GUID.
-     * @param entryGuids The GUIDs of entries to commit.
+     * @param accountId The account identifier.
+     * @param entryIds The identifiers of entries to commit.
      * @returns The commit result.
      */
-    commit(accountGuid: string, entryGuids: string[]): Promise<CommitResult>;
+    commit(accountId: string, entryIds: string[]): Promise<CommitResult>;
     /**
      * Verify the balance chain integrity.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the balance chain is valid.
      */
-    verify(accountGuid: string): Promise<boolean>;
+    verify(accountId: string): Promise<boolean>;
 }
 //# sourceMappingURL=balance.d.ts.map

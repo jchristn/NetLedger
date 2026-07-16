@@ -8,7 +8,9 @@ from .methods import (
     AccountMethods,
     EntryMethods,
     BalanceMethods,
-    ApiKeyMethods
+    ApiKeyMethods,
+    IdentityMethods,
+    RequestHistoryMethods
 )
 
 
@@ -36,13 +38,13 @@ class NetLedgerClient:
         account = client.account.create('My Account')
 
         # Add a credit
-        credit = client.entry.add_credit(account.guid, 100.00, 'Initial deposit')
+        credit = client.entry.add_credit(account.id, 100.00, 'Initial deposit')
 
         # Get balance
-        balance = client.balance.get(account.guid)
+        balance = client.balance.get(account.id)
     """
 
-    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0):
+    def __init__(self, base_url: str, api_key: str, timeout_seconds: float = 30.0, tenant_id: Optional[str] = None):
         """
         Create a new NetLedger client.
 
@@ -60,13 +62,32 @@ class NetLedgerClient:
             raise ValueError('API key cannot be empty')
 
         self.base_url = base_url.rstrip('/')
-        self._http_client = HttpClient(self.base_url, api_key, timeout_seconds)
+        self._http_client = HttpClient(self.base_url, api_key, timeout_seconds, tenant_id)
 
         self.service = ServiceMethods(self._http_client)
         self.account = AccountMethods(self._http_client)
         self.entry = EntryMethods(self._http_client)
         self.balance = BalanceMethods(self._http_client)
         self.api_key = ApiKeyMethods(self._http_client)
+        self.identity = IdentityMethods(self._http_client)
+        self.request_history = RequestHistoryMethods(self._http_client)
+
+    @classmethod
+    def login(cls, base_url: str, tenant_id: str, email: str, password: str, timeout_seconds: float = 30.0) -> 'NetLedgerClient':
+        """Login with email/password and return an authenticated client."""
+        from .methods.identity import login as identity_login
+        http_client = identity_login(base_url, tenant_id, email, password, timeout_seconds)
+        client = cls.__new__(cls)
+        client.base_url = base_url.rstrip('/')
+        client._http_client = http_client
+        client.service = ServiceMethods(http_client)
+        client.account = AccountMethods(http_client)
+        client.entry = EntryMethods(http_client)
+        client.balance = BalanceMethods(http_client)
+        client.api_key = ApiKeyMethods(http_client)
+        client.identity = IdentityMethods(http_client)
+        client.request_history = RequestHistoryMethods(http_client)
+        return client
 
     def close(self) -> None:
         """Close the client and release resources."""

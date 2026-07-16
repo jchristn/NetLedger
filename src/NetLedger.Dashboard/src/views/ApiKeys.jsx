@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { useApp } from '../context/AppContext'
+import { useApp } from '../context/useApp'
 import DataTable from '../components/DataTable'
 import Pagination from '../components/Pagination'
 import ActionMenu from '../components/ActionMenu'
-import Modal, { ConfirmModal, ViewMetadataModal } from '../components/Modal'
+import Modal, { ConfirmModal, RecordModal, ViewMetadataModal } from '../components/Modal'
 import CopyButton from '../components/CopyButton'
+import { HiddenValueDisplay } from '../components/HiddenValue'
 import { formatDate, normalizeEnumerationResult } from '../api/api'
+import { getRoleFlags } from '../utils/roles'
 import './ApiKeys.css'
 
 export default function ApiKeys() {
-  const { api, setError } = useApp()
+  const { api, currentUser, effectivePermissions, setError } = useApp()
+  const { isRegularUser } = getRoleFlags(currentUser, effectivePermissions)
 
   // Data state
   const [apiKeys, setApiKeys] = useState([])
@@ -22,6 +25,8 @@ export default function ApiKeys() {
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showMetadataModal, setShowMetadataModal] = useState(false)
   const [showNewKeyModal, setShowNewKeyModal] = useState(false)
@@ -29,7 +34,7 @@ export default function ApiKeys() {
   const [newKeyData, setNewKeyData] = useState(null)
 
   // Form state
-  const [formData, setFormData] = useState({ name: '', isAdmin: false })
+  const [formData, setFormData] = useState({ name: '' })
   const [formLoading, setFormLoading] = useState(false)
 
   const loadApiKeys = useCallback(async () => {
@@ -45,7 +50,7 @@ export default function ApiKeys() {
       setApiKeys(objects)
       setTotalRecords(totalRecords)
     } catch (err) {
-      setError(err.message || 'Failed to load API keys')
+      setError(err.message || 'Failed to load credentials')
     } finally {
       setLoading(false)
     }
@@ -74,47 +79,47 @@ export default function ApiKeys() {
 
     try {
       setFormLoading(true)
-      const result = await api.createApiKey(formData.name.trim(), formData.isAdmin)
+      const result = await api.createApiKey(formData.name.trim())
 
       setShowCreateModal(false)
-      setFormData({ name: '', isAdmin: false })
+      setFormData({ name: '' })
 
-      // Show the new key to the user (only shown once!)
+      // Show the new secret to the user (only shown once).
       setNewKeyData(result)
       setShowNewKeyModal(true)
 
       loadApiKeys()
     } catch (err) {
-      setError(err.message || 'Failed to create API key')
+      setError(err.message || 'Failed to create credential')
     } finally {
       setFormLoading(false)
     }
   }
 
-  // Helper to extract GUID from an object with various casing conventions
-  const getGuid = (obj) => {
+  // Helper to extract ID from an object with various casing conventions
+  const getId = (obj) => {
     if (!obj) return null
-    // Check GUID first (server uses uppercase GUID), then lowercase variants
-    return obj.GUID || obj.guid || obj.Guid || null
+    // Check ID first (server uses uppercase ID), then lowercase variants
+    return obj.ID || obj.id || obj.Id || obj.Id || obj.id || null
   }
 
   const handleDelete = async () => {
     if (!selectedKey) return
 
-    const keyGuid = getGuid(selectedKey)
-    if (!keyGuid) {
-      setError('Cannot revoke key: missing identifier')
+    const keyId = getId(selectedKey)
+    if (!keyId) {
+      setError('Cannot revoke credential: missing identifier')
       return
     }
 
     try {
       setFormLoading(true)
-      await api.revokeApiKey(keyGuid)
+      await api.revokeApiKey(keyId)
       setShowDeleteModal(false)
       setSelectedKey(null)
       loadApiKeys()
     } catch (err) {
-      setError(err.message || 'Failed to revoke API key')
+      setError(err.message || 'Failed to revoke credential')
     } finally {
       setFormLoading(false)
     }
@@ -130,24 +135,34 @@ export default function ApiKeys() {
     setShowMetadataModal(true)
   }
 
+  const openEditModal = (key) => {
+    setSelectedKey(key)
+    setShowEditModal(true)
+  }
+
+  const openViewModal = (key) => {
+    setSelectedKey(key)
+    setShowViewModal(true)
+  }
+
   const totalPages = Math.ceil(totalRecords / pageSize)
 
   const columns = [
     {
-      key: 'guid',
-      label: 'GUID',
-      className: 'col-guid',
+      key: 'id',
+      label: 'ID',
+      className: 'col-id',
       sortable: true,
       filterable: true,
       render: (row) => (
-        <span className="guid-cell-wrapper">
-          <span className="guid-cell">
-            {getGuid(row)}
+        <span className="id-cell-wrapper">
+          <span className="id-cell">
+            {getId(row)}
           </span>
-          <CopyButton text={getGuid(row)} title="Copy GUID" />
+          <CopyButton text={getId(row)} title="Copy ID" />
         </span>
       ),
-      filterValue: (row) => getGuid(row) || ''
+      filterValue: (row) => getId(row) || ''
     },
     {
       key: 'name',
@@ -159,33 +174,18 @@ export default function ApiKeys() {
     },
     {
       key: 'key',
-      label: 'API Key',
+      label: 'Access Key',
       render: (row) => {
         const apiKey = row.key || row.Key
-        const redactedKey = apiKey
-          ? `${apiKey.substring(0, 4)}${'•'.repeat(Math.max(0, apiKey.length - 4))}`
-          : '••••••••'
         return (
-          <code className="api-key-display" title="API key is partially hidden for security">
-            {redactedKey}
-          </code>
+          <HiddenValueDisplay
+            value={apiKey}
+            visiblePrefix={4}
+            className="api-key-hidden-display"
+            valueClassName="api-key-display"
+          />
         )
       }
-    },
-    {
-      key: 'isAdmin',
-      label: 'Admin',
-      className: 'col-status',
-      sortable: true,
-      render: (row) => {
-        const isAdmin = row.isAdmin ?? row.IsAdmin ?? false
-        return (
-          <span className={`badge ${isAdmin ? 'badge-primary' : 'badge-neutral'}`}>
-            {isAdmin ? 'Yes' : 'No'}
-          </span>
-        )
-      },
-      sortValue: (row) => row.isAdmin ?? row.IsAdmin ?? false
     },
     {
       key: 'active',
@@ -218,7 +218,15 @@ export default function ApiKeys() {
         <ActionMenu
           items={[
             {
-              label: 'View Metadata',
+              label: 'Edit',
+              onClick: () => openEditModal(row)
+            },
+            {
+              label: 'View',
+              onClick: () => openViewModal(row)
+            },
+            {
+              label: 'View JSON',
               icon: (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -231,7 +239,7 @@ export default function ApiKeys() {
             },
             { divider: true },
             {
-              label: 'Revoke Key',
+              label: 'Delete',
               variant: 'danger',
               icon: (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -251,8 +259,8 @@ export default function ApiKeys() {
     <div className="api-keys-page">
       <div className="page-header">
         <div className="page-header-left">
-          <h2 className="page-title">API Keys</h2>
-          <p className="page-description">Manage API keys for authentication</p>
+          <h2 className="page-title">Credentials</h2>
+          <p className="page-description">{isRegularUser ? 'Manage your credentials' : 'Manage credentials for authentication'}</p>
         </div>
         <div className="page-header-actions">
           <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
@@ -260,18 +268,10 @@ export default function ApiKeys() {
               <line x1="12" y1="5" x2="12" y2="19"/>
               <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            Create API Key
+            Create Credential
           </button>
         </div>
       </div>
-
-      <DataTable
-        columns={columns}
-        data={apiKeys}
-        loading={loading}
-        emptyMessage="No API keys found"
-        rowKey="guid"
-      />
 
       <Pagination
         currentPage={currentPage}
@@ -282,11 +282,20 @@ export default function ApiKeys() {
         onPageSizeChange={handlePageSizeChange}
       />
 
+      <DataTable
+        columns={columns}
+        data={apiKeys}
+        loading={loading}
+        emptyMessage="No credentials found"
+        onRowClick={openEditModal}
+        rowKey="id"
+      />
+
       {/* Create Modal */}
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Create API Key"
+        title="Create Credential"
         size="small"
         footer={
           <>
@@ -322,24 +331,11 @@ export default function ApiKeys() {
               id="keyName"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Enter a name for this key"
+              placeholder="Enter a name for this credential"
               disabled={formLoading}
               autoFocus
             />
-            <span className="form-hint">A descriptive name to identify this key</span>
-          </div>
-
-          <div className="form-group">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={formData.isAdmin}
-                onChange={(e) => setFormData({ ...formData, isAdmin: e.target.checked })}
-                disabled={formLoading}
-              />
-              <span>Admin privileges</span>
-            </label>
-            <span className="form-hint">Admin keys can manage other API keys</span>
+            <span className="form-hint">A descriptive name to identify this credential</span>
           </div>
         </form>
       </Modal>
@@ -351,7 +347,7 @@ export default function ApiKeys() {
           setShowNewKeyModal(false)
           setNewKeyData(null)
         }}
-        title="API Key Created"
+        title="Credential Created"
         size="medium"
         closeOnOverlay={false}
       >
@@ -361,17 +357,33 @@ export default function ApiKeys() {
             <line x1="12" y1="9" x2="12" y2="13"/>
             <line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-          <p>Copy this API key now. You won't be able to see it again!</p>
+          <p>Copy this credential secret now. You won't be able to see it again!</p>
         </div>
 
         {newKeyData && (
           <div className="new-key-display">
-            <label>API Key</label>
+            <label>Access Key</label>
             <div className="new-key-value">
-              <code>{newKeyData.key || newKeyData.Key}</code>
+              <HiddenValueDisplay
+                value={newKeyData.Credential?.Key || newKeyData.credential?.key || newKeyData.key || newKeyData.Key}
+                visiblePrefix={4}
+                valueClassName="new-key-code"
+              />
               <CopyButton
-                text={newKeyData.key || newKeyData.Key}
-                label="Copy"
+                text={newKeyData.Credential?.Key || newKeyData.credential?.key || newKeyData.key || newKeyData.Key}
+                title="Copy access key"
+                size={16}
+              />
+            </div>
+            <label>Secret Key</label>
+            <div className="new-key-value">
+              <HiddenValueDisplay
+                value={newKeyData.SecretKey || newKeyData.secretKey}
+                valueClassName="new-key-code"
+              />
+              <CopyButton
+                text={newKeyData.SecretKey || newKeyData.secretKey}
+                title="Copy secret key"
                 size={16}
               />
             </div>
@@ -387,11 +399,32 @@ export default function ApiKeys() {
           setSelectedKey(null)
         }}
         onConfirm={handleDelete}
-        title="Revoke API Key"
-        message={`Are you sure you want to revoke the API key "${selectedKey?.name || selectedKey?.Name}"? This action cannot be undone.`}
+        title="Revoke Credential"
+        message={`Are you sure you want to revoke the credential "${selectedKey?.name || selectedKey?.Name}"? This action cannot be undone.`}
         confirmText="Revoke"
         variant="danger"
         isLoading={formLoading}
+      />
+
+      <RecordModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setSelectedKey(null)
+        }}
+        title={`Edit ${selectedKey?.name || selectedKey?.Name || 'Credential'}`}
+        data={selectedKey}
+        mode="edit"
+      />
+
+      <RecordModal
+        isOpen={showViewModal}
+        onClose={() => {
+          setShowViewModal(false)
+          setSelectedKey(null)
+        }}
+        title={`View ${selectedKey?.name || selectedKey?.Name || 'Credential'}`}
+        data={selectedKey}
       />
 
       {/* View Metadata Modal */}
@@ -401,7 +434,7 @@ export default function ApiKeys() {
           setShowMetadataModal(false)
           setSelectedKey(null)
         }}
-        title="API Key Metadata"
+        title="Credential Metadata"
         data={selectedKey}
       />
     </div>

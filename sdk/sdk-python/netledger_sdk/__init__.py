@@ -15,10 +15,10 @@ Example:
     account = client.account.create('My Account', 'Optional notes')
 
     # Add a credit
-    credit = client.entry.add_credit(account.guid, 100.00, 'Initial deposit')
+    credit = client.entry.add_credit(account.id, 100.00, 'Initial deposit')
 
     # Get balance
-    balance = client.balance.get(account.guid)
+    balance = client.balance.get(account.id)
 """
 
 from .client import NetLedgerClient
@@ -31,12 +31,18 @@ from .models import (
     PendingTransactionSummary,
     CommitResult,
     ApiKeyInfo,
+    CredentialCreateResponse,
     ServiceInfo,
     EnumerationResult,
     EnumerationOrder,
     AccountEnumerationQuery,
     EntryEnumerationQuery,
-    ApiKeyEnumerationQuery
+    ApiKeyEnumerationQuery,
+    RequestHistoryEntry,
+    RequestHistoryQuery,
+    RequestHistorySummary,
+    RequestHistorySummaryBucket,
+    RequestHistoryDeleteResult
 )
 from .exceptions import (
     NetLedgerError,
@@ -45,7 +51,7 @@ from .exceptions import (
     NetLedgerValidationError
 )
 
-__version__ = '1.0.0'
+__version__ = '3.0.0'
 __all__ = [
     'NetLedgerClient',
     'Account',
@@ -56,12 +62,18 @@ __all__ = [
     'PendingTransactionSummary',
     'CommitResult',
     'ApiKeyInfo',
+    'CredentialCreateResponse',
     'ServiceInfo',
     'EnumerationResult',
     'EnumerationOrder',
     'AccountEnumerationQuery',
     'EntryEnumerationQuery',
     'ApiKeyEnumerationQuery',
+    'RequestHistoryEntry',
+    'RequestHistoryQuery',
+    'RequestHistorySummary',
+    'RequestHistorySummaryBucket',
+    'RequestHistoryDeleteResult',
     'NetLedgerError',
     'NetLedgerConnectionError',
     'NetLedgerApiError',

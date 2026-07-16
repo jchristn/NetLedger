@@ -16,5 +16,9 @@ export declare class ServiceMethods {
      * @returns Service information including version and uptime.
      */
     getInfo(): Promise<ServiceInfo>;
+    /**
+     * Get the OpenAPI document.
+     */
+    getOpenApiSpec(): Promise<Record<string, unknown>>;
 }
 //# sourceMappingURL=service.d.ts.map

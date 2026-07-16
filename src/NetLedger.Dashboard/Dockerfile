@@ -41,8 +41,12 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy custom nginx configuration
 COPY src/NetLedger.Dashboard/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Write runtime browser configuration from container environment variables
+COPY src/NetLedger.Dashboard/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
 # Expose port 80
 EXPOSE 80
 
 # Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

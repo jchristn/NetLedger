@@ -6,7 +6,7 @@
 .action-menu-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: 2147483000;
 }
 
 .action-menu-trigger {
@@ -30,13 +30,14 @@
 }
 
 .action-menu-dropdown {
-  min-width: 160px;
+  min-width: 180px;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  z-index: 9999;
-  overflow: visible;
+  z-index: 2147483001;
+  overflow-y: auto;
+  overflow-x: hidden;
   pointer-events: auto;
 }
 

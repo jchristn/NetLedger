@@ -23,7 +23,7 @@ namespace NetLedger.Sdk.Methods
 
         private class HistoricalBalanceResponse
         {
-            public Guid AccountGuid { get; set; }
+            public string AccountId { get; set; } = string.Empty;
             public DateTime AsOfUtc { get; set; }
             public decimal Balance { get; set; }
         }
@@ -46,11 +46,11 @@ namespace NetLedger.Sdk.Methods
         #region Public-Methods
 
         /// <inheritdoc />
-        public async Task<Balance> GetAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<Balance> GetAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<Balance> response = await _Client.SendAsync<Balance>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}/balance",
+                $"/v1/accounts/{accountId}/balance",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -58,12 +58,12 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<Balance> GetAsOfAsync(Guid accountGuid, DateTime asOfUtc, CancellationToken cancellationToken = default)
+        public async Task<Balance> GetAsOfAsync(string accountId, DateTime asOfUtc, CancellationToken cancellationToken = default)
         {
             string timestamp = asOfUtc.ToUniversalTime().ToString("o");
             ApiResponse<HistoricalBalanceResponse> response = await _Client.SendAsync<HistoricalBalanceResponse>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}/balance/asof?asOf={timestamp}",
+                $"/v1/accounts/{accountId}/balance/asof?asOf={timestamp}",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -72,7 +72,7 @@ namespace NetLedger.Sdk.Methods
 
             return new Balance
             {
-                AccountGUID = response.Data.AccountGuid,
+                AccountId = response.Data.AccountId,
                 CommittedBalance = response.Data.Balance,
                 PendingBalance = response.Data.Balance
             };
@@ -81,7 +81,7 @@ namespace NetLedger.Sdk.Methods
         /// <inheritdoc />
         public async Task<List<Balance>> GetAllAsync(CancellationToken cancellationToken = default)
         {
-            ApiResponse<Dictionary<Guid, Balance>> response = await _Client.SendAsync<Dictionary<Guid, Balance>>(
+            ApiResponse<Dictionary<string, Balance>> response = await _Client.SendAsync<Dictionary<string, Balance>>(
                 HttpMethod.Get,
                 "/v1/balances",
                 null,
@@ -94,11 +94,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<CommitResult> CommitAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<CommitResult> CommitAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<CommitResult> response = await _Client.SendAsync<CommitResult>(
                 HttpMethod.Post,
-                $"/v1/accounts/{accountGuid}/commit",
+                $"/v1/accounts/{accountId}/commit",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -106,15 +106,15 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<CommitResult> CommitAsync(Guid accountGuid, List<Guid> entryGuids, CancellationToken cancellationToken = default)
+        public async Task<CommitResult> CommitAsync(string accountId, List<string> entryIds, CancellationToken cancellationToken = default)
         {
-            if (entryGuids == null)
-                throw new ArgumentNullException(nameof(entryGuids));
+            if (entryIds == null)
+                throw new ArgumentNullException(nameof(entryIds));
 
-            CommitRequest request = new CommitRequest(entryGuids);
+            CommitRequest request = new CommitRequest(entryIds);
             ApiResponse<CommitResult> response = await _Client.SendAsync<CommitResult>(
                 HttpMethod.Post,
-                $"/v1/accounts/{accountGuid}/commit",
+                $"/v1/accounts/{accountId}/commit",
                 request,
                 cancellationToken).ConfigureAwait(false);
 
@@ -122,13 +122,13 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<bool> VerifyAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<bool> VerifyAsync(string accountId, CancellationToken cancellationToken = default)
         {
             try
             {
                 ApiResponse<object> response = await _Client.SendAsync<object>(
                     HttpMethod.Get,
-                    $"/v1/accounts/{accountGuid}/verify",
+                    $"/v1/accounts/{accountId}/verify",
                     null,
                     cancellationToken).ConfigureAwait(false);
 
@@ -143,3 +143,4 @@ namespace NetLedger.Sdk.Methods
         #endregion
     }
 }
+

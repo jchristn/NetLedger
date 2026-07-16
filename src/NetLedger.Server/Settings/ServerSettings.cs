@@ -29,6 +29,11 @@ namespace NetLedger.Server.Settings
         public DatabaseSettings Database { get; set; } = new DatabaseSettings();
 
         /// <summary>
+        /// Request history capture settings.
+        /// </summary>
+        public RequestHistorySettings RequestHistory { get; set; } = new RequestHistorySettings();
+
+        /// <summary>
         /// Instantiate.
         /// </summary>
         public ServerSettings()
@@ -36,3 +41,7 @@ namespace NetLedger.Server.Settings
         }
     }
 }
+
+
+
+

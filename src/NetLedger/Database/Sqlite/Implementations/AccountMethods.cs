@@ -42,28 +42,37 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             if (account == null) throw new ArgumentNullException(nameof(account));
 
+            string labels = MetadataSerializer.SerializeLabels(account.Labels);
+            string tags = MetadataSerializer.SerializeTags(account.Tags);
+            if (account.LastUpdateUtc == default) account.LastUpdateUtc = account.CreatedUtc;
+
             string query =
-                "INSERT INTO accounts (guid, name, notes, createdutc) VALUES (" +
-                "'" + account.GUID.ToString() + "', " +
+                "INSERT INTO accounts (guid, tenantid, name, notes, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
+                "'" + account.Id.ToString() + "', " +
+                "'" + Sanitize(account.TenantId) + "', " +
                 "'" + Sanitize(account.Name) + "', " +
                 (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + ", " +
-                "'" + account.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'" +
+                "'" + Sanitize(labels) + "', " +
+                "'" + Sanitize(tags) + "', " +
+                (account.Active ? "1" : "0") + ", " +
+                "'" + account.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "', " +
+                "'" + account.LastUpdateUtc.ToString(SetupQueries.TimestampFormat) + "'" +
                 "); SELECT last_insert_rowid();";
 
             DataTable result = await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
             {
-                account.Id = Convert.ToInt32(result.Rows[0][0]);
+                account.RowId = Convert.ToInt32(result.Rows[0][0]);
             }
 
             return account;
         }
 
         /// <inheritdoc />
-        public async Task<Account> ReadByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<Account> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT * FROM accounts WHERE guid = '" + guid.ToString() + "' LIMIT 1;";
+            string query = "SELECT * FROM accounts WHERE guid = '" + id.ToString() + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -172,7 +181,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 List<Account> filteredAccounts = new List<Account>();
                 foreach (Account account in allAccounts)
                 {
-                    decimal committedBalance = await GetAccountCommittedBalanceAsync(account.GUID, token).ConfigureAwait(false);
+                    decimal committedBalance = await GetAccountCommittedBalanceAsync(account.Id, token).ConfigureAwait(false);
 
                     bool meetsMinimum = !query.BalanceMinimum.HasValue || committedBalance >= query.BalanceMinimum.Value;
                     bool meetsMaximum = !query.BalanceMaximum.HasValue || committedBalance <= query.BalanceMaximum.Value;
@@ -240,18 +249,18 @@ namespace NetLedger.Database.Sqlite.Implementations
             // Set continuation token if there are more records
             if (!result.EndOfResults && result.Objects.Count > 0)
             {
-                result.ContinuationToken = result.Objects[result.Objects.Count - 1].GUID;
+                result.ContinuationToken = result.Objects[result.Objects.Count - 1].Id;
             }
 
             return result;
         }
 
-        private async Task<decimal> GetAccountCommittedBalanceAsync(Guid accountGuid, CancellationToken token = default)
+        private async Task<decimal> GetAccountCommittedBalanceAsync(string accountId, CancellationToken token = default)
         {
             // Get the latest balance entry for the account
             string query =
                 "SELECT amount FROM entries " +
-                "WHERE accountguid = '" + accountGuid.ToString() + "' " +
+                "WHERE accountguid = '" + accountId.ToString() + "' " +
                 "AND type = '" + EntryType.Balance.ToString() + "' " +
                 "ORDER BY createdutc DESC LIMIT 1;";
 
@@ -273,8 +282,13 @@ namespace NetLedger.Database.Sqlite.Implementations
             string query =
                 "UPDATE accounts SET " +
                 "name = '" + Sanitize(account.Name) + "', " +
-                "notes = " + (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + " " +
-                "WHERE guid = '" + account.GUID.ToString() + "';";
+                "tenantid = '" + Sanitize(account.TenantId) + "', " +
+                "notes = " + (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + ", " +
+                "labels = '" + Sanitize(MetadataSerializer.SerializeLabels(account.Labels)) + "', " +
+                "tags = '" + Sanitize(MetadataSerializer.SerializeTags(account.Tags)) + "', " +
+                "active = " + (account.Active ? "1" : "0") + ", " +
+                "lastupdateutc = '" + DateTime.UtcNow.ToString(SetupQueries.TimestampFormat) + "' " +
+                "WHERE guid = '" + account.Id.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -282,16 +296,16 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
-        public async Task DeleteByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "DELETE FROM accounts WHERE guid = '" + guid.ToString() + "';";
+            string query = "DELETE FROM accounts WHERE guid = '" + id.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task<bool> ExistsByGuidAsync(Guid guid, CancellationToken token = default)
+        public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM accounts WHERE guid = '" + guid.ToString() + "';";
+            string query = "SELECT COUNT(*) FROM accounts WHERE guid = '" + id.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
@@ -345,17 +359,34 @@ namespace NetLedger.Database.Sqlite.Implementations
         private Account DataRowToAccount(DataRow row)
         {
             Account account = new Account();
-            account.Id = Convert.ToInt32(row["id"]);
-            account.GUID = Guid.Parse(row["guid"].ToString());
+            account.RowId = Convert.ToInt32(row["id"]);
+            account.Id = row["guid"].ToString();
+            account.TenantId = GetString(row, "tenantid");
             account.Name = row["name"]?.ToString() ?? String.Empty;
             account.Notes = row["notes"]?.ToString();
+            account.Labels = MetadataSerializer.DeserializeLabels(GetString(row, "labels"));
+            account.Tags = MetadataSerializer.DeserializeTags(GetString(row, "tags"));
+            account.Active = GetString(row, "active") != "0";
             account.CreatedUtc = DateTime.Parse(
                 row["createdutc"].ToString(),
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
+            string lastUpdateUtc = GetString(row, "lastupdateutc");
+            account.LastUpdateUtc = !String.IsNullOrEmpty(lastUpdateUtc)
+                ? DateTime.Parse(lastUpdateUtc, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal)
+                : account.CreatedUtc;
             return account;
+        }
+
+        private string GetString(DataRow row, string columnName)
+        {
+            if (!row.Table.Columns.Contains(columnName)) return String.Empty;
+            return row[columnName]?.ToString() ?? String.Empty;
         }
 
         #endregion
     }
 }
+
+
+

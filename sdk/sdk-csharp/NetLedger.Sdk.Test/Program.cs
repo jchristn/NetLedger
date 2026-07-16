@@ -63,6 +63,7 @@ namespace NetLedger.Sdk.Test
                 await RunEnumerationTests().ConfigureAwait(false);
                 await RunBalanceTests().ConfigureAwait(false);
                 await RunApiKeyTests().ConfigureAwait(false);
+                await RunRequestHistoryTests().ConfigureAwait(false);
                 await CleanupTests().ConfigureAwait(false);
             }
             finally
@@ -97,6 +98,14 @@ namespace NetLedger.Sdk.Test
                 if (string.IsNullOrEmpty(info.Name)) throw new Exception("Service name is empty");
             }).ConfigureAwait(false);
 
+            await RunTest("Get OpenAPI Spec", async () =>
+            {
+                string openApiJson = await _Client.Service.GetOpenApiJsonAsync().ConfigureAwait(false);
+                if (!openApiJson.Contains("\"openapi\":\"3.0.3\"", StringComparison.Ordinal) &&
+                    !openApiJson.Contains("\"openapi\": \"3.0.3\"", StringComparison.Ordinal))
+                    throw new Exception("OpenAPI version mismatch");
+            }).ConfigureAwait(false);
+
             Console.WriteLine();
         }
 
@@ -105,34 +114,34 @@ namespace NetLedger.Sdk.Test
             PrintSectionHeader("ACCOUNT TESTS");
 
             Account? createdAccount = null;
-            string testAccountName = $"TestAccount_{Guid.NewGuid():N}";
+            string testAccountName = $"TestAccount_{UniqueSuffix(24)}";
 
             await RunTest("Create Account", async () =>
             {
                 createdAccount = await _Client.Account.CreateAsync(testAccountName, "Test notes").ConfigureAwait(false);
-                if (createdAccount.GUID == Guid.Empty) throw new Exception("Account GUID is empty");
+                if (createdAccount.Id == String.Empty) throw new Exception("Account identifier is empty");
                 if (createdAccount.Name != testAccountName) throw new Exception("Account name mismatch");
             }).ConfigureAwait(false);
 
             await RunTest("Check Account Exists", async () =>
             {
                 if (createdAccount == null) throw new Exception("No account to check");
-                bool exists = await _Client.Account.ExistsAsync(createdAccount.GUID).ConfigureAwait(false);
+                bool exists = await _Client.Account.ExistsAsync(createdAccount.Id).ConfigureAwait(false);
                 if (!exists) throw new Exception("Account should exist");
             }).ConfigureAwait(false);
 
-            await RunTest("Get Account by GUID", async () =>
+            await RunTest("Get Account by identifier", async () =>
             {
                 if (createdAccount == null) throw new Exception("No account to get");
-                Account account = await _Client.Account.GetAsync(createdAccount.GUID).ConfigureAwait(false);
-                if (account.GUID != createdAccount.GUID) throw new Exception("Account GUID mismatch");
+                Account account = await _Client.Account.GetAsync(createdAccount.Id).ConfigureAwait(false);
+                if (account.Id != createdAccount.Id) throw new Exception("Account identifier mismatch");
             }).ConfigureAwait(false);
 
             await RunTest("Get Account by Name", async () =>
             {
                 if (createdAccount == null) throw new Exception("No account to get");
                 Account account = await _Client.Account.GetByNameAsync(testAccountName).ConfigureAwait(false);
-                if (account.GUID != createdAccount.GUID) throw new Exception("Account GUID mismatch");
+                if (account.Id != createdAccount.Id) throw new Exception("Account identifier mismatch");
             }).ConfigureAwait(false);
 
             await RunTest("Enumerate Accounts", async () =>
@@ -157,20 +166,20 @@ namespace NetLedger.Sdk.Test
             // Store for later tests
             if (createdAccount != null)
             {
-                _TestAccountGuid = createdAccount.GUID;
+                _TestAccountId = createdAccount.Id;
             }
 
             Console.WriteLine();
         }
 
-        private static Guid _TestAccountGuid = Guid.Empty;
-        private static List<Guid> _TestEntryGuids = new List<Guid>();
+        private static string _TestAccountId = String.Empty;
+        private static List<string> _TestEntryIds = new List<string>();
 
         private static async Task RunEntryTests()
         {
             PrintSectionHeader("ENTRY TESTS");
 
-            if (_TestAccountGuid == Guid.Empty)
+            if (_TestAccountId == String.Empty)
             {
                 Console.WriteLine("  SKIPPED: No test account available");
                 Console.WriteLine();
@@ -179,20 +188,20 @@ namespace NetLedger.Sdk.Test
 
             await RunTest("Add Single Credit", async () =>
             {
-                Entry entry = await _Client.Entry.AddCreditAsync(_TestAccountGuid, 100.00m, "Test credit").ConfigureAwait(false);
-                if (entry.GUID == Guid.Empty) throw new Exception("Entry GUID is empty");
+                Entry entry = await _Client.Entry.AddCreditAsync(_TestAccountId, 100.00m, "Test credit").ConfigureAwait(false);
+                if (entry.Id == String.Empty) throw new Exception("Entry identifier is empty");
                 if (entry.Amount != 100.00m) throw new Exception("Amount mismatch");
                 if (entry.Type != EntryType.Credit) throw new Exception("Type should be Credit");
-                _TestEntryGuids.Add(entry.GUID);
+                _TestEntryIds.Add(entry.Id);
             }).ConfigureAwait(false);
 
             await RunTest("Add Single Debit", async () =>
             {
-                Entry entry = await _Client.Entry.AddDebitAsync(_TestAccountGuid, 25.50m, "Test debit").ConfigureAwait(false);
-                if (entry.GUID == Guid.Empty) throw new Exception("Entry GUID is empty");
+                Entry entry = await _Client.Entry.AddDebitAsync(_TestAccountId, 25.50m, "Test debit").ConfigureAwait(false);
+                if (entry.Id == String.Empty) throw new Exception("Entry identifier is empty");
                 if (entry.Amount != 25.50m) throw new Exception("Amount mismatch");
                 if (entry.Type != EntryType.Debit) throw new Exception("Type should be Debit");
-                _TestEntryGuids.Add(entry.GUID);
+                _TestEntryIds.Add(entry.Id);
             }).ConfigureAwait(false);
 
             await RunTest("Add Multiple Credits (Batch)", async () =>
@@ -203,11 +212,11 @@ namespace NetLedger.Sdk.Test
                     new EntryInput(20.00m, "Batch credit 2"),
                     new EntryInput(30.00m, "Batch credit 3")
                 };
-                List<Entry> entries = await _Client.Entry.AddCreditsAsync(_TestAccountGuid, inputs).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.AddCreditsAsync(_TestAccountId, inputs).ConfigureAwait(false);
                 if (entries.Count != 3) throw new Exception($"Expected 3 entries, got {entries.Count}");
                 foreach (Entry entry in entries)
                 {
-                    _TestEntryGuids.Add(entry.GUID);
+                    _TestEntryIds.Add(entry.Id);
                 }
             }).ConfigureAwait(false);
 
@@ -218,41 +227,41 @@ namespace NetLedger.Sdk.Test
                     new EntryInput(5.00m, "Batch debit 1"),
                     new EntryInput(7.50m, "Batch debit 2")
                 };
-                List<Entry> entries = await _Client.Entry.AddDebitsAsync(_TestAccountGuid, inputs).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.AddDebitsAsync(_TestAccountId, inputs).ConfigureAwait(false);
                 if (entries.Count != 2) throw new Exception($"Expected 2 entries, got {entries.Count}");
                 foreach (Entry entry in entries)
                 {
-                    _TestEntryGuids.Add(entry.GUID);
+                    _TestEntryIds.Add(entry.Id);
                 }
             }).ConfigureAwait(false);
 
             await RunTest("Get All Entries", async () =>
             {
-                List<Entry> entries = await _Client.Entry.GetAllAsync(_TestAccountGuid).ConfigureAwait(false);
-                if (entries.Count < _TestEntryGuids.Count) throw new Exception($"Expected at least {_TestEntryGuids.Count} entries");
+                List<Entry> entries = await _Client.Entry.GetAllAsync(_TestAccountId).ConfigureAwait(false);
+                if (entries.Count < _TestEntryIds.Count) throw new Exception($"Expected at least {_TestEntryIds.Count} entries");
             }).ConfigureAwait(false);
 
             await RunTest("Get Pending Entries", async () =>
             {
-                List<Entry> entries = await _Client.Entry.GetPendingAsync(_TestAccountGuid).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.GetPendingAsync(_TestAccountId).ConfigureAwait(false);
                 if (entries.Count == 0) throw new Exception("Should have pending entries");
             }).ConfigureAwait(false);
 
             await RunTest("Get Pending Credits", async () =>
             {
-                List<Entry> entries = await _Client.Entry.GetPendingCreditsAsync(_TestAccountGuid).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.GetPendingCreditsAsync(_TestAccountId).ConfigureAwait(false);
                 if (entries.Count == 0) throw new Exception("Should have pending credits");
             }).ConfigureAwait(false);
 
             await RunTest("Get Pending Debits", async () =>
             {
-                List<Entry> entries = await _Client.Entry.GetPendingDebitsAsync(_TestAccountGuid).ConfigureAwait(false);
+                List<Entry> entries = await _Client.Entry.GetPendingDebitsAsync(_TestAccountId).ConfigureAwait(false);
                 if (entries.Count == 0) throw new Exception("Should have pending debits");
             }).ConfigureAwait(false);
 
             await RunTest("Enumerate Entries", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_TestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_TestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 50,
                     Ordering = EnumerationOrder.CreatedDescending
@@ -262,7 +271,7 @@ namespace NetLedger.Sdk.Test
 
             await RunTest("Enumerate Entries with Amount Filter", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_TestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_TestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 50,
                     AmountMinimum = 10.00m,
@@ -275,19 +284,19 @@ namespace NetLedger.Sdk.Test
             Entry? entryToCancel = null;
             await RunTest("Add Entry for Cancellation", async () =>
             {
-                entryToCancel = await _Client.Entry.AddCreditAsync(_TestAccountGuid, 1.00m, "Entry to cancel").ConfigureAwait(false);
+                entryToCancel = await _Client.Entry.AddCreditAsync(_TestAccountId, 1.00m, "Entry to cancel").ConfigureAwait(false);
             }).ConfigureAwait(false);
 
             await RunTest("Cancel Entry", async () =>
             {
                 if (entryToCancel == null) throw new Exception("No entry to cancel");
-                await _Client.Entry.CancelAsync(_TestAccountGuid, entryToCancel.GUID).ConfigureAwait(false);
+                await _Client.Entry.CancelAsync(_TestAccountId, entryToCancel.Id).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
             Console.WriteLine();
         }
 
-        private static Guid _EnumTestAccountGuid = Guid.Empty;
+        private static string _EnumTestAccountId = String.Empty;
         private static List<Entry> _EnumTestEntries = new List<Entry>();
 
         private static async Task RunEnumerationTests()
@@ -295,15 +304,15 @@ namespace NetLedger.Sdk.Test
             PrintSectionHeader("ENUMERATION TESTS");
 
             // Create a dedicated account for enumeration tests
-            string enumAccountName = $"EnumTestAccount_{Guid.NewGuid():N}";
+            string enumAccountName = $"EnumTestAccount_{UniqueSuffix(24)}";
 
             await RunTest("Create Enumeration Test Account", async () =>
             {
                 Account account = await _Client.Account.CreateAsync(enumAccountName, "Account for enumeration tests").ConfigureAwait(false);
-                _EnumTestAccountGuid = account.GUID;
+                _EnumTestAccountId = account.Id;
             }).ConfigureAwait(false);
 
-            if (_EnumTestAccountGuid == Guid.Empty)
+            if (_EnumTestAccountId == String.Empty)
             {
                 Console.WriteLine("  SKIPPED: Could not create test account");
                 Console.WriteLine();
@@ -318,7 +327,7 @@ namespace NetLedger.Sdk.Test
                 for (int i = 1; i <= 10; i++)
                 {
                     decimal amount = i * 10.0m;
-                    Entry entry = await _Client.Entry.AddCreditAsync(_EnumTestAccountGuid, amount, $"Entry {i}").ConfigureAwait(false);
+                    Entry entry = await _Client.Entry.AddCreditAsync(_EnumTestAccountId, amount, $"Entry {i}").ConfigureAwait(false);
                     _EnumTestEntries.Add(entry);
                     await Task.Delay(50).ConfigureAwait(false); // Ensure distinct timestamps
                 }
@@ -329,7 +338,7 @@ namespace NetLedger.Sdk.Test
             // Test: Basic pagination - page 1 of 3 (3 entries per page)
             await RunTest("Pagination: First Page (3 of 10)", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 3,
                     Skip = 0,
@@ -349,7 +358,7 @@ namespace NetLedger.Sdk.Test
             // Test: Pagination - middle page
             await RunTest("Pagination: Middle Page (Skip 3, Take 3)", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 3,
                     Skip = 3,
@@ -369,7 +378,7 @@ namespace NetLedger.Sdk.Test
             // Test: Pagination - last page (partial)
             await RunTest("Pagination: Last Page (Skip 9, Take 3)", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 3,
                     Skip = 9,
@@ -389,7 +398,7 @@ namespace NetLedger.Sdk.Test
             // Test: Ordering - CreatedAscending (oldest first)
             await RunTest("Ordering: CreatedAscending", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 10,
                     Ordering = EnumerationOrder.CreatedAscending
@@ -416,7 +425,7 @@ namespace NetLedger.Sdk.Test
             // Test: Ordering - CreatedDescending (newest first)
             await RunTest("Ordering: CreatedDescending", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 10,
                     Ordering = EnumerationOrder.CreatedDescending
@@ -443,7 +452,7 @@ namespace NetLedger.Sdk.Test
             // Test: Ordering - AmountAscending (smallest first)
             await RunTest("Ordering: AmountAscending", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 10,
                     Ordering = EnumerationOrder.AmountAscending
@@ -469,7 +478,7 @@ namespace NetLedger.Sdk.Test
             // Test: Ordering - AmountDescending (largest first)
             await RunTest("Ordering: AmountDescending", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 10,
                     Ordering = EnumerationOrder.AmountDescending
@@ -495,14 +504,14 @@ namespace NetLedger.Sdk.Test
             // Test: Pagination with ordering - verify ordering is preserved across pages
             await RunTest("Pagination with AmountDescending: Verify Order Across Pages", async () =>
             {
-                EnumerationResult<Entry> page1 = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> page1 = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 5,
                     Skip = 0,
                     Ordering = EnumerationOrder.AmountDescending
                 }).ConfigureAwait(false);
 
-                EnumerationResult<Entry> page2 = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> page2 = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 5,
                     Skip = 5,
@@ -534,7 +543,7 @@ namespace NetLedger.Sdk.Test
             await RunTest("Amount Filter with Pagination", async () =>
             {
                 // Filter for amounts between 30 and 70 (inclusive)
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 10,
                     AmountMinimum = 30.0m,
@@ -563,7 +572,7 @@ namespace NetLedger.Sdk.Test
             // Test: Exact page boundary - request exactly the remaining records
             await RunTest("Pagination: Exact Page Boundary (Skip 7, Take 3)", async () =>
             {
-                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountGuid, new EntryEnumerationQuery
+                EnumerationResult<Entry> result = await _Client.Entry.EnumerateAsync(_EnumTestAccountId, new EntryEnumerationQuery
                 {
                     MaxResults = 3,
                     Skip = 7,
@@ -615,7 +624,7 @@ namespace NetLedger.Sdk.Test
         {
             PrintSectionHeader("BALANCE TESTS");
 
-            if (_TestAccountGuid == Guid.Empty)
+            if (_TestAccountId == String.Empty)
             {
                 Console.WriteLine("  SKIPPED: No test account available");
                 Console.WriteLine();
@@ -624,7 +633,7 @@ namespace NetLedger.Sdk.Test
 
             await RunTest("Get Balance", async () =>
             {
-                Balance balance = await _Client.Balance.GetAsync(_TestAccountGuid).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(_TestAccountId).ConfigureAwait(false);
                 // Committed should be 0 since nothing committed yet
                 // Pending should reflect the entries we added
             }).ConfigureAwait(false);
@@ -637,42 +646,42 @@ namespace NetLedger.Sdk.Test
 
             await RunTest("Commit All Pending Entries", async () =>
             {
-                CommitResult result = await _Client.Balance.CommitAsync(_TestAccountGuid).ConfigureAwait(false);
+                CommitResult result = await _Client.Balance.CommitAsync(_TestAccountId).ConfigureAwait(false);
                 // Verify commit happened
             }).ConfigureAwait(false);
 
             await RunTest("Get Balance After Commit", async () =>
             {
-                Balance balance = await _Client.Balance.GetAsync(_TestAccountGuid).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsync(_TestAccountId).ConfigureAwait(false);
                 // After commit, committed balance should reflect the entries
             }).ConfigureAwait(false);
 
             await RunTest("Verify Balance Chain", async () =>
             {
-                bool valid = await _Client.Balance.VerifyAsync(_TestAccountGuid).ConfigureAwait(false);
+                bool valid = await _Client.Balance.VerifyAsync(_TestAccountId).ConfigureAwait(false);
                 if (!valid) throw new Exception("Balance chain should be valid");
             }).ConfigureAwait(false);
 
             // Test committing specific entries
             await RunTest("Add Entries for Selective Commit", async () =>
             {
-                await _Client.Entry.AddCreditAsync(_TestAccountGuid, 50.00m, "Selective commit test").ConfigureAwait(false);
-                await _Client.Entry.AddCreditAsync(_TestAccountGuid, 75.00m, "Selective commit test 2").ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(_TestAccountId, 50.00m, "Selective commit test").ConfigureAwait(false);
+                await _Client.Entry.AddCreditAsync(_TestAccountId, 75.00m, "Selective commit test 2").ConfigureAwait(false);
             }).ConfigureAwait(false);
 
             await RunTest("Commit Specific Entries", async () =>
             {
-                List<Entry> pending = await _Client.Entry.GetPendingAsync(_TestAccountGuid).ConfigureAwait(false);
+                List<Entry> pending = await _Client.Entry.GetPendingAsync(_TestAccountId).ConfigureAwait(false);
                 if (pending.Count > 0)
                 {
-                    List<Guid> guids = new List<Guid> { pending[0].GUID };
-                    CommitResult result = await _Client.Balance.CommitAsync(_TestAccountGuid, guids).ConfigureAwait(false);
+                    List<string> entryIds = new List<string> { pending[0].Id };
+                    CommitResult result = await _Client.Balance.CommitAsync(_TestAccountId, entryIds).ConfigureAwait(false);
                 }
             }).ConfigureAwait(false);
 
             await RunTest("Get Historical Balance", async () =>
             {
-                Balance balance = await _Client.Balance.GetAsOfAsync(_TestAccountGuid, DateTime.UtcNow).ConfigureAwait(false);
+                Balance balance = await _Client.Balance.GetAsOfAsync(_TestAccountId, DateTime.UtcNow).ConfigureAwait(false);
                 // Just verify no error
             }).ConfigureAwait(false);
 
@@ -683,13 +692,14 @@ namespace NetLedger.Sdk.Test
         {
             PrintSectionHeader("API KEY TESTS");
 
-            ApiKeyInfo? createdKey = null;
+            CredentialCreateResponse? createdKey = null;
 
             await RunTest("Create API Key", async () =>
             {
                 createdKey = await _Client.ApiKey.CreateAsync("Test SDK Key", isAdmin: false).ConfigureAwait(false);
-                if (createdKey.GUID == Guid.Empty) throw new Exception("API key GUID is empty");
-                if (string.IsNullOrEmpty(createdKey.Key)) throw new Exception("API key value should be returned on creation");
+                if (String.IsNullOrEmpty(createdKey.Credential?.Id)) throw new Exception("API key ID is empty");
+                if (string.IsNullOrEmpty(createdKey.Credential.Key)) throw new Exception("API key value should be returned on creation");
+                if (string.IsNullOrEmpty(createdKey.SecretKey)) throw new Exception("Secret key should be returned on creation");
             }).ConfigureAwait(false);
 
             await RunTest("Enumerate API Keys", async () =>
@@ -704,7 +714,33 @@ namespace NetLedger.Sdk.Test
             await RunTest("Revoke API Key", async () =>
             {
                 if (createdKey == null) throw new Exception("No API key to revoke");
-                await _Client.ApiKey.RevokeAsync(createdKey.GUID).ConfigureAwait(false);
+                await _Client.ApiKey.RevokeAsync(createdKey.Credential?.Id ?? String.Empty).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+            Console.WriteLine();
+        }
+
+        private static async Task RunRequestHistoryTests()
+        {
+            PrintSectionHeader("REQUEST HISTORY TESTS");
+
+            await RunTest("Enumerate Request History", async () =>
+            {
+                EnumerationResult<RequestHistoryEntry> result = await _Client.RequestHistory.EnumerateAsync(new RequestHistoryQuery
+                {
+                    MaxResults = 10
+                }).ConfigureAwait(false);
+                if (result.TotalRecords < 0) throw new Exception("Request history total records invalid");
+            }).ConfigureAwait(false);
+
+            await RunTest("Summarize Request History", async () =>
+            {
+                RequestHistorySummary summary = await _Client.RequestHistory.SummarizeAsync(new RequestHistoryQuery
+                {
+                    MaxResults = 100,
+                    BucketMinutes = 15
+                }).ConfigureAwait(false);
+                if (summary.TotalCount < 0) throw new Exception("Request history summary total count invalid");
             }).ConfigureAwait(false);
 
             Console.WriteLine();
@@ -714,19 +750,19 @@ namespace NetLedger.Sdk.Test
         {
             PrintSectionHeader("CLEANUP");
 
-            if (_TestAccountGuid != Guid.Empty)
+            if (_TestAccountId != String.Empty)
             {
                 await RunTest("Delete Test Account", async () =>
                 {
-                    await _Client.Account.DeleteAsync(_TestAccountGuid).ConfigureAwait(false);
+                    await _Client.Account.DeleteAsync(_TestAccountId).ConfigureAwait(false);
                 }).ConfigureAwait(false);
             }
 
-            if (_EnumTestAccountGuid != Guid.Empty)
+            if (_EnumTestAccountId != String.Empty)
             {
                 await RunTest("Delete Enumeration Test Account", async () =>
                 {
-                    await _Client.Account.DeleteAsync(_EnumTestAccountGuid).ConfigureAwait(false);
+                    await _Client.Account.DeleteAsync(_EnumTestAccountId).ConfigureAwait(false);
                 }).ConfigureAwait(false);
             }
 
@@ -813,6 +849,12 @@ namespace NetLedger.Sdk.Test
                 }
                 Console.WriteLine();
             }
+        }
+
+        private static string UniqueSuffix(int length)
+        {
+            string value = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString("x") + Random.Shared.NextInt64(0, Int64.MaxValue).ToString("x");
+            return value.Length <= length ? value : value.Substring(value.Length - length);
         }
 
         #endregion

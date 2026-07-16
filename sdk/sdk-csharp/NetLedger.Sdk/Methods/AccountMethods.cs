@@ -59,11 +59,11 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<Account> GetAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<Account> GetAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<Account> response = await _Client.SendAsync<Account>(
                 HttpMethod.Get,
-                $"/v1/accounts/{accountGuid}",
+                $"/v1/accounts/{accountId}",
                 null,
                 cancellationToken).ConfigureAwait(false);
 
@@ -87,17 +87,17 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
-        public async Task<bool> ExistsAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task<bool> ExistsAsync(string accountId, CancellationToken cancellationToken = default)
         {
-            return await _Client.HeadAsync($"/v1/accounts/{accountGuid}", cancellationToken).ConfigureAwait(false);
+            return await _Client.HeadAsync($"/v1/accounts/{accountId}", cancellationToken).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
-        public async Task DeleteAsync(Guid accountGuid, CancellationToken cancellationToken = default)
+        public async Task DeleteAsync(string accountId, CancellationToken cancellationToken = default)
         {
             await _Client.SendAsync<object>(
                 HttpMethod.Delete,
-                $"/v1/accounts/{accountGuid}",
+                $"/v1/accounts/{accountId}",
                 null,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -125,3 +125,4 @@ namespace NetLedger.Sdk.Methods
         #endregion
     }
 }
+

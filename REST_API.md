@@ -14,6 +14,7 @@ This document provides comprehensive documentation for the NetLedger.Server REST
   - [Entry Endpoints](#entry-endpoints)
   - [Balance and Commit Endpoints](#balance-and-commit-endpoints)
   - [API Key Management Endpoints](#api-key-management-endpoints)
+  - [Request History Endpoints](#request-history-endpoints)
 
 ---
 
@@ -25,14 +26,173 @@ The NetLedger REST API provides programmatic access to ledger operations includi
 
 **API Version**: v1
 
+**OpenAPI document**: `GET /openapi.json`
+
+The dashboard API Explorer loads `GET /openapi.json` and executes requests with the current signed-in session. Request History is available in the dashboard and through the `/v1.0/api/request-history` API aliases.
+
+### v3.0.0 Tenant And Metadata Contract
+
+All v3.0.0 behavior remains under `/v1`. Clients can scope requests with the `x-tenant-id` header or use tenant route aliases:
+
+```
+x-tenant-id: ten_01h000000000000000000000000
+GET /v1/tenants/{tenantId}/accounts
+PUT /v1/tenants/{tenantId}/accounts/{accountId}/credits
+```
+
+If both a route tenant and `x-tenant-id` are provided, they must match.
+
+Public IDs are opaque PrettyId strings. Examples:
+
+| Entity | Prefix |
+| --- | --- |
+| Tenant | `ten_` |
+| User | `usr_` |
+| Credential | `cred_` |
+| Account | `acct_` |
+| Entry | `ent_` |
+
+Create account with metadata:
+
+```json
+{
+  "Name": "Operating Account",
+  "InitialBalance": 1000.0,
+  "Labels": ["operating", "usd"],
+  "Tags": {
+    "department": "finance",
+    "region": "west"
+  }
+}
+```
+
+Create a debit or credit with metadata:
+
+```json
+{
+  "Amount": 25.0,
+  "Notes": "Customer payment",
+  "IsCommitted": false,
+  "Labels": ["credit", "blue"],
+  "Tags": {
+    "user": "foo",
+    "source": "dashboard"
+  }
+}
+```
+
+Batch entries use the same metadata fields per entry:
+
+```json
+{
+  "IsCommitted": false,
+  "Entries": [
+    {
+      "Amount": 25.0,
+      "Notes": "Customer payment",
+      "Labels": ["credit"],
+      "Tags": { "user": "foo" }
+    }
+  ]
+}
+```
+
+Enumeration accepts all-must-match metadata filters for accounts and entries. Entry enumeration also accepts debit/credit amount bounds:
+
+```json
+{
+  "MaxResults": 50,
+  "ContinuationToken": null,
+  "Ordering": "CreatedDescending",
+  "Labels": ["credit", "blue"],
+  "Tags": { "user": "foo" },
+  "CreditMinimum": 10.0,
+  "CreditMaximum": null,
+  "DebitMinimum": null,
+  "DebitMaximum": null
+}
+```
+
+The same metadata filters are available as query parameters on list endpoints:
+
+```
+GET /v1/accounts?labels=operating,blue&tags=department=finance,color=blue
+GET /v1/accounts/{accountId}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending
+```
+
+Tenant-aware dashboard login uses server-side sessions:
+
+```
+POST /v1/auth/tenants
+POST /v1/auth/login
+POST /v1/auth/logout
+GET  /v1/me/permissions
+GET  /v1/tenants/{tenantId}/roles
+PUT  /v1/tenants/{tenantId}/roles
+GET  /v1/tenants/{tenantId}/permissions
+PUT  /v1/tenants/{tenantId}/permissions
+PUT  /v1/tenants/{tenantId}/users/{userId}/roles
+```
+
+Tenant discovery request:
+
+```json
+{
+  "Email": "user@example.com"
+}
+```
+
+Login request:
+
+```json
+{
+  "TenantId": "ten_01h000000000000000000000000",
+  "Email": "user@example.com",
+  "Password": "password"
+}
+```
+
+Login responses include a revocable `Session.Token`; send it as `Authorization: Bearer <token>` and include `x-tenant-id` for tenant-scoped requests.
+
+Security administration endpoints:
+
+```
+GET    /v1/tenants
+PUT    /v1/tenants
+GET    /v1/tenants/{tenantId}
+DELETE /v1/tenants/{tenantId}
+GET    /v1/tenants/{tenantId}/users
+PUT    /v1/tenants/{tenantId}/users
+GET    /v1/tenants/{tenantId}/users/{userId}
+GET    /v1/tenants/{tenantId}/accounts/{accountId}/users
+PUT    /v1/tenants/{tenantId}/accounts/{accountId}/users/{userId}
+DELETE /v1/tenants/{tenantId}/accounts/{accountId}/users/{userId}
+GET    /v1/tenants/{tenantId}/sessions
+DELETE /v1/tenants/{tenantId}/sessions/{sessionId}
+GET    /v1/tenants/{tenantId}/audit
+GET    /v1.0/api/request-history
+GET    /v1.0/api/request-history/summary
+GET    /v1.0/api/request-history/{id}
+DELETE /v1.0/api/request-history
+DELETE /v1.0/api/request-history/{id}
+```
+
+Authorization behavior:
+
+- System admins can access all tenants and records.
+- Tenant admins can administer records in their tenant.
+- Regular users can read themselves and use accounts mapped through `accountusermaps`.
+- Request history follows the same boundary: system admins can see all entries, tenant admins see entries in their tenant, and regular users see only their own entries.
+- Denials are written to the append-only audit store.
+
 ---
 
 ## Authentication
 
-All endpoints except `HEAD /` and `GET /` require authentication via Bearer token:
+All endpoints except `HEAD /`, `GET /`, `POST /v1/auth/tenants`, and `POST /v1/auth/login` require authentication via Bearer token:
 
 ```
-Authorization: Bearer <api-key>
+Authorization: Bearer <session-token-or-access-key>
 ```
 
 API keys are managed through the API Key Management endpoints. Admin endpoints require an API key with admin privileges.
@@ -47,7 +207,7 @@ All endpoints include the following response headers:
 |--------|-------------|
 | `x-hostname` | Server hostname |
 | `x-api-version` | Current API version (v1) |
-| `x-request-guid` | Unique request identifier for tracking |
+| `x-request-id` | Unique request identifier for tracking |
 | `Content-Type` | `application/json` |
 
 ---
@@ -62,7 +222,7 @@ All endpoints return standardized error responses:
   "Message": "Bad request",
   "StatusCode": 400,
   "Context": null,
-  "Description": "Account GUID is required"
+  "Description": "Account identifier is required"
 }
 ```
 
@@ -141,11 +301,21 @@ GET /v1/accounts
 |-----------|------|---------|-------------|
 | `maxResults` | int | 1000 | Maximum results per page (1-1000) |
 | `skip` | int | 0 | Number of records to skip |
-| `continuationToken` | GUID | null | Token for pagination continuation |
+| `continuationToken` | string | null | Token for pagination continuation |
 | `ordering` | enum | CreatedDescending | Sort order: `CreatedAscending`, `CreatedDescending`, `AmountAscending`, `AmountDescending` |
 | `search` | string | null | Search filter for account name |
 | `startTime` | DateTime | null | Filter by creation date (UTC) |
 | `endTime` | DateTime | null | Filter by creation date (UTC) |
+| `balanceMin` | decimal | null | Minimum committed balance filter |
+| `balanceMax` | decimal | null | Maximum committed balance filter |
+| `labels` | string | null | Comma-separated labels that must all exist |
+| `tags` | string | null | Comma-separated `key=value` tags that must all match |
+
+Example metadata search:
+
+```
+GET /v1/accounts?search=Operating&labels=operating,blue&tags=department=finance,color=blue&ordering=CreatedDescending
+```
 
 **Response**: `200 OK`
 
@@ -166,9 +336,14 @@ GET /v1/accounts
   "RecordsRemaining": 0,
   "Objects": [
     {
-      "GUID": "550e8400-e29b-41d4-a716-446655440000",
+      "Id": "acct_operating_001",
       "Name": "Checking Account",
       "Notes": null,
+      "Labels": ["operating", "blue"],
+      "Tags": {
+        "department": "finance",
+        "color": "blue"
+      },
       "CreatedUtc": "2025-12-23T00:00:00Z"
     }
   ]
@@ -190,7 +365,12 @@ PUT /v1/accounts
 ```json
 {
   "Name": "Checking Account",
-  "InitialBalance": 0
+  "InitialBalance": 0,
+  "Labels": ["operating", "blue"],
+  "Tags": {
+    "department": "finance",
+    "color": "blue"
+  }
 }
 ```
 
@@ -198,14 +378,21 @@ PUT /v1/accounts
 |-------|------|----------|-------------|
 | `Name` | string | Yes | Account name |
 | `InitialBalance` | decimal | No | Initial committed balance (default: 0) |
+| `Labels` | string[] | No | Account labels. Empty values are ignored and duplicate labels are normalized. |
+| `Tags` | object | No | Account tags as string key/value pairs. Tags are normalized by key. |
 
 **Response**: `201 Created`
 
 ```json
 {
-  "GUID": "550e8400-e29b-41d4-a716-446655440000",
+  "Id": "acct_operating_001",
   "Name": "Checking Account",
   "Notes": null,
+  "Labels": ["operating", "blue"],
+  "Tags": {
+    "department": "finance",
+    "color": "blue"
+  },
   "CreatedUtc": "2025-12-23T00:00:00Z"
 }
 ```
@@ -214,43 +401,48 @@ PUT /v1/accounts
 
 #### Check Account Exists
 
-Check if an account exists by GUID.
+Check if an account exists by identifier.
 
 ```
-HEAD /v1/accounts/{accountGuid}
+HEAD /v1/accounts/{accountId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` if exists, `404 Not Found` if not
 
 ---
 
-#### Get Account by GUID
+#### Get Account by Identifier
 
-Retrieve a specific account by its GUID.
+Retrieve a specific account by its identifier.
 
 ```
-GET /v1/accounts/{accountGuid}
+GET /v1/accounts/{accountId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 {
-  "GUID": "550e8400-e29b-41d4-a716-446655440000",
+  "Id": "acct_operating_001",
   "Name": "Checking Account",
   "Notes": null,
+  "Labels": ["operating", "blue"],
+  "Tags": {
+    "department": "finance",
+    "color": "blue"
+  },
   "CreatedUtc": "2025-12-23T00:00:00Z"
 }
 ```
@@ -275,9 +467,14 @@ GET /v1/accounts/byname/{accountName}
 
 ```json
 {
-  "GUID": "550e8400-e29b-41d4-a716-446655440000",
+  "Id": "acct_operating_001",
   "Name": "Checking Account",
   "Notes": null,
+  "Labels": ["operating", "blue"],
+  "Tags": {
+    "department": "finance",
+    "color": "blue"
+  },
   "CreatedUtc": "2025-12-23T00:00:00Z"
 }
 ```
@@ -289,14 +486,14 @@ GET /v1/accounts/byname/{accountName}
 Delete an account and all its entries.
 
 ```
-DELETE /v1/accounts/{accountGuid}
+DELETE /v1/accounts/{accountId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` (empty body)
 
@@ -311,14 +508,14 @@ All entry endpoints require authentication.
 Enumerate entries with query parameter-based filtering.
 
 ```
-GET /v1/accounts/{accountGuid}/entries
+GET /v1/accounts/{accountId}/entries
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Query Parameters**:
 
@@ -326,12 +523,25 @@ GET /v1/accounts/{accountGuid}/entries
 |-----------|------|---------|-------------|
 | `maxResults` | int | 1000 | Maximum results per page (1-1000) |
 | `skip` | int | 0 | Number of records to skip |
-| `continuationToken` | GUID | null | Token for pagination continuation |
+| `continuationToken` | string | null | Token for pagination continuation |
 | `ordering` | enum | CreatedDescending | Sort order |
+| `search` | string | null | Description search term |
 | `startTime` | DateTime | null | Filter entries created after (UTC) |
 | `endTime` | DateTime | null | Filter entries created before (UTC) |
 | `amountMin` | decimal | null | Minimum amount filter |
 | `amountMax` | decimal | null | Maximum amount filter |
+| `creditMin` | decimal | null | Minimum credit amount filter |
+| `creditMax` | decimal | null | Maximum credit amount filter |
+| `debitMin` | decimal | null | Minimum debit amount filter |
+| `debitMax` | decimal | null | Maximum debit amount filter |
+| `labels` | string | null | Comma-separated labels that must all exist |
+| `tags` | string | null | Comma-separated `key=value` tags that must all match |
+
+Example complex search:
+
+```
+GET /v1/accounts/{accountId}/entries?debitMin=5&debitMax=50&labels=blue&tags=color=blue&ordering=AmountDescending
+```
 
 **Response**: `200 OK`
 
@@ -352,15 +562,19 @@ GET /v1/accounts/{accountGuid}/entries
   "RecordsRemaining": 0,
   "Objects": [
     {
-      "GUID": "660e8400-e29b-41d4-a716-446655440001",
-      "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
+      "Id": "ent_credit_001",
+      "AccountId": "acct_operating_001",
       "Type": "Credit",
       "Amount": 100.50,
       "Description": "Initial deposit",
       "IsCommitted": true,
       "CommittedUtc": "2025-12-23T00:00:00Z",
-      "CommittedByGUID": null,
+      "CommittedById": null,
       "Replaces": null,
+      "Labels": ["blue"],
+      "Tags": {
+        "color": "blue"
+      },
       "CreatedUtc": "2025-12-23T00:00:00Z"
     }
   ]
@@ -374,14 +588,14 @@ GET /v1/accounts/{accountGuid}/entries
 Enumerate entries with request body-based filtering.
 
 ```
-POST /v1/accounts/{accountGuid}/entries/enumerate
+POST /v1/accounts/{accountId}/entries/enumerate
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body**:
 
@@ -391,10 +605,17 @@ POST /v1/accounts/{accountGuid}/entries/enumerate
   "Skip": 0,
   "ContinuationToken": null,
   "Ordering": "CreatedDescending",
+  "SearchTerm": null,
   "CreatedAfterUtc": null,
   "CreatedBeforeUtc": null,
   "AmountMinimum": null,
-  "AmountMaximum": null
+  "AmountMaximum": null,
+  "CreditMinimum": null,
+  "CreditMaximum": null,
+  "DebitMinimum": 5.0,
+  "DebitMaximum": 50.0,
+  "Labels": ["blue"],
+  "Tags": { "color": "blue" }
 }
 ```
 
@@ -407,29 +628,33 @@ POST /v1/accounts/{accountGuid}/entries/enumerate
 Get all pending (uncommitted) entries for an account.
 
 ```
-GET /v1/accounts/{accountGuid}/entries/pending
+GET /v1/accounts/{accountId}/entries/pending
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 [
   {
-    "GUID": "660e8400-e29b-41d4-a716-446655440002",
-    "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
+    "Id": "ent_debit_001",
+    "AccountId": "acct_operating_001",
     "Type": "Debit",
     "Amount": 25.00,
     "Description": "Pending withdrawal",
     "IsCommitted": false,
     "CommittedUtc": null,
-    "CommittedByGUID": null,
+    "CommittedById": null,
     "Replaces": null,
+    "Labels": ["blue"],
+    "Tags": {
+      "color": "blue"
+    },
     "CreatedUtc": "2025-12-23T00:00:00Z"
   }
 ]
@@ -442,14 +667,14 @@ GET /v1/accounts/{accountGuid}/entries/pending
 Get all pending credit entries for an account.
 
 ```
-GET /v1/accounts/{accountGuid}/entries/pending/credits
+GET /v1/accounts/{accountId}/entries/pending/credits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` (array of credit Entry objects)
 
@@ -460,14 +685,14 @@ GET /v1/accounts/{accountGuid}/entries/pending/credits
 Get all pending debit entries for an account.
 
 ```
-GET /v1/accounts/{accountGuid}/entries/pending/debits
+GET /v1/accounts/{accountId}/entries/pending/debits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK` (array of debit Entry objects)
 
@@ -478,14 +703,14 @@ GET /v1/accounts/{accountGuid}/entries/pending/debits
 Add one or more credit entries to an account.
 
 ```
-PUT /v1/accounts/{accountGuid}/credits
+PUT /v1/accounts/{accountId}/credits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body (Single Entry)**:
 
@@ -493,7 +718,12 @@ PUT /v1/accounts/{accountGuid}/credits
 {
   "Amount": 100.00,
   "Notes": "Customer payment",
-  "IsCommitted": false
+  "IsCommitted": false,
+  "Labels": ["blue"],
+  "Tags": {
+    "color": "blue",
+    "source": "dashboard"
+  }
 }
 ```
 
@@ -504,11 +734,15 @@ PUT /v1/accounts/{accountGuid}/credits
   "Entries": [
     {
       "Amount": 50.00,
-      "Notes": "Payment 1"
+      "Notes": "Payment 1",
+      "Labels": ["blue"],
+      "Tags": { "color": "blue" }
     },
     {
       "Amount": 50.00,
-      "Notes": "Payment 2"
+      "Notes": "Payment 2",
+      "Labels": ["green"],
+      "Tags": { "color": "green" }
     }
   ],
   "IsCommitted": false
@@ -521,14 +755,16 @@ PUT /v1/accounts/{accountGuid}/credits
 | `Notes` | string | No | Entry description |
 | `IsCommitted` | bool | No | Whether to commit immediately (default: false) |
 | `Entries` | array | No | Array of entries for batch operations |
+| `Labels` | string[] | No | Entry labels for single-entry requests or per batch item |
+| `Tags` | object | No | Entry tags as string key/value pairs for single-entry requests or per batch item |
 
 **Response**: `201 Created`
 
 ```json
 {
-  "EntryGuids": [
-    "660e8400-e29b-41d4-a716-446655440003",
-    "660e8400-e29b-41d4-a716-446655440004"
+  "EntryIds": [
+    "ent_credit_002",
+    "ent_credit_003"
   ]
 }
 ```
@@ -540,14 +776,14 @@ PUT /v1/accounts/{accountGuid}/credits
 Add one or more debit entries to an account.
 
 ```
-PUT /v1/accounts/{accountGuid}/debits
+PUT /v1/accounts/{accountId}/debits
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body**: Same format as Add Credit(s)
 
@@ -560,15 +796,15 @@ PUT /v1/accounts/{accountGuid}/debits
 Cancel a pending entry. Only uncommitted entries can be canceled.
 
 ```
-DELETE /v1/accounts/{accountGuid}/entries/{entryGuid}
+DELETE /v1/accounts/{accountId}/entries/{entryId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
-| `entryGuid` | GUID | Entry identifier |
+| `accountId` | string | Account identifier |
+| `entryId` | string | Entry identifier |
 
 **Response**: `200 OK` (empty body)
 
@@ -583,21 +819,21 @@ All balance and commit endpoints require authentication.
 Get the current balance for an account, including committed and pending amounts.
 
 ```
-GET /v1/accounts/{accountGuid}/balance
+GET /v1/accounts/{accountId}/balance
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 {
-  "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
-  "EntryGUID": "770e8400-e29b-41d4-a716-446655440000",
+  "AccountId": "acct_operating_001",
+  "EntryId": "ent_balance_001",
   "Name": "Checking Account",
   "CreatedUtc": "2025-12-23T00:00:00Z",
   "BalanceTimestampUtc": "2025-12-23T01:00:00Z",
@@ -624,14 +860,14 @@ GET /v1/accounts/{accountGuid}/balance
 Get the balance at a specific point in time.
 
 ```
-GET /v1/accounts/{accountGuid}/balance/asof
+GET /v1/accounts/{accountId}/balance/asof
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Query Parameters**:
 
@@ -643,7 +879,7 @@ GET /v1/accounts/{accountGuid}/balance/asof
 
 ```json
 {
-  "accountGuid": "550e8400-e29b-41d4-a716-446655440000",
+  "accountId": "acct_operating_001",
   "asOfUtc": "2025-12-22T00:00:00Z",
   "balance": 75.00
 }
@@ -663,9 +899,9 @@ GET /v1/balances
 
 ```json
 {
-  "550e8400-e29b-41d4-a716-446655440000": {
-    "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
-    "EntryGUID": "770e8400-e29b-41d4-a716-446655440000",
+  "acct_operating_001": {
+    "AccountId": "acct_operating_001",
+    "EntryId": "ent_balance_001",
     "Name": "Checking Account",
     "CreatedUtc": "2025-12-23T00:00:00Z",
     "BalanceTimestampUtc": "2025-12-23T01:00:00Z",
@@ -685,20 +921,20 @@ GET /v1/balances
 Commit pending entries, creating a new balance snapshot.
 
 ```
-POST /v1/accounts/{accountGuid}/commit
+POST /v1/accounts/{accountId}/commit
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Request Body (Commit All Pending)**:
 
 ```json
 {
-  "EntryGuids": null
+  "EntryIds": null
 }
 ```
 
@@ -706,9 +942,9 @@ POST /v1/accounts/{accountGuid}/commit
 
 ```json
 {
-  "EntryGuids": [
-    "660e8400-e29b-41d4-a716-446655440003",
-    "660e8400-e29b-41d4-a716-446655440004"
+  "EntryIds": [
+    "ent_credit_002",
+    "ent_credit_003"
   ]
 }
 ```
@@ -717,8 +953,8 @@ POST /v1/accounts/{accountGuid}/commit
 
 ```json
 {
-  "AccountGUID": "550e8400-e29b-41d4-a716-446655440000",
-  "EntryGUID": "880e8400-e29b-41d4-a716-446655440000",
+  "AccountId": "acct_operating_001",
+  "EntryId": "ent_balance_002",
   "Name": "Checking Account",
   "CreatedUtc": "2025-12-23T00:00:00Z",
   "BalanceTimestampUtc": "2025-12-23T02:00:00Z",
@@ -745,36 +981,37 @@ POST /v1/accounts/{accountGuid}/commit
 Verify the integrity of the balance entry chain (audit trail).
 
 ```
-GET /v1/accounts/{accountGuid}/verify
+GET /v1/accounts/{accountId}/verify
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `accountGuid` | GUID | Account identifier |
+| `accountId` | string | Account identifier |
 
 **Response**: `200 OK`
 
 ```json
 {
-  "accountGuid": "550e8400-e29b-41d4-a716-446655440000",
+  "accountId": "acct_operating_001",
   "isValid": true
 }
 ```
 
 ---
 
-### API Key Management Endpoints
+### Credential Management Endpoints
 
-All API key management endpoints require authentication with an admin API key.
+Credential management endpoints require admin access. Use `/v1/credentials` or `/v1/tenants/{tenantId}/credentials`; legacy `/v1/apikeys` management routes are removed in v3.
 
-#### Enumerate API Keys
+#### Enumerate Credentials
 
-List all API keys (values are partially redacted).
+List credentials (access keys are partially redacted).
 
 ```
-GET /v1/apikeys
+GET /v1/credentials
+GET /v1/tenants/{tenantId}/credentials
 ```
 
 **Query Parameters**:
@@ -783,9 +1020,10 @@ GET /v1/apikeys
 |-----------|------|---------|-------------|
 | `maxResults` | int | 1000 | Maximum results per page (1-1000) |
 | `skip` | int | 0 | Number of records to skip |
-| `continuationToken` | GUID | null | Token for pagination continuation |
+| `continuationToken` | string | null | Token for pagination continuation |
 | `ordering` | enum | CreatedDescending | Sort order: `CreatedAscending`, `CreatedDescending` |
 | `search` | string | null | Search filter for key name |
+| `tenantId` | string | null | Tenant filter when not using the tenant route |
 | `startTime` | DateTime | null | Filter by creation date (UTC) |
 | `endTime` | DateTime | null | Filter by creation date (UTC) |
 
@@ -808,9 +1046,12 @@ GET /v1/apikeys
   "RecordsRemaining": 0,
   "Objects": [
     {
-      "GUID": "770e8400-e29b-41d4-a716-446655440000",
+      "Id": "cred_01k2t4v6x8z9abcdefghijklm",
+      "TenantId": "ten_01k2t4v6x8z9abcdefghijklm",
+      "UserId": "usr_01k2t4v6x8z9abcdefghijklm",
       "Name": "Admin Key",
-      "Key": "a1b2c3d4-****-****-****-567890abcdef",
+      "Key": "ak_0****wxyz",
+      "SecretKeyLast4": "9abc",
       "Active": true,
       "IsAdmin": true,
       "CreatedUtc": "2025-12-23T00:00:00Z"
@@ -821,18 +1062,21 @@ GET /v1/apikeys
 
 ---
 
-#### Create API Key
+#### Create Credential
 
-Create a new API key. The full key value is only returned once at creation time.
+Create a new credential. The access key is returned with the credential and the raw secret key is returned once in `SecretKey`. Later responses only expose `SecretKeyLast4`.
 
 ```
-PUT /v1/apikeys
+PUT /v1/credentials
+PUT /v1/tenants/{tenantId}/credentials
 ```
 
 **Request Body**:
 
 ```json
 {
+  "TenantId": "ten_01k2t4v6x8z9abcdefghijklm",
+  "UserId": "usr_01k2t4v6x8z9abcdefghijklm",
   "Name": "Integration Key",
   "IsAdmin": false
 }
@@ -840,41 +1084,111 @@ PUT /v1/apikeys
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `Name` | string | Yes | Descriptive name for the API key |
+| `TenantId` | string | No | Tenant identifier; route tenant or `x-tenant-id` may also provide it |
+| `UserId` | string | No | Owning user identifier |
+| `Name` | string | Yes | Descriptive name for the credential |
 | `IsAdmin` | bool | No | Whether the key has admin privileges (default: false) |
 
 **Response**: `201 Created`
 
 ```json
 {
-  "GUID": "880e8400-e29b-41d4-a716-446655440000",
+  "Id": "cred_01k2t4v6x8z9abcdefghijklm",
+  "TenantId": "ten_01k2t4v6x8z9abcdefghijklm",
+  "UserId": "usr_01k2t4v6x8z9abcdefghijklm",
   "Name": "Integration Key",
-  "Key": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "Key": "ak_01k2t4v6x8z9abcdefghijklm",
+  "SecretKeyLast4": "9abc",
   "Active": true,
   "IsAdmin": false,
   "CreatedUtc": "2025-12-23T00:00:00Z"
 }
 ```
 
-> **Important**: Store the `Key` securely. It will be partially redacted in subsequent API calls.
+> **Important**: Store the access `Key` securely. It will be partially redacted in subsequent API calls.
 
 ---
 
-#### Revoke API Key
+#### Revoke Credential
 
-Revoke and delete an API key.
+Revoke and delete a credential.
 
 ```
-DELETE /v1/apikeys/{apiKeyGuid}
+DELETE /v1/credentials/{credentialId}
+DELETE /v1/tenants/{tenantId}/credentials/{credentialId}
 ```
 
 **URL Parameters**:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `apiKeyGuid` | GUID | API key identifier |
+| `credentialId` | string | Credential identifier |
 
 **Response**: `200 OK` (empty body)
+
+---
+
+### Request History Endpoints
+
+Request history captures REST request and response metadata for authenticated API traffic. Captured bodies are size-limited and sensitive request headers such as `Authorization`, cookies, API keys, and token-like headers are redacted.
+
+Access is scoped by role:
+
+- System admins can enumerate, read, summarize, and delete any request-history entry.
+- Tenant admins can enumerate, read, summarize, and delete entries only inside their tenant.
+- Regular users can enumerate, read, and summarize only their own entries; they cannot delete request history.
+
+#### Enumerate Request History
+
+```
+GET /v1.0/api/request-history
+GET /v1/request-history
+```
+
+**Query Parameters**:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `tenantId` | string | auth scope | Tenant filter; system admins may specify any tenant |
+| `principalId` | string | auth scope | Principal/user filter |
+| `method` | string | null | HTTP method filter |
+| `statusCode` | int | null | Exact HTTP response status |
+| `pathContains` | string | null | Path substring filter |
+| `fromUtc` | DateTime | null | Lower created timestamp bound |
+| `toUtc` | DateTime | null | Upper created timestamp bound |
+| `maxResults` | int | 25 | Maximum results per page (1-1000) |
+| `skip` | int | 0 | Number of records to skip |
+
+List responses omit request and response bodies. Read a single entry to retrieve captured bodies.
+
+#### Summarize Request History
+
+```
+GET /v1.0/api/request-history/summary
+GET /v1/request-history/summary
+```
+
+Supports the same filters as enumeration plus `bucketMinutes`. The response includes `TotalCount`, `TotalSuccess`, `TotalFailure`, `AverageDurationMs`, and time buckets.
+
+#### Read Request History Entry
+
+```
+GET /v1.0/api/request-history/{id}
+GET /v1/request-history/{id}
+```
+
+Returns one request-history entry, including captured headers and body content where available.
+
+#### Delete Request History
+
+```
+DELETE /v1.0/api/request-history/{id}
+DELETE /v1/request-history/{id}
+DELETE /v1.0/api/request-history
+DELETE /v1/request-history
+```
+
+Bulk delete accepts the same filters as enumeration and deletes only records within the caller's authorization scope.
 
 ---
 
@@ -904,7 +1218,7 @@ DELETE /v1/apikeys/{apiKeyGuid}
 | Category | Count | Endpoints |
 |----------|-------|-----------|
 | Service | 2 | Health check, service info |
-| Account | 6 | List, create, check exists, get by GUID, get by name, delete |
+| Account | 6 | List, create, check exists, get by identifier, get by name, delete |
 | Entry | 8 | Get entries, enumerate, pending entries, pending credits, pending debits, add credits, add debits, cancel |
 | Balance/Commit | 5 | Get balance, historical balance, all balances, commit, verify |
 | API Key Management | 3 | List, create, revoke |

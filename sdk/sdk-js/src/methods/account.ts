@@ -18,11 +18,11 @@ export class AccountMethods {
      * @param notes Optional notes.
      * @returns The created account.
      */
-    async create(name: string, notes?: string): Promise<Account> {
+    async create(name: string, notes?: string, labels?: string[], tags?: Record<string, string>): Promise<Account> {
         if (!name || name.trim() === '') {
             throw new NetLedgerValidationError('Account name cannot be empty', 'name');
         }
-        const response = await this.client.put<Account>('/v1/accounts', { Name: name, Notes: notes });
+        const response = await this.client.put<Account>('/v1/accounts', { Name: name, Notes: notes, Labels: labels, Tags: tags });
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -30,12 +30,12 @@ export class AccountMethods {
     }
 
     /**
-     * Get an account by GUID.
-     * @param accountGuid The account GUID.
+     * Get an account by identifier.
+     * @param accountId The account identifier.
      * @returns The account.
      */
-    async get(accountGuid: string): Promise<Account> {
-        const response = await this.client.get<Account>(`/v1/accounts/${accountGuid}`);
+    async get(accountId: string): Promise<Account> {
+        const response = await this.client.get<Account>(`/v1/accounts/${accountId}`);
         if (!response.Data) {
             throw new Error('No data returned from server');
         }
@@ -61,19 +61,19 @@ export class AccountMethods {
 
     /**
      * Check if an account exists.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      * @returns True if the account exists.
      */
-    async exists(accountGuid: string): Promise<boolean> {
-        return await this.client.head(`/v1/accounts/${accountGuid}`);
+    async exists(accountId: string): Promise<boolean> {
+        return await this.client.head(`/v1/accounts/${accountId}`);
     }
 
     /**
      * Delete an account.
-     * @param accountGuid The account GUID.
+     * @param accountId The account identifier.
      */
-    async delete(accountGuid: string): Promise<void> {
-        await this.client.delete(`/v1/accounts/${accountGuid}`);
+    async delete(accountId: string): Promise<void> {
+        await this.client.delete(`/v1/accounts/${accountId}`);
     }
 
     /**
@@ -87,6 +87,10 @@ export class AccountMethods {
             if (query.MaxResults !== undefined) params.append('maxResults', query.MaxResults.toString());
             if (query.Skip !== undefined) params.append('skip', query.Skip.toString());
             if (query.SearchTerm) params.append('searchTerm', query.SearchTerm);
+            if (query.Labels && query.Labels.length > 0) params.append('labels', query.Labels.join(','));
+            if (query.Tags && Object.keys(query.Tags).length > 0) {
+                params.append('tags', Object.entries(query.Tags).map(([key, value]) => `${key}=${value}`).join(','));
+            }
         }
         const queryString = params.toString();
         const path = queryString ? `/v1/accounts?${queryString}` : '/v1/accounts';

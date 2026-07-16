@@ -91,7 +91,7 @@ Database File: test_automated.db
 --- Account Tests ---
 
 [PASS] Create account (15ms)
-[PASS] Read account by GUID (3ms)
+[PASS] Read account by identifier (3ms)
 [PASS] Read account by name (4ms)
 ...
 
