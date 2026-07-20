@@ -47,7 +47,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             if (account.LastUpdateUtc == default) account.LastUpdateUtc = account.CreatedUtc;
 
             string query =
-                "INSERT INTO accounts (guid, tenantid, name, notes, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
+                "INSERT INTO accounts (id, tenantid, name, notes, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
                 "'" + account.Id.ToString() + "', " +
                 "'" + Sanitize(account.TenantId) + "', " +
                 "'" + Sanitize(account.Name) + "', " +
@@ -57,22 +57,16 @@ namespace NetLedger.Database.Sqlite.Implementations
                 (account.Active ? "1" : "0") + ", " +
                 "'" + account.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "', " +
                 "'" + account.LastUpdateUtc.ToString(SetupQueries.TimestampFormat) + "'" +
-                "); SELECT last_insert_rowid();";
+                ");";
 
-            DataTable result = await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
-
-            if (result != null && result.Rows.Count > 0)
-            {
-                account.RowId = Convert.ToInt32(result.Rows[0][0]);
-            }
-
+            await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return account;
         }
 
         /// <inheritdoc />
         public async Task<Account> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT * FROM accounts WHERE guid = '" + id.ToString() + "' LIMIT 1;";
+            string query = "SELECT * FROM accounts WHERE id = '" + id.ToString() + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -288,7 +282,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "tags = '" + Sanitize(MetadataSerializer.SerializeTags(account.Tags)) + "', " +
                 "active = " + (account.Active ? "1" : "0") + ", " +
                 "lastupdateutc = '" + DateTime.UtcNow.ToString(SetupQueries.TimestampFormat) + "' " +
-                "WHERE guid = '" + account.Id.ToString() + "';";
+                "WHERE id = '" + account.Id.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -298,14 +292,14 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "DELETE FROM accounts WHERE guid = '" + id.ToString() + "';";
+            string query = "DELETE FROM accounts WHERE id = '" + id.ToString() + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM accounts WHERE guid = '" + id.ToString() + "';";
+            string query = "SELECT COUNT(*) FROM accounts WHERE id = '" + id.ToString() + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
@@ -359,8 +353,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         private Account DataRowToAccount(DataRow row)
         {
             Account account = new Account();
-            account.RowId = Convert.ToInt32(row["id"]);
-            account.Id = row["guid"].ToString();
+            account.Id = row["id"].ToString();
             account.TenantId = GetString(row, "tenantid");
             account.Name = row["name"]?.ToString() ?? String.Empty;
             account.Notes = row["notes"]?.ToString();

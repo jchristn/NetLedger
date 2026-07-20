@@ -60,6 +60,7 @@ namespace NetLedger.Database.Sqlite
             // Create tables and indices
             ExecuteQueryAsync(SetupQueries.CreateTables()).Wait();
             EnsureV3ColumnsAsync(CancellationToken.None).Wait();
+            PrettyIdPrimaryKeyMigration.ApplyAsync(this, CancellationToken.None).GetAwaiter().GetResult();
             ExecuteQueryAsync(SetupQueries.CreateIndices()).Wait();
             Rbac.SeedBuiltInsAsync(CancellationToken.None).Wait();
         }

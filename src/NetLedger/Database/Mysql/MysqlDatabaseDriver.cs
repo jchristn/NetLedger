@@ -7,7 +7,6 @@ namespace NetLedger.Database.Mysql
     using System.Threading;
     using System.Threading.Tasks;
     using MySqlConnector;
-    using NetLedger.Database.Mysql.Implementations;
     using NetLedger.Database.Mysql.Queries;
     using NetLedger.Database.Portable;
 
@@ -95,21 +94,6 @@ namespace NetLedger.Database.Mysql
                     if (isWrite)
                     {
                         int affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
-
-                        // Handle INSERT with LAST_INSERT_ID
-                        if (query.Contains("LAST_INSERT_ID()"))
-                        {
-                            using (MySqlCommand idCommand = new MySqlCommand("SELECT LAST_INSERT_ID();", connection))
-                            {
-                                object result = await idCommand.ExecuteScalarAsync(token).ConfigureAwait(false);
-                                DataTable idTable = new DataTable();
-                                idTable.Columns.Add("id", typeof(long));
-                                DataRow row = idTable.NewRow();
-                                row["id"] = result;
-                                idTable.Rows.Add(row);
-                                return idTable;
-                            }
-                        }
 
                         DataTable resultTable = new DataTable();
                         resultTable.Columns.Add("affected", typeof(int));
@@ -242,6 +226,8 @@ namespace NetLedger.Database.Mysql
         {
             string[] tableQueries = SetupQueries.CreateTables();
             await ExecuteQueriesAsync(tableQueries).ConfigureAwait(false);
+
+            await PrettyIdPrimaryKeyMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
 
             string[] indexQueries = SetupQueries.CreateIndices();
             await CreateIndicesAsync(indexQueries).ConfigureAwait(false);

@@ -2,7 +2,6 @@ namespace NetLedger
 {
     using System;
     using System.Collections.Generic;
-    using System.Text.Json.Serialization;
 
     /// <summary>
     /// Account information.
@@ -10,12 +9,6 @@ namespace NetLedger
     public class Account
     {
         #region Public-Members
-
-        /// <summary>
-        /// Internal provider row ID.
-        /// </summary>
-        [JsonIgnore]
-        public int RowId { get; set; } = 0;
 
         /// <summary>
         /// Account identifier.

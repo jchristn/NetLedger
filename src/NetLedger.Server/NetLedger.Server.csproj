@@ -24,7 +24,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="SyslogLogging" Version="2.0.2" />
+		<PackageReference Include="SyslogLogging" Version="2.1.0" />
 		<PackageReference Include="Timestamps" Version="1.0.12" />
 		<PackageReference Include="Watson" Version="7.0.15" />
 	</ItemGroup>

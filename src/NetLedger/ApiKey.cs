@@ -11,12 +11,6 @@ namespace NetLedger
         #region Public-Members
 
         /// <summary>
-        /// Internal provider row ID.
-        /// </summary>
-        [JsonIgnore]
-        public int RowId { get; set; } = 0;
-
-        /// <summary>
         /// Unique identifier for the API key.
         /// </summary>
         public string Id { get; set; } = NetLedgerId.Generate(IdentifierPrefixes.Credential);
@@ -119,7 +113,6 @@ namespace NetLedger
         {
             return new ApiKey
             {
-                RowId = RowId,
                 Id = Id,
                 TenantId = TenantId,
                 UserId = UserId,

@@ -18,8 +18,7 @@ namespace NetLedger.Database.Sqlite.Queries
         {
             return @"
 CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guid TEXT NOT NULL,
+    id TEXT PRIMARY KEY,
     tenantid TEXT NOT NULL DEFAULT '',
     owneruserid TEXT,
     name TEXT NOT NULL,
@@ -47,8 +46,7 @@ CREATE TABLE IF NOT EXISTS accountlocks (
 );
 
 CREATE TABLE IF NOT EXISTS entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guid TEXT NOT NULL,
+    id TEXT PRIMARY KEY,
     tenantid TEXT NOT NULL DEFAULT '',
     accountguid TEXT NOT NULL,
     type TEXT NOT NULL,
@@ -129,8 +127,7 @@ CREATE TABLE IF NOT EXISTS accountusermaps (
 );
 
 CREATE TABLE IF NOT EXISTS apikeys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    guid TEXT NOT NULL,
+    id TEXT PRIMARY KEY,
     tenantid TEXT NOT NULL DEFAULT '',
     userid TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
@@ -277,14 +274,12 @@ CREATE TABLE IF NOT EXISTS auditrecords (
         internal static string CreateIndices()
         {
             return @"
-CREATE INDEX IF NOT EXISTS idx_accounts_guid ON accounts(guid);
-CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_guid ON accounts(tenantid, guid);
+CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_id ON accounts(tenantid, id);
 CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name);
 CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_name ON accounts(tenantid, name);
 CREATE INDEX IF NOT EXISTS idx_accounts_createdutc ON accounts(createdutc);
 
-CREATE INDEX IF NOT EXISTS idx_entries_guid ON entries(guid);
-CREATE INDEX IF NOT EXISTS idx_entries_tenantid_guid ON entries(tenantid, guid);
+CREATE INDEX IF NOT EXISTS idx_entries_tenantid_id ON entries(tenantid, id);
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid ON entries(accountguid);
 CREATE INDEX IF NOT EXISTS idx_entries_tenantid_accountguid ON entries(tenantid, accountguid);
 CREATE INDEX IF NOT EXISTS idx_entries_type ON entries(type);
@@ -299,7 +294,6 @@ CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type_committed ON entries(acc
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid_type_committed_createdutc ON entries(accountguid, type, committed, createdutc);
 CREATE INDEX IF NOT EXISTS idx_entries_tenantid_accountguid_createdutc ON entries(tenantid, accountguid, createdutc);
 
-CREATE INDEX IF NOT EXISTS idx_apikeys_guid ON apikeys(guid);
 CREATE INDEX IF NOT EXISTS idx_apikeys_apikey ON apikeys(apikey);
 CREATE INDEX IF NOT EXISTS idx_apikeys_active ON apikeys(active);
 CREATE INDEX IF NOT EXISTS idx_apikeys_apikey_active ON apikeys(apikey, active);

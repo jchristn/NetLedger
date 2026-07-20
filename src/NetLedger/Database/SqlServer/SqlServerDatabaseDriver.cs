@@ -7,7 +7,6 @@ namespace NetLedger.Database.SqlServer
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Data.SqlClient;
-    using NetLedger.Database.SqlServer.Implementations;
     using NetLedger.Database.SqlServer.Queries;
     using NetLedger.Database.Portable;
 
@@ -102,7 +101,7 @@ namespace NetLedger.Database.SqlServer
 
                     bool isWrite = !query.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
 
-                    if (isWrite && !query.Contains("OUTPUT INSERTED"))
+                    if (isWrite && !query.Contains("OUTPUT", StringComparison.OrdinalIgnoreCase))
                     {
                         int affected = await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
                         DataTable resultTable = new DataTable();
@@ -236,6 +235,8 @@ namespace NetLedger.Database.SqlServer
         {
             string[] tableQueries = SetupQueries.CreateTables();
             await ExecuteQueriesAsync(tableQueries).ConfigureAwait(false);
+
+            await PrettyIdPrimaryKeyMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
 
             string[] indexQueries = SetupQueries.CreateIndices();
             await ExecuteQueriesAsync(indexQueries).ConfigureAwait(false);

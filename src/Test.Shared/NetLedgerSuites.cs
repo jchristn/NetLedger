@@ -2,12 +2,14 @@ namespace Test.Shared
 {
     using System;
     using System.Collections.Generic;
+    using System.Data;
     using System.IO;
     using System.Linq;
     using System.Text;
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Data.Sqlite;
     using NetLedger;
     using NetLedger.Database;
     using NetLedger.Server.API.Agnostic;
@@ -23,6 +25,13 @@ namespace Test.Shared
     /// </summary>
     public static class NetLedgerSuites
     {
+        #region Private-Members
+
+        private static readonly string _RunScope = UniqueSuffix(12);
+        private static DatabaseSettings? _ConfiguredSettings = null;
+
+        #endregion
+
         /// <summary>
         /// All shared suites.
         /// </summary>
@@ -42,6 +51,34 @@ namespace Test.Shared
                     ProviderMatrixSuite()
                 };
             }
+        }
+
+        /// <summary>
+        /// Configure the database provider used by every database-backed shared test.
+        /// </summary>
+        /// <param name="settings">Database settings.</param>
+        public static void Configure(DatabaseSettings settings)
+        {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            _ConfiguredSettings = CloneDatabaseSettings(settings);
+        }
+
+        /// <summary>
+        /// Parse a database type name.
+        /// </summary>
+        /// <param name="value">Database type name.</param>
+        /// <returns>Database type.</returns>
+        public static DatabaseTypeEnum ParseDatabaseType(string value)
+        {
+            if (String.IsNullOrEmpty(value)) return DatabaseTypeEnum.Sqlite;
+
+            string normalized = value.Trim().ToLowerInvariant();
+            if (normalized == "sqlite") return DatabaseTypeEnum.Sqlite;
+            if (normalized == "mysql") return DatabaseTypeEnum.Mysql;
+            if (normalized == "postgres" || normalized == "postgresql") return DatabaseTypeEnum.Postgresql;
+            if (normalized == "sqlserver" || normalized == "mssql") return DatabaseTypeEnum.SqlServer;
+
+            throw new ArgumentException("Unsupported database type '" + value + "'.");
         }
 
         private static TestSuiteDescriptor IdentifierSuite()
@@ -119,8 +156,7 @@ namespace Test.Shared
                 {
                     new TestCaseDescriptor(suiteId, "account_metadata_round_trip", "Account metadata persists", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync(
                             "metadata-account",
                             10m,
@@ -136,8 +172,7 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "entry_metadata_round_trip", "Entry metadata persists", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync("entry-account", null, null, null, "ten_test", token).ConfigureAwait(false);
                         string entryId = await ledger.AddCreditAsync(
                             accountId,
@@ -157,8 +192,7 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "committed_batch_entries_are_summarized_once_per_batch", "Committed credit and debit batches use one summarizing balance entry per batch", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync("batch-commit-optimized", 100m, null, null, "ten_finance", token).ConfigureAwait(false);
 
                         List<string> creditIds = await ledger.AddCreditsAsync(accountId, new List<BatchEntryInput>
@@ -190,8 +224,7 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "balance_reporting_tracks_committed_and_pending_transaction_mix", "Balance reporting is exact after each committed and uncommitted debit/credit step", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync("finance-step-balance", 100m, null, null, "ten_finance", token).ConfigureAwait(false);
 
                         await AssertBalanceAsync(ledger, accountId, 100m, 100m, 0m, 0, 0, token, "initial account creation").ConfigureAwait(false);
@@ -223,8 +256,7 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "parallel_writes_to_same_account_preserve_exact_pending_balance", "Concurrent debit and credit writes to one account preserve exact pending totals", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync("finance-parallel-writes", 500m, null, null, "ten_finance", token).ConfigureAwait(false);
 
                         List<Task> writes = new List<Task>();
@@ -259,8 +291,7 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "parallel_commits_to_same_account_are_sequential_and_idempotent", "Concurrent commits to one account produce one exact committed balance and no duplicate summarization", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync("finance-parallel-commits", 1000m, null, null, "ten_finance", token).ConfigureAwait(false);
 
                         decimal expectedCredits = 0m;
@@ -296,8 +327,7 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "parallel_immediate_committed_writes_preserve_final_balance_and_journal_order", "Concurrent immediately committed writes preserve final balance and sequential journal integrity", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         string accountId = await ledger.CreateAccountAsync("finance-parallel-immediate", 250m, null, null, "ten_finance", token).ConfigureAwait(false);
 
                         List<Task> writes = new List<Task>();
@@ -331,9 +361,9 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "multiple_ledger_instances_serialize_same_account_writes", "Independent ledger instances serialize writes to the same account through database-backed locking", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledgerA = new Ledger(filename);
-                        await using Ledger ledgerB = new Ledger(filename);
+                        DatabaseSettings settings = CreateDatabaseSettings();
+                        await using Ledger ledgerA = new Ledger(settings);
+                        await using Ledger ledgerB = new Ledger(CloneDatabaseSettings(settings));
                         string accountId = await ledgerA.CreateAccountAsync("finance-multi-instance", 1000m, null, null, "ten_finance", token).ConfigureAwait(false);
 
                         List<Task> workload = new List<Task>();
@@ -383,20 +413,19 @@ namespace Test.Shared
                 {
                     new TestCaseDescriptor(suiteId, "credential_scope_round_trip", "Credential tenant and user scope persists", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         ApiKey credential = new ApiKey("worker", false)
                         {
-                            TenantId = "ten_test",
-                            UserId = "usr_test",
+                            TenantId = ScopedTenantId("credentials"),
+                            UserId = ScopedUserId("credentials"),
                             SecretKeySha256 = Credential.HashSecret("sk_test_secret"),
                             SecretKeyLast4 = "cret"
                         };
 
                         ApiKey created = await ledger.Driver.ApiKeys.CreateAsync(credential, token).ConfigureAwait(false);
                         ApiKey read = await ledger.Driver.ApiKeys.ReadByIdAsync(created.Id, token).ConfigureAwait(false);
-                        Assert(read.TenantId == "ten_test", "Credential tenant ID did not persist.");
-                        Assert(read.UserId == "usr_test", "Credential user ID did not persist.");
+                        Assert(read.TenantId == credential.TenantId, "Credential tenant ID did not persist.");
+                        Assert(read.UserId == credential.UserId, "Credential user ID did not persist.");
                         Assert(read.SecretKeySha256 == credential.SecretKeySha256, "Credential secret verifier did not persist.");
                         Assert(read.SecretKeyLast4 == "cret", "Credential secret last-four did not persist.");
                     })
@@ -413,8 +442,7 @@ namespace Test.Shared
                 {
                     new TestCaseDescriptor(suiteId, "tenant_user_session_round_trip", "Tenant, user, and session persist", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
 
                         Tenant tenant = await ledger.Driver.Tenants.CreateAsync(new Tenant { Name = "Acme" }, token).ConfigureAwait(false);
                         User user = await ledger.Driver.Users.CreateAsync(new User
@@ -440,15 +468,14 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "account_user_map_round_trip", "Account user mapping persists", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
-                        string tenantId = "ten_test";
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("account_user_map");
                         string accountId = await ledger.CreateAccountAsync("mapped", null, null, null, tenantId, token).ConfigureAwait(false);
                         AccountUserMap map = await ledger.Driver.AccountUserMaps.CreateAsync(new AccountUserMap
                         {
                             TenantId = tenantId,
                             AccountId = accountId,
-                            UserId = "usr_test"
+                            UserId = ScopedUserId("account_user_map")
                         }, token).ConfigureAwait(false);
 
                         bool exists = await ledger.Driver.AccountUserMaps.ExistsAsync(tenantId, accountId, map.UserId, token).ConfigureAwait(false);
@@ -456,10 +483,9 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "mapped_account_enumeration_filters", "Mapped account enumeration excludes unmapped accounts", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
-                        string tenantId = "ten_test";
-                        string userId = "usr_test";
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("mapped_account");
+                        string userId = ScopedUserId("mapped_account");
                         string mappedAccountId = await ledger.CreateAccountAsync("mapped", null, null, null, tenantId, token).ConfigureAwait(false);
                         string unmappedAccountId = await ledger.CreateAccountAsync("unmapped", null, null, null, tenantId, token).ConfigureAwait(false);
 
@@ -481,11 +507,11 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "audit_round_trip", "Audit record persists", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("audit");
                         AuditRecord record = await ledger.Driver.AuditRecords.CreateAsync(new AuditRecord
                         {
-                            TenantId = "ten_test",
+                            TenantId = tenantId,
                             EventType = "Authorization",
                             ResourceType = "Account",
                             OperationType = "Read",
@@ -493,24 +519,24 @@ namespace Test.Shared
                             Reason = "No matching permission"
                         }, token).ConfigureAwait(false);
 
-                        EnumerationResult<AuditRecord> result = await ledger.Driver.AuditRecords.EnumerateAsync(new EnumerationQuery { TenantId = "ten_test" }, token).ConfigureAwait(false);
+                        EnumerationResult<AuditRecord> result = await ledger.Driver.AuditRecords.EnumerateAsync(new EnumerationQuery { TenantId = tenantId }, token).ConfigureAwait(false);
                         Assert(result.Objects.Any(item => item.Id == record.Id), "Audit record did not persist.");
                     }),
                     new TestCaseDescriptor(suiteId, "rbac_builtin_assignment_permits", "Built-in RBAC assignment permits matching operation", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
-                        string tenantId = "ten_test";
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("rbac");
+                        string userId = ScopedUserId("rbac");
                         UserRoleAssignment assignment = await ledger.Driver.Rbac.CreateUserRoleAssignmentAsync(new UserRoleAssignment
                         {
                             TenantId = tenantId,
-                            UserId = "usr_test",
+                            UserId = userId,
                             RoleName = "Viewer",
                             ResourceScope = "Resource",
-                            ResourceId = "acct_test"
+                            ResourceId = ScopedAccountId("rbac")
                         }, token).ConfigureAwait(false);
 
-                        List<UserRoleAssignment> assignments = await ledger.Driver.Rbac.EnumerateUserRoleAssignmentsAsync(tenantId, "usr_test", token).ConfigureAwait(false);
+                        List<UserRoleAssignment> assignments = await ledger.Driver.Rbac.EnumerateUserRoleAssignmentsAsync(tenantId, userId, token).ConfigureAwait(false);
                         UserRole? role = await ledger.Driver.Rbac.ReadRoleByNameAsync(tenantId, "Viewer", token).ConfigureAwait(false);
                         List<RolePermissionMap> maps = role != null
                             ? await ledger.Driver.Rbac.EnumerateRolePermissionMapsAsync(tenantId, role.Id, token).ConfigureAwait(false)
@@ -533,14 +559,18 @@ namespace Test.Shared
                 {
                     new TestCaseDescriptor(suiteId, "request_history_filters_and_management_are_tenant_scoped", "Request history enumeration, reads, summaries, and deletes obey tenant and principal boundaries", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
                         DateTime now = DateTime.UtcNow;
+                        string tenantAId = ScopedTenantId("request_a");
+                        string tenantBId = ScopedTenantId("request_b");
+                        string userAId = ScopedUserId("request_a");
+                        string userBId = ScopedUserId("request_b");
+                        string userCId = ScopedUserId("request_c");
 
                         RequestHistoryEntry tenantAUserA = await ledger.Driver.RequestHistory.CreateAsync(new RequestHistoryEntry
                         {
-                            TenantId = "ten_a",
-                            PrincipalId = "usr_a",
+                            TenantId = tenantAId,
+                            PrincipalId = userAId,
                             PrincipalType = "User",
                             Method = "GET",
                             Path = "/v1/accounts",
@@ -556,8 +586,8 @@ namespace Test.Shared
 
                         RequestHistoryEntry tenantAUserB = await ledger.Driver.RequestHistory.CreateAsync(new RequestHistoryEntry
                         {
-                            TenantId = "ten_a",
-                            PrincipalId = "usr_b",
+                            TenantId = tenantAId,
+                            PrincipalId = userBId,
                             PrincipalType = "User",
                             Method = "GET",
                             Path = "/v1/accounts/blocked",
@@ -570,8 +600,8 @@ namespace Test.Shared
 
                         RequestHistoryEntry tenantBUser = await ledger.Driver.RequestHistory.CreateAsync(new RequestHistoryEntry
                         {
-                            TenantId = "ten_b",
-                            PrincipalId = "usr_c",
+                            TenantId = tenantBId,
+                            PrincipalId = userCId,
                             PrincipalType = "User",
                             Method = "POST",
                             Path = "/v1/entries",
@@ -584,7 +614,7 @@ namespace Test.Shared
 
                         RequestHistoryResult tenantAResult = await ledger.Driver.RequestHistory.EnumerateAsync(new RequestHistoryFilter
                         {
-                            TenantId = "ten_a",
+                            TenantId = tenantAId,
                             MaxResults = 100
                         }, token).ConfigureAwait(false);
                         Assert(tenantAResult.Objects.Any(item => item.Id == tenantAUserA.Id), "Tenant A request history entry was not returned.");
@@ -593,26 +623,26 @@ namespace Test.Shared
 
                         RequestHistoryResult tenantAUserAResult = await ledger.Driver.RequestHistory.EnumerateAsync(new RequestHistoryFilter
                         {
-                            TenantId = "ten_a",
-                            PrincipalId = "usr_a",
+                            TenantId = tenantAId,
+                            PrincipalId = userAId,
                             MaxResults = 100
                         }, token).ConfigureAwait(false);
                         Assert(tenantAUserAResult.Objects.Count == 1 && tenantAUserAResult.Objects[0].Id == tenantAUserA.Id, "Principal-scoped request history returned the wrong records.");
 
-                        RequestHistoryEntry? tenantScopedCrossRead = await ledger.Driver.RequestHistory.ReadAsync("ten_a", tenantBUser.Id, token).ConfigureAwait(false);
+                        RequestHistoryEntry? tenantScopedCrossRead = await ledger.Driver.RequestHistory.ReadAsync(tenantAId, tenantBUser.Id, token).ConfigureAwait(false);
                         Assert(tenantScopedCrossRead == null, "Tenant-scoped read returned a cross-tenant request history entry.");
 
                         RequestHistoryEntry? systemRead = await ledger.Driver.RequestHistory.ReadAsync(null, tenantBUser.Id, token).ConfigureAwait(false);
                         Assert(systemRead != null && systemRead.Id == tenantBUser.Id, "Unscoped system read did not return the cross-tenant request history entry.");
 
-                        bool crossTenantDeleted = await ledger.Driver.RequestHistory.DeleteAsync("ten_a", tenantBUser.Id, token).ConfigureAwait(false);
+                        bool crossTenantDeleted = await ledger.Driver.RequestHistory.DeleteAsync(tenantAId, tenantBUser.Id, token).ConfigureAwait(false);
                         Assert(!crossTenantDeleted, "Tenant-scoped delete removed a cross-tenant request history entry.");
-                        RequestHistoryEntry? tenantBStillExists = await ledger.Driver.RequestHistory.ReadAsync("ten_b", tenantBUser.Id, token).ConfigureAwait(false);
+                        RequestHistoryEntry? tenantBStillExists = await ledger.Driver.RequestHistory.ReadAsync(tenantBId, tenantBUser.Id, token).ConfigureAwait(false);
                         Assert(tenantBStillExists != null, "Cross-tenant request history entry was removed by a scoped delete.");
 
                         RequestHistorySummary tenantASummary = await ledger.Driver.RequestHistory.SummarizeAsync(new RequestHistoryFilter
                         {
-                            TenantId = "ten_a",
+                            TenantId = tenantAId,
                             FromUtc = now.AddMinutes(-30),
                             ToUtc = now.AddMinutes(1),
                             BucketMinutes = 15
@@ -627,7 +657,7 @@ namespace Test.Shared
 
                         long deletedTenantA = await ledger.Driver.RequestHistory.DeleteManyAsync(new RequestHistoryFilter
                         {
-                            TenantId = "ten_a",
+                            TenantId = tenantAId,
                             PathContains = "/v1/accounts",
                             MaxResults = 100
                         }, token).ConfigureAwait(false);
@@ -637,7 +667,7 @@ namespace Test.Shared
                         {
                             MaxResults = 100
                         }, token).ConfigureAwait(false);
-                        Assert(!allRemaining.Objects.Any(item => item.TenantId == "ten_a"), "Tenant A request history entries remained after scoped delete.");
+                        Assert(!allRemaining.Objects.Any(item => item.TenantId == tenantAId), "Tenant A request history entries remained after scoped delete.");
                         Assert(allRemaining.Objects.Any(item => item.Id == tenantBUser.Id), "Scoped bulk delete removed a cross-tenant request history entry.");
                     })
                 });
@@ -648,29 +678,234 @@ namespace Test.Shared
             return Path.Combine(Path.GetTempPath(), "netledger-test-" + UniqueSuffix(24) + ".db");
         }
 
+        private static Ledger CreateLedger()
+        {
+            return new Ledger(CreateDatabaseSettings());
+        }
+
+        private static DatabaseSettings CreateDatabaseSettings()
+        {
+            DatabaseSettings configured = GetConfiguredDatabaseSettings();
+            DatabaseSettings settings = CloneDatabaseSettings(configured);
+
+            if (settings.Type == DatabaseTypeEnum.Sqlite)
+            {
+                settings.Filename = CreateDatabaseFilename();
+            }
+
+            return settings;
+        }
+
+        private static DatabaseSettings GetConfiguredDatabaseSettings()
+        {
+            if (_ConfiguredSettings != null)
+            {
+                return CloneDatabaseSettings(_ConfiguredSettings);
+            }
+
+            string? type = Environment.GetEnvironmentVariable("NETLEDGER_TEST_TYPE");
+            if (String.IsNullOrEmpty(type))
+            {
+                type = Environment.GetEnvironmentVariable("NETLEDGER_TEST_PROVIDER");
+            }
+
+            if (String.IsNullOrEmpty(type))
+            {
+                return new DatabaseSettings
+                {
+                    Type = DatabaseTypeEnum.Sqlite,
+                    Filename = CreateDatabaseFilename()
+                };
+            }
+
+            return CreateProviderSettings(ParseDatabaseType(type));
+        }
+
         private static string UniqueSuffix(int length)
         {
             string value = NetLedgerId.Generate("tst");
             return value.Length <= length ? value : value.Substring(value.Length - length);
         }
 
+        private static string ScopedTenantId(string name)
+        {
+            return "ten_" + NormalizeIdentifierPart(name) + "_" + _RunScope;
+        }
+
+        private static string ScopedUserId(string name)
+        {
+            return "usr_" + NormalizeIdentifierPart(name) + "_" + _RunScope;
+        }
+
+        private static string ScopedAccountId(string name)
+        {
+            return "acct_" + NormalizeIdentifierPart(name) + "_" + _RunScope;
+        }
+
+        private static string NormalizeIdentifierPart(string value)
+        {
+            if (String.IsNullOrEmpty(value)) return "test";
+
+            StringBuilder builder = new StringBuilder();
+            foreach (char c in value)
+            {
+                if (Char.IsLetterOrDigit(c))
+                {
+                    builder.Append(Char.ToLowerInvariant(c));
+                }
+                else if (c == '_' || c == '-')
+                {
+                    builder.Append('_');
+                }
+            }
+
+            return builder.Length == 0 ? "test" : builder.ToString();
+        }
+
         private static TestSuiteDescriptor ProviderMatrixSuite()
         {
             string suiteId = "provider_matrix";
+            List<TestCaseDescriptor> tests = new List<TestCaseDescriptor>();
+
+            if (IsProviderMatrixEnabled())
+            {
+                tests.Add(new TestCaseDescriptor(suiteId, "sqlite_legacy_prettyid_pk_startup_migration", "SQLite migrates legacy integer primary keys to PrettyId primary keys", token =>
+                    RunSqlitePrettyIdPrimaryKeyMigrationAsync(token)));
+                tests.Add(new TestCaseDescriptor(suiteId, "sqlite_full_v3_workflows", "SQLite supports all v3 workflows", token =>
+                    RunProviderFullWorkflowAsync(DatabaseTypeEnum.Sqlite, token)));
+                tests.Add(new TestCaseDescriptor(suiteId, "mysql_full_v3_workflows", "MySQL supports all v3 workflows", token =>
+                    RunProviderFullWorkflowAsync(DatabaseTypeEnum.Mysql, token)));
+                tests.Add(new TestCaseDescriptor(suiteId, "postgresql_full_v3_workflows", "PostgreSQL supports all v3 workflows", token =>
+                    RunProviderFullWorkflowAsync(DatabaseTypeEnum.Postgresql, token)));
+                tests.Add(new TestCaseDescriptor(suiteId, "sqlserver_full_v3_workflows", "SQL Server supports all v3 workflows", token =>
+                    RunProviderFullWorkflowAsync(DatabaseTypeEnum.SqlServer, token)));
+            }
+            else
+            {
+                DatabaseTypeEnum configuredType = GetConfiguredDatabaseSettings().Type;
+                if (configuredType == DatabaseTypeEnum.Sqlite)
+                {
+                    tests.Add(new TestCaseDescriptor(suiteId, "sqlite_legacy_prettyid_pk_startup_migration", "SQLite migrates legacy integer primary keys to PrettyId primary keys", token =>
+                        RunSqlitePrettyIdPrimaryKeyMigrationAsync(token)));
+                }
+
+                tests.Add(new TestCaseDescriptor(
+                    suiteId,
+                    configuredType.ToString().ToLowerInvariant() + "_full_v3_workflows",
+                    configuredType + " supports all v3 workflows",
+                    token => RunProviderFullWorkflowAsync(configuredType, token)));
+            }
+
             return new TestSuiteDescriptor(
                 suiteId,
                 "Live SQL provider certification",
-                new List<TestCaseDescriptor>
+                tests);
+        }
+
+        private static async Task RunSqlitePrettyIdPrimaryKeyMigrationAsync(CancellationToken token)
+        {
+            string filename = CreateDatabaseFilename();
+            string accountId = NetLedgerId.Generate(IdentifierPrefixes.Account);
+            string entryId = NetLedgerId.Generate(IdentifierPrefixes.Entry);
+            string credentialId = NetLedgerId.Generate(IdentifierPrefixes.Credential);
+
+            await CreateLegacyPrettyIdPrimaryKeyDatabaseAsync(filename, accountId, entryId, credentialId, token).ConfigureAwait(false);
+
+            await using Ledger ledger = new Ledger(filename);
+
+            Account? account = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+            Assert(account != null && account.Id == accountId && account.Name == "legacy account", "Migrated account was not readable by PrettyId.");
+
+            Entry? entry = await ledger.GetEntryAsync(entryId, token).ConfigureAwait(false);
+            Assert(entry != null && entry.Id == entryId && entry.AccountId == accountId && entry.Amount == 42.25m, "Migrated entry was not readable by PrettyId.");
+
+            ApiKey? credential = await ledger.Driver.ApiKeys.ReadByIdAsync(credentialId, token).ConfigureAwait(false);
+            Assert(credential != null && credential.Id == credentialId && credential.Name == "legacy credential", "Migrated credential was not readable by PrettyId.");
+
+            DataTable accountColumns = await ledger.Driver.ExecuteQueryAsync("PRAGMA table_info(accounts);", false, token).ConfigureAwait(false);
+            DataTable entryColumns = await ledger.Driver.ExecuteQueryAsync("PRAGMA table_info(entries);", false, token).ConfigureAwait(false);
+            DataTable credentialColumns = await ledger.Driver.ExecuteQueryAsync("PRAGMA table_info(apikeys);", false, token).ConfigureAwait(false);
+
+            AssertPrimaryTextColumn(accountColumns, "id", "accounts");
+            AssertPrimaryTextColumn(entryColumns, "id", "entries");
+            AssertPrimaryTextColumn(credentialColumns, "id", "apikeys");
+            Assert(!ColumnExists(accountColumns, "guid"), "accounts.guid remained after migration.");
+            Assert(!ColumnExists(entryColumns, "guid"), "entries.guid remained after migration.");
+            Assert(!ColumnExists(credentialColumns, "guid"), "apikeys.guid remained after migration.");
+
+            DataTable migrationRows = await ledger.Driver.ExecuteQueryAsync("SELECT COUNT(*) FROM schemamigrations WHERE name = 'prettyid-primary-keys-v1' AND success = 1;", false, token).ConfigureAwait(false);
+            Assert(ReadCount(migrationRows) == 1L, "PrettyId primary-key migration was not recorded as successful.");
+        }
+
+        private static async Task CreateLegacyPrettyIdPrimaryKeyDatabaseAsync(
+            string filename,
+            string accountId,
+            string entryId,
+            string credentialId,
+            CancellationToken token)
+        {
+            using (SqliteConnection connection = new SqliteConnection("Data Source=" + filename + ";"))
+            {
+                await connection.OpenAsync(token).ConfigureAwait(false);
+
+                List<string> statements = new List<string>
                 {
-                    new TestCaseDescriptor(suiteId, "sqlite_full_v3_workflows", "SQLite supports all v3 workflows", token =>
-                        RunProviderFullWorkflowAsync(DatabaseTypeEnum.Sqlite, token)),
-                    new TestCaseDescriptor(suiteId, "mysql_full_v3_workflows", "MySQL supports all v3 workflows", token =>
-                        RunProviderFullWorkflowAsync(DatabaseTypeEnum.Mysql, token)),
-                    new TestCaseDescriptor(suiteId, "postgresql_full_v3_workflows", "PostgreSQL supports all v3 workflows", token =>
-                        RunProviderFullWorkflowAsync(DatabaseTypeEnum.Postgresql, token)),
-                    new TestCaseDescriptor(suiteId, "sqlserver_full_v3_workflows", "SQL Server supports all v3 workflows", token =>
-                        RunProviderFullWorkflowAsync(DatabaseTypeEnum.SqlServer, token))
-                });
+                    @"CREATE TABLE accounts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guid TEXT NOT NULL,
+                        tenantid TEXT NOT NULL DEFAULT '',
+                        owneruserid TEXT,
+                        name TEXT NOT NULL,
+                        notes TEXT,
+                        labels TEXT NOT NULL DEFAULT '[]',
+                        tags TEXT NOT NULL DEFAULT '{}',
+                        active INTEGER NOT NULL DEFAULT 1,
+                        createdutc TEXT NOT NULL,
+                        lastupdateutc TEXT NOT NULL DEFAULT ''
+                    );",
+                    @"CREATE TABLE entries (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guid TEXT NOT NULL,
+                        tenantid TEXT NOT NULL DEFAULT '',
+                        accountguid TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        amount REAL NOT NULL,
+                        description TEXT,
+                        replaces TEXT,
+                        committed INTEGER NOT NULL DEFAULT 0,
+                        committedbyguid TEXT,
+                        committedutc TEXT,
+                        labels TEXT NOT NULL DEFAULT '[]',
+                        tags TEXT NOT NULL DEFAULT '{}',
+                        createdutc TEXT NOT NULL,
+                        lastupdateutc TEXT NOT NULL DEFAULT ''
+                    );",
+                    @"CREATE TABLE apikeys (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        guid TEXT NOT NULL,
+                        tenantid TEXT NOT NULL DEFAULT '',
+                        userid TEXT NOT NULL DEFAULT '',
+                        name TEXT NOT NULL,
+                        apikey TEXT NOT NULL,
+                        secretkeysha256 TEXT,
+                        secretkeylast4 TEXT,
+                        active INTEGER NOT NULL DEFAULT 1,
+                        isadmin INTEGER NOT NULL DEFAULT 0,
+                        createdutc TEXT NOT NULL
+                    );",
+                    "INSERT INTO accounts (id, guid, tenantid, owneruserid, name, notes, labels, tags, active, createdutc, lastupdateutc) VALUES (1, '" + accountId + "', 'ten_legacy', 'usr_legacy', 'legacy account', 'legacy notes', '[\"legacy\"]', '{\"source\":\"migration\"}', 1, '2026-01-01 00:00:00.000000', '2026-01-01 00:00:01.000000');",
+                    "INSERT INTO entries (id, guid, tenantid, accountguid, type, amount, description, replaces, committed, committedbyguid, committedutc, labels, tags, createdutc, lastupdateutc) VALUES (2, '" + entryId + "', 'ten_legacy', '" + accountId + "', 'Credit', 42.25, 'legacy credit', NULL, 0, NULL, NULL, '[\"legacy\"]', '{\"source\":\"migration\"}', '2026-01-01 00:00:02.000000', '2026-01-01 00:00:03.000000');",
+                    "INSERT INTO apikeys (id, guid, tenantid, userid, name, apikey, secretkeysha256, secretkeylast4, active, isadmin, createdutc) VALUES (3, '" + credentialId + "', 'ten_legacy', 'usr_legacy', 'legacy credential', 'key_legacy', 'hash_legacy', 'last', 1, 0, '2026-01-01 00:00:04.000000');"
+                };
+
+                foreach (string statement in statements)
+                {
+                    using (SqliteCommand command = new SqliteCommand(statement, connection))
+                    {
+                        await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+                    }
+                }
+            }
         }
 
         private static TestSuiteDescriptor SecurityBoundarySuite()
@@ -1038,30 +1273,45 @@ namespace Test.Shared
                     }),
                     new TestCaseDescriptor(suiteId, "default_admin_bootstrap_repairs_admin_flags", "Default admin bootstrap repairs existing admin@netledger privileges", async token =>
                     {
-                        string filename = CreateDatabaseFilename();
-                        await using Ledger ledger = new Ledger(filename);
+                        await using Ledger ledger = CreateLedger();
 
-                        await ledger.Driver.Tenants.CreateAsync(new Tenant
+                        Tenant? existingTenant = await ledger.Driver.Tenants.ReadAsync("default", token).ConfigureAwait(false);
+                        if (existingTenant == null)
                         {
-                            Id = "default",
-                            Name = "Default",
-                            Active = true,
-                            IsProtected = true
-                        }, token).ConfigureAwait(false);
+                            await ledger.Driver.Tenants.CreateAsync(new Tenant
+                            {
+                                Id = "default",
+                                Name = "Default",
+                                Active = true,
+                                IsProtected = true
+                            }, token).ConfigureAwait(false);
+                        }
 
-                        User existing = await ledger.Driver.Users.CreateAsync(new User
+                        User? existing = await ledger.Driver.Users.ReadByEmailAsync("default", "admin@netledger", token).ConfigureAwait(false);
+                        if (existing == null)
                         {
-                            Id = "usr_default_admin",
-                            TenantId = "default",
-                            FirstName = "Default",
-                            LastName = "Admin",
-                            Email = "admin@netledger",
-                            PasswordSha256 = AuthService.HashPasswordSha256("password"),
-                            IsAdmin = false,
-                            IsTenantAdmin = false,
-                            Active = false,
-                            IsProtected = false
-                        }, token).ConfigureAwait(false);
+                            existing = await ledger.Driver.Users.CreateAsync(new User
+                            {
+                                Id = "usr_default_admin",
+                                TenantId = "default",
+                                FirstName = "Default",
+                                LastName = "Admin",
+                                Email = "admin@netledger",
+                                PasswordSha256 = AuthService.HashPasswordSha256("password"),
+                                IsAdmin = false,
+                                IsTenantAdmin = false,
+                                Active = false,
+                                IsProtected = false
+                            }, token).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            existing.IsAdmin = false;
+                            existing.IsTenantAdmin = false;
+                            existing.Active = false;
+                            existing.IsProtected = false;
+                            existing = await ledger.Driver.Users.UpdateAsync(existing, token).ConfigureAwait(false);
+                        }
 
                         LoggingModule logging = new LoggingModule();
                         logging.Settings.EnableConsole = false;
@@ -1081,7 +1331,7 @@ namespace Test.Shared
 
         private static async Task<SecurityScenario> CreateSecurityScenarioAsync(CancellationToken token)
         {
-            Ledger ledger = new Ledger(CreateDatabaseFilename());
+            Ledger ledger = CreateLedger();
 
             try
             {
@@ -1413,12 +1663,7 @@ namespace Test.Shared
 
         private static async Task RunProviderFullWorkflowAsync(DatabaseTypeEnum type, CancellationToken token)
         {
-            if (type != DatabaseTypeEnum.Sqlite && !IsProviderMatrixEnabled())
-            {
-                return;
-            }
-
-            DatabaseSettings settings = CreateProviderSettings(type);
+            DatabaseSettings settings = CreateProviderWorkflowSettings(type);
             string tenantId = "ten_test_" + UniqueSuffix(16);
             string userId = "usr_test_" + UniqueSuffix(16);
 
@@ -1594,6 +1839,17 @@ namespace Test.Shared
             return String.Equals(Environment.GetEnvironmentVariable("NETLEDGER_PROVIDER_MATRIX"), "1", StringComparison.Ordinal);
         }
 
+        private static DatabaseSettings CreateProviderWorkflowSettings(DatabaseTypeEnum type)
+        {
+            DatabaseSettings configured = GetConfiguredDatabaseSettings();
+            if (!IsProviderMatrixEnabled() && configured.Type == type)
+            {
+                return CreateDatabaseSettings();
+            }
+
+            return CreateProviderSettings(type);
+        }
+
         private static DatabaseSettings CreateProviderSettings(DatabaseTypeEnum type)
         {
             string prefix = "NETLEDGER_" + type.ToString().ToUpperInvariant() + "_";
@@ -1624,6 +1880,69 @@ namespace Test.Shared
             }
 
             return settings;
+        }
+
+        private static DatabaseSettings CloneDatabaseSettings(DatabaseSettings settings)
+        {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+
+            return new DatabaseSettings
+            {
+                Type = settings.Type,
+                Filename = settings.Filename,
+                Hostname = settings.Hostname,
+                Port = settings.Port,
+                Username = settings.Username,
+                Password = settings.Password,
+                DatabaseName = settings.DatabaseName,
+                Instance = settings.Instance,
+                Schema = settings.Schema,
+                LogQueries = settings.LogQueries,
+                RequireEncryption = settings.RequireEncryption,
+                ConnectionTimeoutSeconds = settings.ConnectionTimeoutSeconds,
+                MaxPoolSize = settings.MaxPoolSize
+            };
+        }
+
+        private static void AssertPrimaryTextColumn(DataTable columns, string columnName, string tableName)
+        {
+            DataRow? column = FindColumn(columns, columnName);
+            if (column == null)
+            {
+                throw new InvalidOperationException(tableName + "." + columnName + " column was missing.");
+            }
+
+            string type = column["type"]?.ToString() ?? String.Empty;
+            string primaryKey = column["pk"]?.ToString() ?? String.Empty;
+            Assert(String.Equals(type, "TEXT", StringComparison.OrdinalIgnoreCase), tableName + "." + columnName + " was not a TEXT column.");
+            Assert(primaryKey == "1", tableName + "." + columnName + " was not the primary key.");
+        }
+
+        private static bool ColumnExists(DataTable columns, string columnName)
+        {
+            return FindColumn(columns, columnName) != null;
+        }
+
+        private static DataRow? FindColumn(DataTable columns, string columnName)
+        {
+            if (columns == null) return null;
+
+            foreach (DataRow row in columns.Rows)
+            {
+                string name = row["name"]?.ToString() ?? String.Empty;
+                if (String.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return row;
+                }
+            }
+
+            return null;
+        }
+
+        private static long ReadCount(DataTable result)
+        {
+            if (result == null || result.Rows.Count == 0) return 0L;
+            return Convert.ToInt64(result.Rows[0][0]);
         }
 
         private static void Assert(bool condition, string message)

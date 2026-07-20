@@ -392,11 +392,11 @@ namespace NetLedger.Database
             if (!String.IsNullOrEmpty(MappedUserId))
             {
                 List<string> mappingConditions = new List<string>();
-                mappingConditions.Add("accountusermaps.accountid = " + FormatColumn("guid", dbType));
-                mappingConditions.Add("accountusermaps.userid = '" + SanitizeString(MappedUserId) + "'");
+                mappingConditions.Add(FormatQualifiedColumn("accountusermaps", "accountid", dbType) + " = " + FormatQualifiedColumn("accounts", "id", dbType));
+                mappingConditions.Add(FormatQualifiedColumn("accountusermaps", "userid", dbType) + " = '" + SanitizeString(MappedUserId) + "'");
                 if (!String.IsNullOrEmpty(TenantId))
                 {
-                    mappingConditions.Add("accountusermaps.tenantid = '" + SanitizeString(TenantId) + "'");
+                    mappingConditions.Add(FormatQualifiedColumn("accountusermaps", "tenantid", dbType) + " = '" + SanitizeString(TenantId) + "'");
                 }
 
                 conditions.Add("EXISTS (SELECT 1 FROM accountusermaps WHERE " + String.Join(" AND ", mappingConditions) + ")");
@@ -604,6 +604,21 @@ namespace NetLedger.Database
                 case DatabaseTypeEnum.Sqlite:
                 default:
                     return column;
+            }
+        }
+
+        private string FormatQualifiedColumn(string table, string column, DatabaseTypeEnum dbType)
+        {
+            switch (dbType)
+            {
+                case DatabaseTypeEnum.SqlServer:
+                    return "[" + table + "].[" + column + "]";
+                case DatabaseTypeEnum.Mysql:
+                    return "`" + table + "`.`" + column + "`";
+                case DatabaseTypeEnum.Postgresql:
+                case DatabaseTypeEnum.Sqlite:
+                default:
+                    return table + "." + column;
             }
         }
 

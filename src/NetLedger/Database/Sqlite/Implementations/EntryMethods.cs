@@ -42,13 +42,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         {
             if (entry == null) throw new ArgumentNullException(nameof(entry));
 
-            string query = BuildInsertQuery(entry) + " SELECT last_insert_rowid();";
-            DataTable result = await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
-
-            if (result != null && result.Rows.Count > 0)
-            {
-                entry.RowId = Convert.ToInt32(result.Rows[0][0]);
-            }
+            await _Driver.ExecuteQueryAsync(BuildInsertQuery(entry), true, token).ConfigureAwait(false);
 
             return entry;
         }
@@ -73,7 +67,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task<Entry> ReadByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT * FROM entries WHERE guid = '" + Sanitize(id.ToString()) + "' LIMIT 1;";
+            string query = "SELECT * FROM entries WHERE id = '" + Sanitize(id.ToString()) + "' LIMIT 1;";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result == null || result.Rows.Count == 0) return null;
@@ -87,7 +81,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             if (ids == null || ids.Count == 0) return new List<Entry>();
 
             string idList = String.Join(", ", ids.Select(g => "'" + Sanitize(g.ToString()) + "'"));
-            string query = "SELECT * FROM entries WHERE guid IN (" + idList + ");";
+            string query = "SELECT * FROM entries WHERE id IN (" + idList + ");";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             List<Entry> entries = new List<Entry>();
@@ -238,30 +232,12 @@ namespace NetLedger.Database.Sqlite.Implementations
 
             // Handle continuation token - get the entry's timestamp and id for filtering
             string continuationCondition = "";
-            int continuationId = 0;
             if (!String.IsNullOrEmpty(query.ContinuationToken))
             {
                 Entry continuationEntry = await ReadByIdAsync(query.ContinuationToken, token).ConfigureAwait(false);
                 if (continuationEntry != null)
                 {
-                    continuationId = continuationEntry.RowId;
-                    // Use Id for stable ordering since multiple entries might have same timestamp
-                    if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
-                    {
-                        continuationCondition = "id < " + continuationId;
-                    }
-                    else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
-                    {
-                        continuationCondition = "id > " + continuationId;
-                    }
-                    else if (query.Ordering == EnumerationOrderEnum.AmountDescending)
-                    {
-                        continuationCondition = "(amount < " + continuationEntry.Amount.ToString() + " OR (amount = " + continuationEntry.Amount.ToString() + " AND id < " + continuationId + "))";
-                    }
-                    else if (query.Ordering == EnumerationOrderEnum.AmountAscending)
-                    {
-                        continuationCondition = "(amount > " + continuationEntry.Amount.ToString() + " OR (amount = " + continuationEntry.Amount.ToString() + " AND id > " + continuationId + "))";
-                    }
+                    continuationCondition = BuildContinuationCondition(query.Ordering, continuationEntry);
                 }
             }
 
@@ -292,19 +268,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 mainQuery.Append(" AND " + continuationCondition);
             }
 
-            // Use ORDER BY id for stable ordering
-            if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
-            {
-                mainQuery.Append(" ORDER BY id DESC");
-            }
-            else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
-            {
-                mainQuery.Append(" ORDER BY id ASC");
-            }
-            else
-            {
-                mainQuery.Append(" " + filter.GetOrderByClause(DatabaseTypeEnum.Sqlite));
-            }
+            mainQuery.Append(" " + GetEntryOrderByClause(query.Ordering));
 
             mainQuery.Append(" LIMIT " + query.MaxResults);
             if (query.Skip > 0 && String.IsNullOrEmpty(query.ContinuationToken))
@@ -336,21 +300,10 @@ namespace NetLedger.Database.Sqlite.Implementations
                     {
                         remainingQuery.Append(" AND " + conditions);
                     }
-                    if (query.Ordering == EnumerationOrderEnum.CreatedDescending)
+                    string remainingCondition = BuildContinuationCondition(query.Ordering, lastEntry);
+                    if (!String.IsNullOrEmpty(remainingCondition))
                     {
-                        remainingQuery.Append(" AND id < " + lastEntry.RowId);
-                    }
-                    else if (query.Ordering == EnumerationOrderEnum.CreatedAscending)
-                    {
-                        remainingQuery.Append(" AND id > " + lastEntry.RowId);
-                    }
-                    else if (query.Ordering == EnumerationOrderEnum.AmountDescending)
-                    {
-                        remainingQuery.Append(" AND (amount < " + lastEntry.Amount.ToString() + " OR (amount = " + lastEntry.Amount.ToString() + " AND id < " + lastEntry.RowId + "))");
-                    }
-                    else if (query.Ordering == EnumerationOrderEnum.AmountAscending)
-                    {
-                        remainingQuery.Append(" AND (amount > " + lastEntry.Amount.ToString() + " OR (amount = " + lastEntry.Amount.ToString() + " AND id > " + lastEntry.RowId + "))");
+                        remainingQuery.Append(" AND " + remainingCondition);
                     }
                     remainingQuery.Append(";");
 
@@ -396,7 +349,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "labels = '" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
                 "tags = '" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
                 "lastupdateutc = '" + DateTime.UtcNow.ToString(SetupQueries.TimestampFormat) + "' " +
-                "WHERE guid = '" + entry.Id.ToString() + "';";
+                "WHERE id = '" + entry.Id.ToString() + "';";
 
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
 
@@ -437,7 +390,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task DeleteByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "DELETE FROM entries WHERE guid = '" + Sanitize(id.ToString()) + "';";
+            string query = "DELETE FROM entries WHERE id = '" + Sanitize(id.ToString()) + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
         }
 
@@ -451,7 +404,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         /// <inheritdoc />
         public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
-            string query = "SELECT COUNT(*) FROM entries WHERE guid = '" + Sanitize(id.ToString()) + "';";
+            string query = "SELECT COUNT(*) FROM entries WHERE id = '" + Sanitize(id.ToString()) + "';";
             DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
 
             if (result != null && result.Rows.Count > 0)
@@ -527,7 +480,7 @@ namespace NetLedger.Database.Sqlite.Implementations
         private string BuildInsertQuery(Entry entry)
         {
             return
-                "INSERT INTO entries (guid, tenantid, accountguid, type, amount, description, replaces, committed, committedbyguid, committedutc, labels, tags, createdutc, lastupdateutc) VALUES (" +
+                "INSERT INTO entries (id, tenantid, accountguid, type, amount, description, replaces, committed, committedbyguid, committedutc, labels, tags, createdutc, lastupdateutc) VALUES (" +
                 "'" + entry.Id.ToString() + "', " +
                 "'" + Sanitize(entry.TenantId) + "', " +
                 "'" + entry.AccountId.ToString() + "', " +
@@ -560,14 +513,34 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "labels = '" + Sanitize(MetadataSerializer.SerializeLabels(entry.Labels)) + "', " +
                 "tags = '" + Sanitize(MetadataSerializer.SerializeTags(entry.Tags)) + "', " +
                 "lastupdateutc = '" + DateTime.UtcNow.ToString(SetupQueries.TimestampFormat) + "' " +
-                "WHERE guid = '" + entry.Id.ToString() + "';";
+                "WHERE id = '" + entry.Id.ToString() + "';";
+        }
+
+        private string BuildContinuationCondition(EnumerationOrderEnum ordering, Entry continuation)
+        {
+            string continuationId = "'" + Sanitize(continuation.Id) + "'";
+            string continuationCreated = "'" + continuation.CreatedUtc.ToString(SetupQueries.TimestampFormat) + "'";
+            string continuationAmount = continuation.Amount.ToString(CultureInfo.InvariantCulture);
+
+            if (ordering == EnumerationOrderEnum.CreatedDescending) return "(createdutc < " + continuationCreated + " OR (createdutc = " + continuationCreated + " AND id < " + continuationId + "))";
+            if (ordering == EnumerationOrderEnum.CreatedAscending) return "(createdutc > " + continuationCreated + " OR (createdutc = " + continuationCreated + " AND id > " + continuationId + "))";
+            if (ordering == EnumerationOrderEnum.AmountDescending) return "(amount < " + continuationAmount + " OR (amount = " + continuationAmount + " AND id < " + continuationId + "))";
+            if (ordering == EnumerationOrderEnum.AmountAscending) return "(amount > " + continuationAmount + " OR (amount = " + continuationAmount + " AND id > " + continuationId + "))";
+            return String.Empty;
+        }
+
+        private string GetEntryOrderByClause(EnumerationOrderEnum ordering)
+        {
+            if (ordering == EnumerationOrderEnum.CreatedAscending) return "ORDER BY createdutc ASC, id ASC";
+            if (ordering == EnumerationOrderEnum.AmountDescending) return "ORDER BY amount DESC, id DESC";
+            if (ordering == EnumerationOrderEnum.AmountAscending) return "ORDER BY amount ASC, id ASC";
+            return "ORDER BY createdutc DESC, id DESC";
         }
 
         private Entry DataRowToEntry(DataRow row)
         {
             Entry entry = new Entry();
-            entry.RowId = Convert.ToInt32(row["id"]);
-            entry.Id = row["guid"].ToString();
+            entry.Id = row["id"].ToString();
             entry.TenantId = GetString(row, "tenantid");
             entry.AccountId = row["accountguid"].ToString();
             entry.Type = (EntryType)Enum.Parse(typeof(EntryType), row["type"].ToString());

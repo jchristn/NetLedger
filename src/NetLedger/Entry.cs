@@ -2,7 +2,6 @@ namespace NetLedger
 {
     using System;
     using System.Collections.Generic;
-    using System.Text.Json.Serialization;
 
     /// <summary>
     /// An entry in the ledger for a given account.
@@ -10,12 +9,6 @@ namespace NetLedger
     public class Entry
     {
         #region Public-Members
-
-        /// <summary>
-        /// Internal provider row ID.
-        /// </summary>
-        [JsonIgnore]
-        public int RowId { get; set; } = 0;
 
         /// <summary>
         /// Entry identifier.

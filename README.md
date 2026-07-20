@@ -177,8 +177,8 @@ dotnet build src/NetLedger.sln
 # Run the interactive test application
 dotnet run --project src/Test/Test.csproj
 
-# Run the automated test suite
-dotnet run --project src/Test.Automated/Test.Automated.csproj
+# Run the automated test suite against SQLite
+dotnet run --project src/Test.Automated/Test.Automated.csproj -- --type sqlite
 
 # Run the REST API server
 dotnet run --project src/NetLedger.Server/NetLedger.Server.csproj
@@ -837,7 +837,7 @@ NetLedger uses account-keyed in-process locks plus database-backed account locks
 
 ### Database Schema
 
-NetLedger supports SQLite, MySQL, PostgreSQL, and SQL Server. Provider DDL is kept in source under `src/NetLedger/Database/*/Queries/SetupQueries.cs`; providers intentionally retain a few legacy physical identifier column names for compatibility while exposing public v3 model properties as `Id`, `AccountId`, `EntryId`, `CommittedById`, and `CredentialId`.
+NetLedger supports SQLite, MySQL, PostgreSQL, and SQL Server. Provider DDL is kept in source under `src/NetLedger/Database/*/Queries/SetupQueries.cs`; account, entry, credential, and identity records use PrettyId string identifiers in `id` columns across supported providers.
 
 The v3 schema includes these primary tables:
 
@@ -930,12 +930,12 @@ await TransferAsync(ledger, checking, savings, 200.00m, "Monthly savings");
 
 - **AsyncKeyedLock** (v8.0.2) - Account-keyed in-process locking
 - **Padlock** (v1.0.4) - Database-backed account lock coordination
-- **Microsoft.Data.Sqlite** (v9.0.0) and **SQLitePCLRaw.bundle_e_sqlite3** (v3.0.3) - SQLite provider
-- **MySqlConnector** (v2.4.0) - MySQL provider
-- **Npgsql** (v9.0.2) - PostgreSQL provider
-- **Microsoft.Data.SqlClient** (v6.0.1) - SQL Server provider
+- **Microsoft.Data.Sqlite** (v10.0.10) and **SQLitePCLRaw.bundle_e_sqlite3** (v3.0.4) - SQLite provider
+- **MySqlConnector** (v2.6.1) - MySQL provider
+- **Npgsql** (v10.0.3) - PostgreSQL provider
+- **Microsoft.Data.SqlClient** (v7.0.2) - SQL Server provider
 - **PrettyId** (v2.0.1) - K-sortable public string IDs
-- **Timestamps** (v1.0.11) - Timestamp utilities
+- **Timestamps** (v1.0.12) - Timestamp utilities
 
 ## License
 

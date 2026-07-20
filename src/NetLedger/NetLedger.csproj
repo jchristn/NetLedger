@@ -62,14 +62,14 @@
 
 	<ItemGroup>
 		<PackageReference Include="AsyncKeyedLock" Version="8.0.2" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
-		<PackageReference Include="MySqlConnector" Version="2.4.0" />
-		<PackageReference Include="Npgsql" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+		<PackageReference Include="MySqlConnector" Version="2.6.1" />
+		<PackageReference Include="Npgsql" Version="10.0.3" />
 		<PackageReference Include="Padlock" Version="1.0.4" />
-		<PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.1" />
+		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
 		<PackageReference Include="PrettyId" Version="2.0.1" />
-		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
-		<PackageReference Include="Timestamps" Version="1.0.11" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
+		<PackageReference Include="Timestamps" Version="1.0.12" />
 	</ItemGroup>
 
 </Project>

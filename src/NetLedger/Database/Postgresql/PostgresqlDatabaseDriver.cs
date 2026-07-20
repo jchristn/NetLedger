@@ -6,7 +6,6 @@ namespace NetLedger.Database.Postgresql
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using NetLedger.Database.Postgresql.Implementations;
     using NetLedger.Database.Postgresql.Queries;
     using NetLedger.Database.Portable;
     using Npgsql;
@@ -233,6 +232,8 @@ namespace NetLedger.Database.Postgresql
         {
             string[] tableQueries = SetupQueries.CreateTables();
             await ExecuteQueriesAsync(tableQueries).ConfigureAwait(false);
+
+            await PrettyIdPrimaryKeyMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
 
             string[] indexQueries = SetupQueries.CreateIndices();
             await ExecuteQueriesAsync(indexQueries).ConfigureAwait(false);

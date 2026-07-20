@@ -36,8 +36,7 @@ namespace NetLedger.Database.Postgresql.Queries
                 );",
 
                 @"CREATE TABLE IF NOT EXISTS accounts (
-                    id SERIAL PRIMARY KEY,
-                    guid VARCHAR(64) NOT NULL,
+                    id VARCHAR(64) PRIMARY KEY,
                     tenantid VARCHAR(64) NOT NULL DEFAULT '',
                     owneruserid VARCHAR(64) NULL,
                     name VARCHAR(256) NOT NULL,
@@ -50,8 +49,7 @@ namespace NetLedger.Database.Postgresql.Queries
                 );",
 
                 @"CREATE TABLE IF NOT EXISTS entries (
-                    id SERIAL PRIMARY KEY,
-                    guid VARCHAR(64) NOT NULL,
+                    id VARCHAR(64) PRIMARY KEY,
                     tenantid VARCHAR(64) NOT NULL DEFAULT '',
                     accountguid VARCHAR(64) NOT NULL,
                     type VARCHAR(16) NOT NULL,
@@ -68,8 +66,7 @@ namespace NetLedger.Database.Postgresql.Queries
                 );",
 
                 @"CREATE TABLE IF NOT EXISTS apikeys (
-                    id SERIAL PRIMARY KEY,
-                    guid VARCHAR(64) NOT NULL,
+                    id VARCHAR(64) PRIMARY KEY,
                     tenantid VARCHAR(64) NOT NULL DEFAULT '',
                     userid VARCHAR(64) NOT NULL DEFAULT '',
                     name VARCHAR(256) NOT NULL,
@@ -242,14 +239,12 @@ namespace NetLedger.Database.Postgresql.Queries
             return new string[]
             {
                 // Accounts indices
-                "CREATE INDEX IF NOT EXISTS idx_accounts_guid ON accounts (guid);",
-                "CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_guid ON accounts (tenantid, guid);",
+                "CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_id ON accounts (tenantid, id);",
                 "CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts (name);",
                 "CREATE INDEX IF NOT EXISTS idx_accounts_createdutc ON accounts (createdutc);",
 
                 // Entries indices
-                "CREATE INDEX IF NOT EXISTS idx_entries_guid ON entries (guid);",
-                "CREATE INDEX IF NOT EXISTS idx_entries_tenantid_guid ON entries (tenantid, guid);",
+                "CREATE INDEX IF NOT EXISTS idx_entries_tenantid_id ON entries (tenantid, id);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_accountguid ON entries (accountguid);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_tenantid_accountguid ON entries (tenantid, accountguid);",
                 "CREATE INDEX IF NOT EXISTS idx_entries_type ON entries (type);",
@@ -263,7 +258,6 @@ namespace NetLedger.Database.Postgresql.Queries
                 "CREATE INDEX IF NOT EXISTS idx_entries_tenantid_accountguid_createdutc ON entries (tenantid, accountguid, createdutc);",
 
                 // API keys indices
-                "CREATE INDEX IF NOT EXISTS idx_apikeys_guid ON apikeys (guid);",
                 "CREATE INDEX IF NOT EXISTS idx_apikeys_apikey ON apikeys (apikey);",
                 "CREATE INDEX IF NOT EXISTS idx_apikeys_active ON apikeys (active);",
                 "CREATE INDEX IF NOT EXISTS idx_apikeys_createdutc ON apikeys (createdutc);",

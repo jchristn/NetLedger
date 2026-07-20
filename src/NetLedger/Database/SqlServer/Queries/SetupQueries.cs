@@ -39,8 +39,7 @@ namespace NetLedger.Database.SqlServer.Queries
 
                 @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'accounts')
                 CREATE TABLE [accounts] (
-                    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                    [guid] NVARCHAR(64) NOT NULL,
+                    [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
                     [tenantid] NVARCHAR(64) NOT NULL DEFAULT '',
                     [owneruserid] NVARCHAR(64) NULL,
                     [name] NVARCHAR(256) NOT NULL,
@@ -54,8 +53,7 @@ namespace NetLedger.Database.SqlServer.Queries
 
                 @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'entries')
                 CREATE TABLE [entries] (
-                    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                    [guid] NVARCHAR(64) NOT NULL,
+                    [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
                     [tenantid] NVARCHAR(64) NOT NULL DEFAULT '',
                     [accountguid] NVARCHAR(64) NOT NULL,
                     [type] NVARCHAR(16) NOT NULL,
@@ -73,8 +71,7 @@ namespace NetLedger.Database.SqlServer.Queries
 
                 @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'apikeys')
                 CREATE TABLE [apikeys] (
-                    [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                    [guid] NVARCHAR(64) NOT NULL,
+                    [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
                     [tenantid] NVARCHAR(64) NOT NULL DEFAULT '',
                     [userid] NVARCHAR(64) NOT NULL DEFAULT '',
                     [name] NVARCHAR(256) NOT NULL,
@@ -258,14 +255,12 @@ namespace NetLedger.Database.SqlServer.Queries
             return new string[]
             {
                 // Accounts indices
-                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_guid') CREATE INDEX [idx_accounts_guid] ON [accounts] ([guid]);",
-                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_tenantid_guid') CREATE INDEX [idx_accounts_tenantid_guid] ON [accounts] ([tenantid], [guid]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_tenantid_id') CREATE INDEX [idx_accounts_tenantid_id] ON [accounts] ([tenantid], [id]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_name') CREATE INDEX [idx_accounts_name] ON [accounts] ([name]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_createdutc') CREATE INDEX [idx_accounts_createdutc] ON [accounts] ([createdutc]);",
 
                 // Entries indices
-                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_guid') CREATE INDEX [idx_entries_guid] ON [entries] ([guid]);",
-                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_tenantid_guid') CREATE INDEX [idx_entries_tenantid_guid] ON [entries] ([tenantid], [guid]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_tenantid_id') CREATE INDEX [idx_entries_tenantid_id] ON [entries] ([tenantid], [id]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_accountguid') CREATE INDEX [idx_entries_accountguid] ON [entries] ([accountguid]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_tenantid_accountguid') CREATE INDEX [idx_entries_tenantid_accountguid] ON [entries] ([tenantid], [accountguid]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_type') CREATE INDEX [idx_entries_type] ON [entries] ([type]);",
@@ -279,7 +274,6 @@ namespace NetLedger.Database.SqlServer.Queries
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_tenantid_accountguid_createdutc') CREATE INDEX [idx_entries_tenantid_accountguid_createdutc] ON [entries] ([tenantid], [accountguid], [createdutc]);",
 
                 // API keys indices
-                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_apikeys_guid') CREATE INDEX [idx_apikeys_guid] ON [apikeys] ([guid]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_apikeys_apikey') CREATE INDEX [idx_apikeys_apikey] ON [apikeys] ([apikey]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_apikeys_active') CREATE INDEX [idx_apikeys_active] ON [apikeys] ([active]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_apikeys_createdutc') CREATE INDEX [idx_apikeys_createdutc] ON [apikeys] ([createdutc]);",
