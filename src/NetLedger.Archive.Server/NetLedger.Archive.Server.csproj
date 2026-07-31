@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+		<Version>4.0.0</Version>
+		<Authors>Joel Christner</Authors>
+		<Company>Joel Christner</Company>
+		<Description>NetLedger Archive Server for cold data APIs.</Description>
+		<Copyright>(c)2026 Joel Christner</Copyright>
+		<PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
+		<RepositoryType>github</RepositoryType>
+		<PackageReleaseNotes>NetLedger Archive Server v4.0.0 cold-data APIs, archive catalog metadata, filesystem and S3-compatible storage pools, migration lifecycle routes, archive verification, and request-history archival support.</PackageReleaseNotes>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+	</PropertyGroup>
+
+	<PropertyGroup>
+	  <NoWarn>1701;1702;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\NetLedger.Archive\NetLedger.Archive.csproj" />
+		<ProjectReference Include="..\NetLedger\NetLedger.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="SyslogLogging" Version="2.1.0" />
+		<PackageReference Include="Watson" Version="7.0.15" />
+	</ItemGroup>
+
+</Project>

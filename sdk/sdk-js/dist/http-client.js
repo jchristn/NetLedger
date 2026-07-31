@@ -63,6 +63,12 @@ class HttpClient {
         return this.request('PUT', path, body);
     }
     /**
+     * Make a PUT request with raw content.
+     */
+    async putRaw(path, body, contentType = 'application/octet-stream', headers) {
+        return this.rawRequest('PUT', path, body, contentType, headers);
+    }
+    /**
      * Make a POST request.
      */
     async post(path, body) {
@@ -188,6 +194,82 @@ class HttpClient {
             if (bodyData) {
                 req.write(bodyData);
             }
+            req.end();
+        });
+    }
+    /**
+     * Make an HTTP request with raw content.
+     */
+    rawRequest(method, path, body, contentType, headers) {
+        return new Promise((resolve, reject) => {
+            const url = new url_1.URL(path, this.baseUrl);
+            const isHttps = url.protocol === 'https:';
+            const lib = isHttps ? https : http;
+            const bodyData = typeof body === 'string' ? Buffer.from(body) : Buffer.from(body);
+            const options = {
+                method,
+                hostname: url.hostname,
+                port: url.port || (isHttps ? 443 : 80),
+                path: url.pathname + url.search,
+                timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Accept': 'application/json',
+                    'Content-Type': contentType || 'application/octet-stream',
+                    'Content-Length': bodyData.length,
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {}),
+                    ...(headers || {})
+                }
+            };
+            const req = lib.request(options, (res) => {
+                let data = '';
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+                res.on('end', () => {
+                    const statusCode = res.statusCode || 0;
+                    if (statusCode < 200 || statusCode >= 300) {
+                        let errorMessage = res.statusMessage || 'Unknown error';
+                        let errorDetails;
+                        if (data) {
+                            try {
+                                const errorResponse = JSON.parse(data);
+                                errorMessage = errorResponse.Message || errorMessage;
+                                errorDetails = errorResponse.Description;
+                            }
+                            catch {
+                                // Failed to parse error response
+                            }
+                        }
+                        reject(new errors_1.NetLedgerApiError(statusCode, errorMessage, errorDetails));
+                        return;
+                    }
+                    if (!data || data.trim() === '') {
+                        resolve({ StatusCode: statusCode });
+                        return;
+                    }
+                    try {
+                        const parsedData = JSON.parse(data);
+                        const response = {
+                            StatusCode: statusCode,
+                            Data: parsedData
+                        };
+                        resolve(response);
+                    }
+                    catch {
+                        reject(new errors_1.NetLedgerApiError(statusCode, 'Failed to parse response'));
+                    }
+                });
+            });
+            req.on('error', (err) => {
+                reject(new errors_1.NetLedgerConnectionError('Failed to connect to the server', err));
+            });
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new errors_1.NetLedgerConnectionError('Request timed out'));
+            });
+            req.write(bodyData);
             req.end();
         });
     }

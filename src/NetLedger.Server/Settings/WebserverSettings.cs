@@ -24,6 +24,11 @@ namespace NetLedger.Server.Settings
         /// </summary>
         public bool Ssl { get; set; } = false;
 
+        /// <summary>
+        /// CORS settings.
+        /// </summary>
+        public CorsSettings Cors { get; set; } = new CorsSettings();
+
         #endregion
 
         #region Constructors-and-Factories

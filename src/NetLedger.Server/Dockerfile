@@ -9,6 +9,7 @@ WORKDIR /src
 # Copy solution and project files
 COPY src/NetLedger.sln ./src/
 COPY src/NetLedger/NetLedger.csproj ./src/NetLedger/
+COPY src/NetLedger.Archive/NetLedger.Archive.csproj ./src/NetLedger.Archive/
 COPY src/NetLedger.Server/NetLedger.Server.csproj ./src/NetLedger.Server/
 
 # Restore dependencies for target architecture
@@ -18,6 +19,7 @@ RUN dotnet restore ./src/NetLedger.Server/NetLedger.Server.csproj \
 
 # Copy source code
 COPY src/NetLedger/ ./src/NetLedger/
+COPY src/NetLedger.Archive/ ./src/NetLedger.Archive/
 COPY src/NetLedger.Server/ ./src/NetLedger.Server/
 
 # Build and publish for target architecture

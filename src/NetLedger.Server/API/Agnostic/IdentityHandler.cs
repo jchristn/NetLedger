@@ -401,9 +401,10 @@ namespace NetLedger.Server.API.Agnostic
         /// <summary>
         /// Get current effective permissions.
         /// </summary>
-        internal Task<ResponseContext> GetEffectivePermissionsAsync(RequestContext req, CancellationToken token = default)
+        internal async Task<ResponseContext> GetEffectivePermissionsAsync(RequestContext req, CancellationToken token = default)
         {
-            return Task.FromResult(new ResponseContext(req, _AuthorizationService.GetEffectivePermissions(req)));
+            EffectivePermissionsResponse permissions = await _AuthorizationService.GetEffectivePermissionsAsync(req, token).ConfigureAwait(false);
+            return new ResponseContext(req, permissions);
         }
 
         private async Task<ResponseContext?> AuthorizeAsync(RequestContext req, string resourceType, string operationType, string? resourceId, CancellationToken token)

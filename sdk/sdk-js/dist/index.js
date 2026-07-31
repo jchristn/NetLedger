@@ -23,6 +23,7 @@ const balance_1 = require("./methods/balance");
 const apikey_1 = require("./methods/apikey");
 const identity_1 = require("./methods/identity");
 const request_history_1 = require("./methods/request-history");
+const archive_1 = require("./methods/archive");
 // Re-export models and errors
 __exportStar(require("./models"), exports);
 __exportStar(require("./errors"), exports);
@@ -71,6 +72,7 @@ class NetLedgerClient {
         this.apiKey = new apikey_1.ApiKeyMethods(this.httpClient);
         this.identity = new identity_1.IdentityMethods(this.httpClient);
         this.requestHistory = new request_history_1.RequestHistoryMethods(this.httpClient);
+        this.archive = new archive_1.ArchiveMethods(this.httpClient);
     }
     static async discoverTenants(baseUrl, email) {
         const client = new http_client_1.HttpClient(baseUrl.replace(/\/$/, ''), '');

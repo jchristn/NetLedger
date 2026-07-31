@@ -1,5 +1,6 @@
 namespace NetLedger.Server
 {
+    using NetLedger.Database;
     using NetLedger.Server.API.Agnostic;
     using NetLedger.Server.API.REST;
     using NetLedger.Server.Authentication;
@@ -35,6 +36,8 @@ namespace NetLedger.Server
         private static AuthService _AuthService = null!;
         private static AuthorizationService _AuthorizationService = null!;
         private static RequestHistoryService _RequestHistoryService = null!;
+        private static ArchiveExportService _ArchiveExportService = null!;
+        private static AutomaticArchiveService _AutomaticArchiveService = null!;
         private static Webserver _Webserver = null!;
 
         private static ServiceHandler _ServiceHandler = null!;
@@ -52,6 +55,7 @@ namespace NetLedger.Server
         private static RestApiKeyHandler _RestApiKeyHandler = null!;
         private static RestIdentityHandler _RestIdentityHandler = null!;
         private static RestRequestHistoryHandler _RestRequestHistoryHandler = null!;
+        private static RestArchiveHandler _RestArchiveHandler = null!;
 
         /// <summary>
         /// Main entry point.
@@ -167,6 +171,135 @@ namespace NetLedger.Server
 
                 Console.WriteLine("Loaded settings from: " + _SettingsFile);
             }
+
+            ApplyEnvironmentOverrides();
+            ValidateSettings();
+        }
+
+        private static void ApplyEnvironmentOverrides()
+        {
+            if (_Settings.Database == null)
+            {
+                _Settings.Database = new DatabaseSettings();
+            }
+
+            ApplyDatabaseEnvironmentOverrides(_Settings.Database, "NETLEDGER_DATABASE_");
+
+            if (_Settings.Archive == null)
+            {
+                _Settings.Archive = new ArchiveSettings();
+            }
+
+            ApplyBoolEnvironmentOverride("NETLEDGER_ARCHIVE_ENABLED", value => _Settings.Archive.Enabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_ARCHIVE_SERVER_ENDPOINT", value => _Settings.Archive.ArchiveServerEndpoint = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_ARCHIVE_SERVICE_ACCESS_KEY", value => _Settings.Archive.ServiceAccessKey = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_ARCHIVE_SERVICE_SECRET_KEY", value => _Settings.Archive.ServiceSecretKey = value);
+            ApplyLongEnvironmentOverride("NETLEDGER_ARCHIVE_DEFAULT_ACTIVE_DATA_RETENTION_DAYS", value => _Settings.Archive.DefaultActiveDataRetentionDays = value);
+
+            if (_Settings.Archive.Automatic == null)
+            {
+                _Settings.Archive.Automatic = new ArchiveAutomaticSettings();
+            }
+
+            if (_Settings.Archive.Automatic.Retry == null)
+            {
+                _Settings.Archive.Automatic.Retry = new ArchiveRetrySettings();
+            }
+
+            ApplyBoolEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_ENABLED", value => _Settings.Archive.Automatic.Enabled = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_ENABLED", value => _Settings.Archive.Automatic.Enabled = value);
+            ApplyLongEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_MAX_RETENTION_DAYS", value => _Settings.Archive.Automatic.MaxRetentionDays = value);
+            ApplyLongEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_MAX_RETENTION_DAYS", value => _Settings.Archive.Automatic.MaxRetentionDays = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_INTERVAL_SECONDS", value => _Settings.Archive.Automatic.IntervalSeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_INTERVAL_SECONDS", value => _Settings.Archive.Automatic.IntervalSeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_INITIAL_DELAY_SECONDS", value => _Settings.Archive.Automatic.InitialDelaySeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_INITIAL_DELAY_SECONDS", value => _Settings.Archive.Automatic.InitialDelaySeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_MAX_ACCOUNTS_PER_RUN", value => _Settings.Archive.Automatic.MaxAccountsPerRun = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_MAX_ACCOUNTS_PER_RUN", value => _Settings.Archive.Automatic.MaxAccountsPerRun = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_MAX_BATCH_ROWS", value => _Settings.Archive.Automatic.MaxBatchRows = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_MAX_BATCH_ROWS", value => _Settings.Archive.Automatic.MaxBatchRows = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_DELETE_AFTER_COMMIT", value => _Settings.Archive.Automatic.DeleteAfterCommit = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_DELETE_AFTER_COMMIT", value => _Settings.Archive.Automatic.DeleteAfterCommit = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_STORAGE_POOL_ID", value => _Settings.Archive.Automatic.StoragePoolId = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_STORAGE_POOL_ID", value => _Settings.Archive.Automatic.StoragePoolId = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_RETRY_MAX_ATTEMPTS", value => _Settings.Archive.Automatic.Retry.MaxAttempts = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_RETRY_MAX_ATTEMPTS", value => _Settings.Archive.Automatic.Retry.MaxAttempts = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_RETRY_INITIAL_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.InitialDelaySeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_RETRY_INITIAL_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.InitialDelaySeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_RETRY_MAX_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.MaxDelaySeconds = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_RETRY_MAX_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.MaxDelaySeconds = value);
+        }
+
+        private static void ApplyDatabaseEnvironmentOverrides(DatabaseSettings settings, string prefix)
+        {
+            ApplyDatabaseTypeEnvironmentOverride(prefix + "TYPE", value => settings.Type = value);
+            ApplyStringEnvironmentOverride(prefix + "FILENAME", value => settings.Filename = value);
+            ApplyStringEnvironmentOverride(prefix + "HOSTNAME", value => settings.Hostname = value);
+            ApplyIntEnvironmentOverride(prefix + "PORT", value => settings.Port = value);
+            ApplyStringEnvironmentOverride(prefix + "USERNAME", value => settings.Username = value);
+            ApplyStringEnvironmentOverride(prefix + "PASSWORD", value => settings.Password = value);
+            ApplyStringEnvironmentOverride(prefix + "DATABASE_NAME", value => settings.DatabaseName = value);
+            ApplyStringEnvironmentOverride(prefix + "INSTANCE", value => settings.Instance = value);
+            ApplyStringEnvironmentOverride(prefix + "SCHEMA", value => settings.Schema = value);
+            ApplyBoolEnvironmentOverride(prefix + "LOG_QUERIES", value => settings.LogQueries = value);
+            ApplyBoolEnvironmentOverride(prefix + "REQUIRE_ENCRYPTION", value => settings.RequireEncryption = value);
+            ApplyIntEnvironmentOverride(prefix + "CONNECTION_TIMEOUT_SECONDS", value => settings.ConnectionTimeoutSeconds = value);
+            ApplyIntEnvironmentOverride(prefix + "MAX_POOL_SIZE", value => settings.MaxPoolSize = value);
+        }
+
+        private static void ApplyStringEnvironmentOverride(string name, Action<string> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (value == null) return;
+            setter(value);
+        }
+
+        private static void ApplyBoolEnvironmentOverride(string name, Action<bool> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value)) return;
+            if (!Boolean.TryParse(value, out bool parsed))
+            {
+                throw new InvalidOperationException("Environment variable " + name + " must be true or false.");
+            }
+
+            setter(parsed);
+        }
+
+        private static void ApplyIntEnvironmentOverride(string name, Action<int> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value)) return;
+            if (!Int32.TryParse(value, out int parsed))
+            {
+                throw new InvalidOperationException("Environment variable " + name + " must be an integer.");
+            }
+
+            setter(parsed);
+        }
+
+        private static void ApplyLongEnvironmentOverride(string name, Action<long> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value)) return;
+            if (!Int64.TryParse(value, out long parsed))
+            {
+                throw new InvalidOperationException("Environment variable " + name + " must be an integer.");
+            }
+
+            setter(parsed);
+        }
+
+        private static void ApplyDatabaseTypeEnvironmentOverride(string name, Action<DatabaseTypeEnum> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value)) return;
+            if (!Enum.TryParse(value, true, out DatabaseTypeEnum parsed))
+            {
+                throw new InvalidOperationException("Environment variable " + name + " must be a valid database provider.");
+            }
+
+            setter(parsed);
         }
 
         private static async Task InitializeGlobals()
@@ -183,6 +316,8 @@ namespace NetLedger.Server
             _AuthService = new AuthService(_Settings, _Logging, _Ledger.Driver);
             _AuthorizationService = new AuthorizationService(_Ledger.Driver, _Logging);
             _RequestHistoryService = new RequestHistoryService(_Ledger.Driver, _Settings.RequestHistory, _Logging);
+            _ArchiveExportService = new ArchiveExportService(_Settings, _Ledger, _Logging);
+            _AutomaticArchiveService = new AutomaticArchiveService(_Settings, _Ledger, _ArchiveExportService, _Logging);
 
             // Initialize agnostic handlers
             _ServiceHandler = new ServiceHandler(_Settings, _Logging);
@@ -199,7 +334,8 @@ namespace NetLedger.Server
             _RestBalanceHandler = new RestBalanceHandler(_Settings, _Logging, _BalanceHandler, _AuthService, _RequestHistoryService);
             _RestApiKeyHandler = new RestApiKeyHandler(_Settings, _Logging, _ApiKeyHandler, _AuthService, _RequestHistoryService);
             _RestIdentityHandler = new RestIdentityHandler(_Settings, _Logging, _IdentityHandler, _AuthService, _RequestHistoryService);
-            _RestRequestHistoryHandler = new RestRequestHistoryHandler(_Ledger.Driver, _AuthService, _Logging);
+            _RestRequestHistoryHandler = new RestRequestHistoryHandler(_Ledger.Driver, _Settings, _AuthService, _Logging);
+            _RestArchiveHandler = new RestArchiveHandler(_AuthService, _AuthorizationService, _ArchiveExportService, _Ledger, _RequestHistoryService, _Logging);
 
             // Initialize webserver
             WatsonWebserver.Core.WebserverSettings wsSettings = new WatsonWebserver.Core.WebserverSettings(
@@ -221,43 +357,13 @@ namespace NetLedger.Server
                 (_Settings.Webserver.Ssl ? "https" : "http") + "://" +
                 _Settings.Webserver.Hostname + ":" + _Settings.Webserver.Port);
             await _Webserver.StartAsync().ConfigureAwait(false);
+            _AutomaticArchiveService.Start();
         }
 
         private static async Task PreflightHandler(HttpContextBase ctx)
         {
             NameValueCollection responseHeaders = new NameValueCollection(StringComparer.InvariantCultureIgnoreCase);
 
-            string[] requestedHeaders = null;
-            string headers = "";
-
-            if (ctx.Request.Headers != null)
-            {
-                for (int i = 0; i < ctx.Request.Headers.Count; i++)
-                {
-                    string key = ctx.Request.Headers.GetKey(i);
-                    string value = ctx.Request.Headers.Get(i);
-                    if (String.IsNullOrEmpty(key)) continue;
-                    if (String.IsNullOrEmpty(value)) continue;
-                    if (String.Compare(key.ToLower(), "access-control-request-headers") == 0)
-                    {
-                        requestedHeaders = value.Split(',');
-                        break;
-                    }
-                }
-            }
-
-            if (requestedHeaders != null)
-            {
-                foreach (string curr in requestedHeaders)
-                {
-                    headers += ", " + curr;
-                }
-            }
-
-            responseHeaders.Add("Access-Control-Allow-Methods", "OPTIONS, HEAD, GET, PUT, POST, DELETE");
-            responseHeaders.Add("Access-Control-Allow-Headers", "*, Content-Type, X-Requested-With, " + headers);
-            responseHeaders.Add("Access-Control-Expose-Headers", "Content-Type, X-Requested-With, " + headers);
-            responseHeaders.Add("Access-Control-Allow-Origin", "*");
             responseHeaders.Add("Accept", "*/*");
             responseHeaders.Add("Accept-Language", "en-US, en");
             responseHeaders.Add("Accept-Charset", "ISO-8859-1, utf-8");
@@ -265,8 +371,275 @@ namespace NetLedger.Server
 
             ctx.Response.StatusCode = 200;
             ctx.Response.Headers = responseHeaders;
+            AddCorsHeaders(ctx, true);
             await ctx.Response.Send().ConfigureAwait(false);
             return;
+        }
+
+        private static void ValidateSettings()
+        {
+            if (_Settings.Webserver == null)
+            {
+                _Settings.Webserver = new HttpServerSettings();
+            }
+
+            if (_Settings.Webserver.Cors == null)
+            {
+                _Settings.Webserver.Cors = new CorsSettings();
+            }
+
+            if (_Settings.Webserver.Cors.AllowCredentials && ContainsCorsWildcard(_Settings.Webserver.Cors.AllowedOrigins))
+            {
+                throw new InvalidOperationException("Webserver.Cors.AllowCredentials cannot be true when Webserver.Cors.AllowedOrigins contains '*'.");
+            }
+
+            if (_Settings.Archive == null)
+            {
+                _Settings.Archive = new ArchiveSettings();
+            }
+
+            if (_Settings.Archive.Enabled)
+            {
+                if (String.IsNullOrWhiteSpace(_Settings.Archive.ArchiveServerEndpoint))
+                {
+                    throw new InvalidOperationException("Archive.ArchiveServerEndpoint is required when Archive.Enabled is true.");
+                }
+
+                if (!Uri.TryCreate(_Settings.Archive.ArchiveServerEndpoint, UriKind.Absolute, out Uri? archiveEndpoint))
+                {
+                    throw new InvalidOperationException("Archive.ArchiveServerEndpoint must be an absolute URI when Archive.Enabled is true.");
+                }
+
+                if (!String.Equals(archiveEndpoint.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+                    !String.Equals(archiveEndpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Archive.ArchiveServerEndpoint must use HTTP or HTTPS when Archive.Enabled is true.");
+                }
+            }
+
+            if (_Settings.Archive.Automatic == null)
+            {
+                _Settings.Archive.Automatic = new ArchiveAutomaticSettings();
+            }
+
+            if (_Settings.Archive.Automatic.Retry == null)
+            {
+                _Settings.Archive.Automatic.Retry = new ArchiveRetrySettings();
+            }
+
+            if (String.IsNullOrWhiteSpace(_Settings.Archive.ServiceAccessKey) != String.IsNullOrWhiteSpace(_Settings.Archive.ServiceSecretKey))
+            {
+                throw new InvalidOperationException("Archive.ServiceAccessKey and Archive.ServiceSecretKey must either both be specified or both be empty.");
+            }
+
+            if (_Settings.Archive.Tenants == null)
+            {
+                _Settings.Archive.Tenants = new List<ArchiveTenantSettings>();
+            }
+
+            HashSet<string> tenantIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (ArchiveTenantSettings tenant in _Settings.Archive.Tenants)
+            {
+                if (tenant == null)
+                {
+                    continue;
+                }
+
+                if (String.IsNullOrWhiteSpace(tenant.TenantId))
+                {
+                    throw new InvalidOperationException("Archive.Tenants entries must include TenantId.");
+                }
+
+                if (!tenantIds.Add(tenant.TenantId))
+                {
+                    throw new InvalidOperationException("Archive.Tenants contains duplicate TenantId '" + tenant.TenantId + "'.");
+                }
+            }
+        }
+
+        private static void AddCorsHeaders(HttpContextBase ctx, bool preflight)
+        {
+            CorsSettings cors = _Settings.Webserver.Cors;
+            if (cors == null || !cors.Enabled)
+            {
+                return;
+            }
+
+            string origin = GetRequestHeader(ctx.Request.Headers, "origin");
+            string allowedOrigin = GetAllowedCorsOrigin(cors, origin);
+            if (String.IsNullOrEmpty(allowedOrigin))
+            {
+                return;
+            }
+
+            SetResponseHeader(ctx, "Access-Control-Allow-Origin", allowedOrigin);
+
+            if (!String.Equals(allowedOrigin, "*", StringComparison.Ordinal))
+            {
+                SetResponseHeader(ctx, "Vary", "Origin");
+            }
+
+            if (cors.AllowCredentials)
+            {
+                SetResponseHeader(ctx, "Access-Control-Allow-Credentials", "true");
+            }
+
+            string exposedHeaders = JoinCorsValues(cors.ExposedHeaders);
+            if (!String.IsNullOrEmpty(exposedHeaders))
+            {
+                SetResponseHeader(ctx, "Access-Control-Expose-Headers", exposedHeaders);
+            }
+
+            if (preflight)
+            {
+                string allowedMethods = JoinCorsValues(cors.AllowedMethods);
+                if (!String.IsNullOrEmpty(allowedMethods))
+                {
+                    SetResponseHeader(ctx, "Access-Control-Allow-Methods", allowedMethods);
+                }
+
+                string requestedHeaders = GetRequestHeader(ctx.Request.Headers, "access-control-request-headers");
+                string allowedHeaders = GetAllowedCorsHeaders(cors, requestedHeaders);
+                if (!String.IsNullOrEmpty(allowedHeaders))
+                {
+                    SetResponseHeader(ctx, "Access-Control-Allow-Headers", allowedHeaders);
+                }
+
+                if (cors.MaxAgeSeconds > 0)
+                {
+                    SetResponseHeader(ctx, "Access-Control-Max-Age", cors.MaxAgeSeconds.ToString());
+                }
+            }
+        }
+
+        private static string GetAllowedCorsOrigin(CorsSettings cors, string origin)
+        {
+            if (String.IsNullOrEmpty(origin))
+            {
+                if (ContainsCorsWildcard(cors.AllowedOrigins) && !cors.AllowCredentials)
+                {
+                    return "*";
+                }
+
+                return "";
+            }
+
+            if (ContainsCorsWildcard(cors.AllowedOrigins) && !cors.AllowCredentials)
+            {
+                return "*";
+            }
+
+            if (cors.AllowedOrigins != null)
+            {
+                foreach (string allowedOrigin in cors.AllowedOrigins)
+                {
+                    if (String.Equals(allowedOrigin, origin, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return origin;
+                    }
+                }
+            }
+
+            return "";
+        }
+
+        private static string GetAllowedCorsHeaders(CorsSettings cors, string requestedHeaders)
+        {
+            if (ContainsCorsWildcard(cors.AllowedHeaders))
+            {
+                if (!String.IsNullOrEmpty(requestedHeaders))
+                {
+                    return requestedHeaders;
+                }
+
+                return "*";
+            }
+
+            return JoinCorsValues(cors.AllowedHeaders);
+        }
+
+        private static bool ContainsCorsWildcard(List<string>? values)
+        {
+            if (values == null)
+            {
+                return false;
+            }
+
+            foreach (string value in values)
+            {
+                if (String.Equals(value, "*", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string JoinCorsValues(List<string>? values)
+        {
+            if (values == null || values.Count < 1)
+            {
+                return "";
+            }
+
+            StringBuilder ret = new StringBuilder();
+            foreach (string value in values)
+            {
+                if (String.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                if (ret.Length > 0)
+                {
+                    ret.Append(", ");
+                }
+
+                ret.Append(value.Trim());
+            }
+
+            return ret.ToString();
+        }
+
+        private static string GetRequestHeader(NameValueCollection? headers, string name)
+        {
+            if (headers == null)
+            {
+                return "";
+            }
+
+            for (int i = 0; i < headers.Count; i++)
+            {
+                string key = headers.GetKey(i);
+                if (String.IsNullOrEmpty(key))
+                {
+                    continue;
+                }
+
+                if (String.Equals(key, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return headers.Get(i) ?? "";
+                }
+            }
+
+            return "";
+        }
+
+        private static void SetResponseHeader(HttpContextBase ctx, string name, string value)
+        {
+            if (String.IsNullOrEmpty(name) || String.IsNullOrEmpty(value))
+            {
+                return;
+            }
+
+            if (ctx.Response.Headers == null)
+            {
+                ctx.Response.Headers = new NameValueCollection(StringComparer.InvariantCultureIgnoreCase);
+            }
+
+            ctx.Response.Headers.Remove(name);
+            ctx.Response.Headers.Add(name, value);
         }
 
         private static void RegisterRoutes()
@@ -274,6 +647,8 @@ namespace NetLedger.Server
             // Service endpoints (unauthenticated)
             _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.HEAD, "/", _RestServiceHandler.ExistsAsync);
             _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.GET, "/", _RestServiceHandler.GetInfoAsync);
+            _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.GET, "/v1/service", _RestServiceHandler.GetInfoAsync);
+            _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.GET, "/v1/health", _RestServiceHandler.ExistsAsync);
             _Webserver.Routes.PreAuthentication.Static.Add(HttpMethod.GET, "/openapi.json", OpenApiAsync);
             _Webserver.Routes.PreAuthentication.Parameter.Add(HttpMethod.POST, "/v1/auth/tenants", _RestIdentityHandler.DiscoverTenantsAsync, ExceptionHandler);
             _Webserver.Routes.PreAuthentication.Parameter.Add(HttpMethod.POST, "/v1/auth/login", _RestIdentityHandler.LoginAsync, ExceptionHandler);
@@ -364,6 +739,17 @@ namespace NetLedger.Server
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1.0/api/request-history/{id}", _RestRequestHistoryHandler.ReadAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1.0/api/request-history/{id}", _RestRequestHistoryHandler.DeleteAsync, ExceptionHandler);
 
+            // Archive export endpoints
+            _Webserver.Routes.PostAuthentication.Static.Add(HttpMethod.POST, "/v1/archive/exports/entries", _RestArchiveHandler.ExportEntriesAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Static.Add(HttpMethod.POST, "/v1/archive/exports/request-history", _RestArchiveHandler.ExportRequestHistoryAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/{accountId}/archive/settings", _RestArchiveHandler.ReadAccountSettingsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/accounts/{accountId}/archive/settings", _RestArchiveHandler.UpdateAccountSettingsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/accounts/{accountId}/archive/settings", _RestArchiveHandler.DeleteAccountSettingsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountId}/archive/settings", _RestArchiveHandler.ReadAccountSettingsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts/{accountId}/archive/settings", _RestArchiveHandler.UpdateAccountSettingsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/accounts/{accountId}/archive/settings", _RestArchiveHandler.DeleteAccountSettingsAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.POST, "/v1/tenants/{tenantId}/accounts/{accountId}/archive/export", _RestArchiveHandler.ExportEntriesAsync, ExceptionHandler);
+
             _Logging.Debug(_Header + "routes registered");
         }
 
@@ -371,6 +757,8 @@ namespace NetLedger.Server
         {
             ctx.Response.Headers.Add(Constants.HostnameHeader, _Hostname);
             ctx.Response.Headers.Add(Constants.ApiVersionHeader, Constants.CurrentApiVersion);
+            ctx.Response.Headers.Add(Constants.DataScopeHeader, "active");
+            AddCorsHeaders(ctx, false);
             ctx.Response.ContentType = Constants.JsonContentType;
 
             // Authenticate requests to PostAuthentication routes
@@ -472,6 +860,8 @@ namespace NetLedger.Server
         {
             List<OpenApiRouteDescriptor> routes = new List<OpenApiRouteDescriptor>();
             AddRoute(routes, "GET", "/", "Get service information", "Service");
+            AddRoute(routes, "GET", "/v1/service", "Get service information", "Service");
+            AddRoute(routes, "GET", "/v1/health", "Health check", "Service");
             AddRoute(routes, "POST", "/v1/auth/tenants", "Discover tenants for an email address", "Identity");
             AddRoute(routes, "POST", "/v1/auth/login", "Authenticate a user", "Identity");
             AddRoute(routes, "POST", "/v1/auth/logout", "Logout the current session", "Identity");
@@ -519,6 +909,15 @@ namespace NetLedger.Server
             AddRoute(routes, "DELETE", "/v1.0/api/request-history", "Delete matching request history", "Request History");
             AddRoute(routes, "GET", "/v1.0/api/request-history/{id}", "Read request history entry", "Request History");
             AddRoute(routes, "DELETE", "/v1.0/api/request-history/{id}", "Delete request history entry", "Request History");
+            AddRoute(routes, "POST", "/v1/archive/exports/entries", "Export active entries to Archive Server", "Archive");
+            AddRoute(routes, "POST", "/v1/archive/exports/request-history", "Export active request history to Archive Server", "Archive");
+            AddRoute(routes, "GET", "/v1/accounts/{accountId}/archive/settings", "Read account automatic archive settings", "Archive");
+            AddRoute(routes, "PUT", "/v1/accounts/{accountId}/archive/settings", "Update account automatic archive settings", "Archive");
+            AddRoute(routes, "DELETE", "/v1/accounts/{accountId}/archive/settings", "Clear account automatic archive settings", "Archive");
+            AddRoute(routes, "GET", "/v1/tenants/{tenantId}/accounts/{accountId}/archive/settings", "Read tenant account automatic archive settings", "Archive");
+            AddRoute(routes, "PUT", "/v1/tenants/{tenantId}/accounts/{accountId}/archive/settings", "Update tenant account automatic archive settings", "Archive");
+            AddRoute(routes, "DELETE", "/v1/tenants/{tenantId}/accounts/{accountId}/archive/settings", "Clear tenant account automatic archive settings", "Archive");
+            AddRoute(routes, "POST", "/v1/tenants/{tenantId}/accounts/{accountId}/archive/export", "Export active tenant account entries to Archive Server", "Archive");
             return routes;
         }
 
@@ -698,6 +1097,19 @@ namespace NetLedger.Server
             {
                 _AuthService.Dispose();
                 _Logging.Debug(_Header + "auth service disposed");
+            }
+
+            if (_AutomaticArchiveService != null)
+            {
+                await _AutomaticArchiveService.StopAsync().ConfigureAwait(false);
+                _AutomaticArchiveService.Dispose();
+                _Logging.Debug(_Header + "automatic archive service disposed");
+            }
+
+            if (_ArchiveExportService != null)
+            {
+                _ArchiveExportService.Dispose();
+                _Logging.Debug(_Header + "archive export service disposed");
             }
 
             if (_Ledger != null)

@@ -140,6 +140,11 @@ namespace NetLedger.Server.Models
         public DateTime? AsOfUtc { get; set; }
 
         /// <summary>
+        /// Whether the caller accepts an explicitly partial active-only response when the requested range crosses the active/archive boundary.
+        /// </summary>
+        public bool AllowPartial { get; set; } = false;
+
+        /// <summary>
         /// Minimum amount filter.
         /// </summary>
         public decimal? AmountMin { get; set; }
@@ -357,6 +362,12 @@ namespace NetLedger.Server.Models
             if (!string.IsNullOrEmpty(endTimeStr) && DateTime.TryParse(endTimeStr, out DateTime endTime))
             {
                 req.EndTimeUtc = endTime.ToUniversalTime();
+            }
+
+            string? allowPartialStr = req.QueryString["allowPartial"];
+            if (!String.IsNullOrEmpty(allowPartialStr) && Boolean.TryParse(allowPartialStr, out bool allowPartial))
+            {
+                req.AllowPartial = allowPartial;
             }
 
             // AsOfUtc

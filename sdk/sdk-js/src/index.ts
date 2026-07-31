@@ -6,6 +6,7 @@ import { BalanceMethods } from './methods/balance';
 import { ApiKeyMethods } from './methods/apikey';
 import { IdentityMethods } from './methods/identity';
 import { RequestHistoryMethods } from './methods/request-history';
+import { ArchiveMethods } from './methods/archive';
 
 // Re-export models and errors
 export * from './models';
@@ -65,6 +66,9 @@ export class NetLedgerClient {
     /** Request history operations. */
     public readonly requestHistory: RequestHistoryMethods;
 
+    /** Archive Server cold data and metadata operations. */
+    public readonly archive: ArchiveMethods;
+
     /** The base URL of the NetLedger server. */
     public readonly baseUrl: string;
 
@@ -94,6 +98,7 @@ export class NetLedgerClient {
         this.apiKey = new ApiKeyMethods(this.httpClient);
         this.identity = new IdentityMethods(this.httpClient);
         this.requestHistory = new RequestHistoryMethods(this.httpClient);
+        this.archive = new ArchiveMethods(this.httpClient);
     }
 
     static async discoverTenants(baseUrl: string, email: string): Promise<import('./models').TenantInfo[]> {

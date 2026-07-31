@@ -6,6 +6,7 @@ namespace NetLedger.Server.API.Agnostic
     using System.Threading.Tasks;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
     using SyslogLogging;
 
@@ -21,6 +22,7 @@ namespace NetLedger.Server.API.Agnostic
         private readonly LoggingModule _Logging;
         private readonly Ledger _Ledger;
         private readonly AuthorizationService _AuthorizationService;
+        private readonly ActiveArchiveBoundaryService _ArchiveBoundary;
 
         #endregion
 
@@ -38,6 +40,7 @@ namespace NetLedger.Server.API.Agnostic
             _Logging = logging ?? throw new ArgumentNullException(nameof(logging));
             _Ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             _AuthorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
+            _ArchiveBoundary = new ActiveArchiveBoundaryService(_Settings);
 
             _Logging.Debug(_Header + "initialized");
         }
@@ -101,6 +104,10 @@ namespace NetLedger.Server.API.Agnostic
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
+
+            DateTime? fromUtc = req.AsOfUtc;
+            ResponseContext? archiveRangeError = _ArchiveBoundary.ApplyActiveRange(req, ref fromUtc, req.AsOfUtc, "Balance");
+            if (archiveRangeError != null) return archiveRangeError;
 
             decimal balance = await _Ledger.GetBalanceAsOfAsync(
                 req.AccountId,

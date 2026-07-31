@@ -69,6 +69,11 @@ namespace NetLedger
         /// Schema migration identifier prefix.
         /// </summary>
         public const string Migration = "mig_";
+
+        /// <summary>
+        /// Account archival settings identifier prefix.
+        /// </summary>
+        public const string AccountArchivalSettings = "aas_";
     }
 }
 

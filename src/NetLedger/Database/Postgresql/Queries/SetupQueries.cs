@@ -35,6 +35,30 @@ namespace NetLedger.Database.Postgresql.Queries
                     createdutc TIMESTAMP NOT NULL
                 );",
 
+                @"CREATE TABLE IF NOT EXISTS accountarchivalsettings (
+                    id VARCHAR(64) PRIMARY KEY,
+                    tenantid VARCHAR(64) NOT NULL,
+                    accountid VARCHAR(64) NOT NULL,
+                    enabled BOOLEAN NULL,
+                    maxretentiondays BIGINT NULL,
+                    intervalseconds INTEGER NULL,
+                    maxbatchrows INTEGER NULL,
+                    deleteaftercommit BOOLEAN NULL,
+                    storagepoolid VARCHAR(128) NULL,
+                    retrymaxattempts INTEGER NULL,
+                    retryinitialdelayseconds INTEGER NULL,
+                    retrymaxdelayseconds INTEGER NULL,
+                    lastattemptutc TIMESTAMP NULL,
+                    lastsuccessutc TIMESTAMP NULL,
+                    lastarchivedthroughutc TIMESTAMP NULL,
+                    lastfailureutc TIMESTAMP NULL,
+                    nextattemptutc TIMESTAMP NULL,
+                    failurecount INTEGER NOT NULL DEFAULT 0,
+                    lasterror TEXT NULL,
+                    createdutc TIMESTAMP NOT NULL,
+                    lastupdateutc TIMESTAMP NOT NULL
+                );",
+
                 @"CREATE TABLE IF NOT EXISTS accounts (
                     id VARCHAR(64) PRIMARY KEY,
                     tenantid VARCHAR(64) NOT NULL DEFAULT '',
@@ -242,6 +266,9 @@ namespace NetLedger.Database.Postgresql.Queries
                 "CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_id ON accounts (tenantid, id);",
                 "CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts (name);",
                 "CREATE INDEX IF NOT EXISTS idx_accounts_createdutc ON accounts (createdutc);",
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_accountarchivalsettings_tenantid_accountid ON accountarchivalsettings (tenantid, accountid);",
+                "CREATE INDEX IF NOT EXISTS idx_accountarchivalsettings_nextattemptutc ON accountarchivalsettings (nextattemptutc);",
+                "CREATE INDEX IF NOT EXISTS idx_accountarchivalsettings_lastattemptutc ON accountarchivalsettings (lastattemptutc);",
 
                 // Entries indices
                 "CREATE INDEX IF NOT EXISTS idx_entries_tenantid_id ON entries (tenantid, id);",

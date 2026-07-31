@@ -2,6 +2,51 @@
 
 A .NET SDK for interacting with the NetLedger Server REST API.
 
+## v4.0.0 Archive Support
+
+NetLedger Server clients remain active-data clients. v4.0.0 adds Archive Server methods for cold reads, archive metadata inspection, and migration lifecycle operations. Keep active and archive clients configured with separate base URLs.
+
+```csharp
+using NetLedger.Sdk;
+
+using NetLedgerClient active = new NetLedgerClient("http://localhost:8080", token, tenantId);
+using NetLedgerClient archive = new NetLedgerClient("http://localhost:8081", token, tenantId);
+
+ArchiveHealth health = await archive.Archive.HealthAsync();
+List<ArchiveManifestInfo> manifests = await archive.Archive.ManifestsAsync(new ArchiveQuery { MaxResults = 50 });
+List<ArchiveStoragePoolInfo> pools = await archive.Archive.StoragePoolsAsync();
+ArchiveStoragePoolHealthInfo poolHealth = await archive.Archive.StoragePoolHealthAsync(pools[0].Id!);
+ArchiveExportResponse export = await active.Archive.ExportTenantAccountEntriesAsync(tenantId, accountId, new ArchiveExportRequest
+{
+    ToUtc = DateTime.UtcNow.AddDays(-365),
+    DeleteAfterCommit = false
+});
+ArchiveMigrationInfo migration = await archive.Archive.MigrationAsync(export.MigrationId!);
+List<ArchiveMigrationBatchInfo> batches = await archive.Archive.MigrationBatchesAsync(migration.Id!);
+ArchiveExportResponse historyExport = await active.Archive.ExportRequestHistoryAsync(new ArchiveExportRequest
+{
+    TenantId = tenantId,
+    ToUtc = DateTime.UtcNow.AddDays(-365)
+});
+EnumerationResult<Entry> coldEntries = await archive.Archive.TenantEntriesAsync(tenantId, accountId, new ArchiveQuery
+{
+    MaxResults = 25,
+    Ordering = "CreatedDescending",
+    AllowPartial = true
+});
+ArchiveBalanceInfo coldBalance = await archive.Archive.TenantBalanceAsOfAsync(tenantId, accountId, DateTime.UtcNow.AddDays(-365));
+ArchiveVerificationResult verification = await archive.Archive.VerifyTenantAccountAsync(tenantId, accountId);
+EnumerationResult<RequestHistoryEntry> coldHistory = await archive.Archive.RequestHistoryAsync(new RequestHistoryQuery
+{
+    MaxResults = 25,
+    AllowPartial = true
+});
+```
+
+For externally prepared archive payloads, the Archive Server client also exposes the lower-level migration lifecycle: `CreateMigrationAsync`, `CreateMigrationBatchAsync`, `UploadMigrationBatchContentAsync`, `SealMigrationAsync`, `CommitMigrationAsync`, and `AbortMigrationAsync`.
+
+For an end-to-end local validation that starts disposable active and archive servers, exports old entries, and verifies hot/cold retrieval seams, run `dotnet run --project src/ArchivalValidation/ArchivalValidation.csproj --framework net8.0` from the repository root.
+
 ## Installation
 
 ```bash
@@ -262,6 +307,15 @@ finally
     client.Dispose();
 }
 ```
+
+## Running the Test Harness
+
+```bash
+dotnet run --project ../NetLedger.Sdk.Test/NetLedger.Sdk.Test.csproj -- http://localhost:8080 your-api-key
+dotnet run --project ../NetLedger.Sdk.Test/NetLedger.Sdk.Test.csproj -- http://localhost:8080 your-api-key http://localhost:8081
+```
+
+The third argument is optional. When supplied, the harness also runs Archive Server health, storage-pool, metadata, request-history, and active export checks against the archive endpoint.
 
 ## License
 

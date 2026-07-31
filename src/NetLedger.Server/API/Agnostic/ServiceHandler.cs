@@ -63,6 +63,9 @@ namespace NetLedger.Server.API.Agnostic
         {
             Version? version = Assembly.GetExecutingAssembly().GetName().Version;
             TimeSpan uptime = DateTime.UtcNow - _StartTimeUtc;
+            string tenantId = req?.TenantId ?? req?.Auth?.TenantId ?? String.Empty;
+            int activeDataRetentionDays = _Settings.Archive.GetActiveDataRetentionDays(tenantId);
+            DateTime activeBoundaryUtc = DateTime.UtcNow.AddDays(-activeDataRetentionDays);
 
             object data = new
             {
@@ -70,7 +73,14 @@ namespace NetLedger.Server.API.Agnostic
                 Version = version?.ToString() ?? "1.0.0",
                 StartTimeUtc = _StartTimeUtc,
                 UptimeSeconds = (long)uptime.TotalSeconds,
-                UptimeFormatted = FormatUptime(uptime)
+                UptimeFormatted = FormatUptime(uptime),
+                Archive = new
+                {
+                    _Settings.Archive.Enabled,
+                    ArchiveServerEndpoint = _Settings.Archive.Enabled ? _Settings.Archive.ArchiveServerEndpoint : null,
+                    ActiveDataRetentionDays = activeDataRetentionDays,
+                    ActiveBoundaryUtc = activeBoundaryUtc
+                }
             };
 
             return Task.FromResult(new ResponseContext(req, data));

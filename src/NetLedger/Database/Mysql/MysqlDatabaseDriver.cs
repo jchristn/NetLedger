@@ -60,6 +60,7 @@ namespace NetLedger.Database.Mysql
             Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.Mysql);
             AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.Mysql);
             AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.Mysql);
+            AccountArchivalSettings = new PortableSqlAccountArchivalSettingsMethods(this, DatabaseTypeEnum.Mysql);
             AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.Mysql);
             RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Mysql);
             Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.Mysql);

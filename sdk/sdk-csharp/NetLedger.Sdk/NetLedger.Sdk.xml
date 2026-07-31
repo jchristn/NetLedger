@@ -260,6 +260,319 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error (401 if not authorized, 404 if not found).</exception>
         </member>
+        <member name="T:NetLedger.Sdk.Interfaces.IArchiveMethods">
+            <summary>
+            Archive Server cold data and metadata operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.HealthAsync(System.Threading.CancellationToken)">
+            <summary>
+            Read Archive Server health.
+            </summary>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive health.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.RangesAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate archive ranges.
+            </summary>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive ranges.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ManifestsAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate archive manifests.
+            </summary>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive manifests.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ManifestAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read one archive manifest.
+            </summary>
+            <param name="manifestId">Manifest identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive manifest.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ManifestObjectsAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate objects for one archive manifest.
+            </summary>
+            <param name="manifestId">Manifest identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive objects.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ManifestCheckpointsAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate balance checkpoints for one archive manifest.
+            </summary>
+            <param name="manifestId">Manifest identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive balance checkpoints.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.VerifyManifestAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Verify a manifest.
+            </summary>
+            <param name="manifestId">Manifest identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.QuarantineManifestAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Quarantine a manifest.
+            </summary>
+            <param name="manifestId">Manifest identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.SupersedeManifestAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Supersede a manifest.
+            </summary>
+            <param name="manifestId">Manifest identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Task.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.StoragePoolsAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate storage pools.
+            </summary>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Storage pools.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.StoragePoolHealthAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read archive storage pool health.
+            </summary>
+            <param name="storagePoolId">Storage pool identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive storage pool health.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.MigrationsAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate archive migrations.
+            </summary>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migrations.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.MigrationAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read one archive migration.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migration.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.MigrationBatchesAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate batches for one archive migration.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migration batches.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.CreateMigrationAsync(NetLedger.Sdk.ArchiveMigrationRequest,System.Threading.CancellationToken)">
+            <summary>
+            Create an Archive Server migration.
+            </summary>
+            <param name="request">Migration request.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migration.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.CreateMigrationBatchAsync(System.String,NetLedger.Sdk.ArchiveMigrationBatchRequest,System.Threading.CancellationToken)">
+            <summary>
+            Create metadata for one Archive Server migration batch.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="request">Batch metadata request.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migration batch.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.UploadMigrationBatchContentAsync(System.String,System.String,System.IO.Stream,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Upload compressed JSONL content for one Archive Server migration batch.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="batchId">Batch identifier.</param>
+            <param name="content">Batch content stream.</param>
+            <param name="contentHashSha256">Optional expected SHA-256 content hash header.</param>
+            <param name="contentType">Request content type.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Updated archive migration batch.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.SealMigrationAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Seal an Archive Server migration after all batches are uploaded.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migration.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.CommitMigrationAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Commit an Archive Server migration and create its manifest.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive manifest.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.AbortMigrationAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Abort an Archive Server migration and delete temporary content.
+            </summary>
+            <param name="migrationId">Migration identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive migration.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ExportEntriesAsync(NetLedger.Sdk.ArchiveExportRequest,System.Threading.CancellationToken)">
+            <summary>
+            Start an active NetLedger Server export of committed entries to NetLedger Archive Server.
+            </summary>
+            <param name="request">Archive export request.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive export response.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ExportRequestHistoryAsync(NetLedger.Sdk.ArchiveExportRequest,System.Threading.CancellationToken)">
+            <summary>
+            Start an active NetLedger Server export of request history to NetLedger Archive Server.
+            </summary>
+            <param name="request">Archive export request.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive export response.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ExportTenantAccountEntriesAsync(System.String,System.String,NetLedger.Sdk.ArchiveExportRequest,System.Threading.CancellationToken)">
+            <summary>
+            Start an active NetLedger Server export of committed entries for one tenant account.
+            </summary>
+            <param name="tenantId">Tenant identifier.</param>
+            <param name="accountId">Account identifier.</param>
+            <param name="request">Archive export request.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive export response.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.EntriesAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate archived entries for an account.
+            </summary>
+            <param name="accountId">Account identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archived entries.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.TenantEntriesAsync(System.String,System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate archived entries for a tenant account.
+            </summary>
+            <param name="tenantId">Tenant identifier.</param>
+            <param name="accountId">Account identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archived entries.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.BalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
+            <summary>
+            Read archived balance as of a point in time for an account.
+            </summary>
+            <param name="accountId">Account identifier.</param>
+            <param name="asOfUtc">As-of timestamp UTC.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archived balance information.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.TenantBalanceAsOfAsync(System.String,System.String,System.DateTime,System.Threading.CancellationToken)">
+            <summary>
+            Read archived balance as of a point in time for a tenant account.
+            </summary>
+            <param name="tenantId">Tenant identifier.</param>
+            <param name="accountId">Account identifier.</param>
+            <param name="asOfUtc">As-of timestamp UTC.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archived balance information.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.VerifyAccountAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Verify archived balance chain and object integrity for an account.
+            </summary>
+            <param name="accountId">Account identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive verification result.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.VerifyTenantAccountAsync(System.String,System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <summary>
+            Verify archived balance chain and object integrity for a tenant account.
+            </summary>
+            <param name="tenantId">Tenant identifier.</param>
+            <param name="accountId">Account identifier.</param>
+            <param name="query">Archive query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive verification result.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ObjectMetadataAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Read archive object catalog and storage metadata.
+            </summary>
+            <param name="objectId">Archive object identifier.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive object metadata.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.RequestHistoryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate archived NetLedger request history from Archive Server.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archived request history.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.RequestHistorySummaryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Summarize archived NetLedger request history from Archive Server.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Request history summary.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.RequestHistoryEntryAsync(System.String,NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Read one archived NetLedger request history entry from Archive Server.
+            </summary>
+            <param name="id">Request history identifier.</param>
+            <param name="query">Optional scope query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Request history entry.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ArchiveServerRequestHistoryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Enumerate Archive Server operational request history.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Archive Server request history.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ArchiveServerRequestHistorySummaryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Summarize Archive Server operational request history.
+            </summary>
+            <param name="query">Request history query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Request history summary.</returns>
+        </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IArchiveMethods.ArchiveServerRequestHistoryEntryAsync(System.String,NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <summary>
+            Read one Archive Server operational request history entry.
+            </summary>
+            <param name="id">Request history identifier.</param>
+            <param name="query">Optional scope query.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Request history entry.</returns>
+        </member>
         <member name="T:NetLedger.Sdk.Interfaces.IBalanceMethods">
             <summary>
             Balance operations for the NetLedger API.
@@ -629,6 +942,125 @@
         <member name="M:NetLedger.Sdk.Methods.ApiKeyMethods.RevokeAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="T:NetLedger.Sdk.Methods.ArchiveMethods">
+            <summary>
+            Implementation of Archive Server operations.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.#ctor(NetLedger.Sdk.NetLedgerClient)">
+            <summary>
+            Instantiate archive methods.
+            </summary>
+            <param name="client">NetLedger client.</param>
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.HealthAsync(System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.RangesAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ManifestsAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ManifestAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ManifestObjectsAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ManifestCheckpointsAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.VerifyManifestAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.QuarantineManifestAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.SupersedeManifestAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.StoragePoolsAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.StoragePoolHealthAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.MigrationsAsync(NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.MigrationAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.MigrationBatchesAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.CreateMigrationAsync(NetLedger.Sdk.ArchiveMigrationRequest,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.CreateMigrationBatchAsync(System.String,NetLedger.Sdk.ArchiveMigrationBatchRequest,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.UploadMigrationBatchContentAsync(System.String,System.String,System.IO.Stream,System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.SealMigrationAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.CommitMigrationAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.AbortMigrationAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ExportEntriesAsync(NetLedger.Sdk.ArchiveExportRequest,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ExportRequestHistoryAsync(NetLedger.Sdk.ArchiveExportRequest,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ExportTenantAccountEntriesAsync(System.String,System.String,NetLedger.Sdk.ArchiveExportRequest,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.EntriesAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.TenantEntriesAsync(System.String,System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.BalanceAsOfAsync(System.String,System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.TenantBalanceAsOfAsync(System.String,System.String,System.DateTime,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.VerifyAccountAsync(System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.VerifyTenantAccountAsync(System.String,System.String,NetLedger.Sdk.ArchiveQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ObjectMetadataAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.RequestHistoryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.RequestHistorySummaryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.RequestHistoryEntryAsync(System.String,NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ArchiveServerRequestHistoryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ArchiveServerRequestHistorySummaryAsync(NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Sdk.Methods.ArchiveMethods.ArchiveServerRequestHistoryEntryAsync(System.String,NetLedger.Sdk.RequestHistoryQuery,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
         <member name="T:NetLedger.Sdk.Methods.BalanceMethods">
             <summary>
             Implementation of balance operations for the NetLedger API.
@@ -854,6 +1286,31 @@
             <param name="name">The account name.</param>
             <param name="notes">Optional notes.</param>
         </member>
+        <member name="T:NetLedger.Sdk.ActiveArchiveInfo">
+            <summary>
+            Active archive integration information returned by NetLedger Server.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ActiveArchiveInfo.Enabled">
+            <summary>
+            Whether archive integration is enabled.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ActiveArchiveInfo.ArchiveServerEndpoint">
+            <summary>
+            Archive Server endpoint when archive integration is enabled.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ActiveArchiveInfo.ActiveDataRetentionDays">
+            <summary>
+            Active data retention period in days for the resolved tenant.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ActiveArchiveInfo.ActiveBoundaryUtc">
+            <summary>
+            Oldest UTC timestamp retained by active APIs for the resolved tenant.
+            </summary>
+        </member>
         <member name="T:NetLedger.Sdk.ApiKeyInfo">
             <summary>
             Represents an API key for authentication.
@@ -983,6 +1440,901 @@
         <member name="M:NetLedger.Sdk.ErrorResponse.#ctor">
             <summary>
             Instantiate a new error response.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveBalanceCheckpointInfo">
+            <summary>
+            Archive balance checkpoint metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.Id">
+            <summary>
+            Checkpoint identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.ManifestId">
+            <summary>
+            Manifest identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.AsOfUtc">
+            <summary>
+            Timestamp represented by the checkpoint.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.Balance">
+            <summary>
+            Balance at the checkpoint.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceCheckpointInfo.CreatedUtc">
+            <summary>
+            Created UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveBalanceInfo">
+            <summary>
+            Archived balance response for a tenant account at a point in time.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceInfo.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceInfo.AsOfUtc">
+            <summary>
+            As-of timestamp UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceInfo.Balance">
+            <summary>
+            Archived balance.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveBalanceInfo.ManifestId">
+            <summary>
+            Manifest containing the checkpoint used for the response.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveExportBatchResult">
+            <summary>
+            Archive export batch result.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportBatchResult.BatchId">
+            <summary>
+            Archive migration batch identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportBatchResult.SequenceNumber">
+            <summary>
+            Batch sequence number.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportBatchResult.RowCount">
+            <summary>
+            Number of exported rows.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportBatchResult.ByteCount">
+            <summary>
+            Number of uploaded bytes.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportBatchResult.ContentHashSha256">
+            <summary>
+            SHA-256 content hash.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveExportRequest">
+            <summary>
+            Request to export active NetLedger entries to NetLedger Archive Server.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.TenantId">
+            <summary>
+            Tenant identifier. Route tenant or authenticated tenant is used when omitted.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.AccountId">
+            <summary>
+            Account identifier. Route account is used when omitted.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.FromUtc">
+            <summary>
+            Inclusive UTC lower bound for exported rows.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.ToUtc">
+            <summary>
+            Inclusive UTC upper bound for exported rows.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.StoragePoolId">
+            <summary>
+            Archive Server storage pool identifier. Archive Server default is used when omitted.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.IdempotencyKey">
+            <summary>
+            Idempotency key. NetLedger Server generates a stable scope key when omitted.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.MaxBatchRows">
+            <summary>
+            Maximum rows per migration batch. Default is 50000, minimum is 1, maximum is 50000.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportRequest.DeleteAfterCommit">
+            <summary>
+            Whether active rows should be deleted after archive commit. v4.0.0 supports opt-in cleanup after Archive Server commit succeeds.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveExportResponse">
+            <summary>
+            Archive export response.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.MigrationId">
+            <summary>
+            Archive migration identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.ManifestId">
+            <summary>
+            Archive manifest identifier returned by commit.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.RowsExported">
+            <summary>
+            Number of exported rows.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.BytesUploaded">
+            <summary>
+            Number of uploaded bytes.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.ActiveCleanupExecuted">
+            <summary>
+            Whether active cleanup was executed.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.ActiveCleanupRowsDeleted">
+            <summary>
+            Number of active rows deleted after archive commit.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveExportResponse.Batches">
+            <summary>
+            Batch upload results.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveHealth">
+            <summary>
+            Archive Server health response.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveHealth.Healthy">
+            <summary>
+            Indicates whether Archive Server is healthy.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveHealth.Version">
+            <summary>
+            Archive Server version.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveHealth.Details">
+            <summary>
+            Health details.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveManifestInfo">
+            <summary>
+            Archive manifest.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.Id">
+            <summary>
+            Manifest identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.EntityType">
+            <summary>
+            Entity type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.FromUtc">
+            <summary>
+            Range start UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.ToUtc">
+            <summary>
+            Range end UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.RowCount">
+            <summary>
+            Row count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.ContentHashSha256">
+            <summary>
+            Content hash.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.ManifestHashSha256">
+            <summary>
+            Manifest hash.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.Status">
+            <summary>
+            Manifest status.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.CreatedUtc">
+            <summary>
+            Created UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveManifestInfo.LastUpdateUtc">
+            <summary>
+            Last update UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveMigrationBatchInfo">
+            <summary>
+            Archive migration batch metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.Id">
+            <summary>
+            Batch identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.MigrationId">
+            <summary>
+            Migration identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.AccountId">
+            <summary>
+            Optional account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.SequenceNumber">
+            <summary>
+            Batch sequence number.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.RowCount">
+            <summary>
+            Number of rows in the batch.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.ByteCount">
+            <summary>
+            Number of bytes in the batch object.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.ContentHashSha256">
+            <summary>
+            SHA-256 content hash.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.TemporaryRelativePath">
+            <summary>
+            Temporary relative path for uploaded content.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.CommittedRelativePath">
+            <summary>
+            Committed relative path for uploaded content.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.Status">
+            <summary>
+            Batch status.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.CreatedUtc">
+            <summary>
+            Created UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchInfo.LastUpdateUtc">
+            <summary>
+            Last update UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveMigrationBatchRequest">
+            <summary>
+            Request to create Archive Server migration batch metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchRequest.Id">
+            <summary>
+            Optional caller-supplied batch identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchRequest.SequenceNumber">
+            <summary>
+            Sequence number within the migration.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchRequest.RowCount">
+            <summary>
+            Expected row count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchRequest.ByteCount">
+            <summary>
+            Optional expected byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationBatchRequest.ContentHashSha256">
+            <summary>
+            Optional expected SHA-256 content hash.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveMigrationInfo">
+            <summary>
+            Archive migration metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.Id">
+            <summary>
+            Migration identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.EntityType">
+            <summary>
+            Entity type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.Format">
+            <summary>
+            Archive object format.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.Compression">
+            <summary>
+            Archive object compression.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.FromUtc">
+            <summary>
+            Requested range start UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.ToUtc">
+            <summary>
+            Requested range end UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.Status">
+            <summary>
+            Migration status.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.IdempotencyKey">
+            <summary>
+            Idempotency key.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.CreatedUtc">
+            <summary>
+            Created UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationInfo.LastUpdateUtc">
+            <summary>
+            Last update UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveMigrationRequest">
+            <summary>
+            Request to create an Archive Server migration.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.AccountId">
+            <summary>
+            Optional account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.EntityType">
+            <summary>
+            Entity type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.StoragePoolId">
+            <summary>
+            Optional storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.Format">
+            <summary>
+            Archive object format.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.Compression">
+            <summary>
+            Archive object compression.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.FromUtc">
+            <summary>
+            Requested range start UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.ToUtc">
+            <summary>
+            Requested range end UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveMigrationRequest.IdempotencyKey">
+            <summary>
+            Idempotency key.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveObjectInfo">
+            <summary>
+            Archive object metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.Id">
+            <summary>
+            Object identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.ManifestId">
+            <summary>
+            Manifest identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.RelativePath">
+            <summary>
+            Relative path.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.RowCount">
+            <summary>
+            Row count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.ByteCount">
+            <summary>
+            Byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.ContentHashSha256">
+            <summary>
+            Content hash.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectInfo.CreatedUtc">
+            <summary>
+            Created UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveObjectMetadataInfo">
+            <summary>
+            Archive object catalog and storage metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectMetadataInfo.ObjectId">
+            <summary>
+            Object identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectMetadataInfo.ManifestId">
+            <summary>
+            Manifest identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectMetadataInfo.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectMetadataInfo.CatalogByteCount">
+            <summary>
+            Catalog byte count.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectMetadataInfo.CatalogContentHashSha256">
+            <summary>
+            Catalog content hash.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveObjectMetadataInfo.Storage">
+            <summary>
+            Storage-provider metadata.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveQuery">
+            <summary>
+            Archive Server query.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.MaxResults">
+            <summary>
+            Maximum results.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.Skip">
+            <summary>
+            Number of records to skip.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.ContinuationToken">
+            <summary>
+            Opaque continuation token returned by Archive Server.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.Search">
+            <summary>
+            Search term.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.EntityType">
+            <summary>
+            Entity type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.MigrationId">
+            <summary>
+            Migration identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.ManifestStatus">
+            <summary>
+            Manifest status.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.MigrationStatus">
+            <summary>
+            Migration status.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.StartTimeUtc">
+            <summary>
+            Start time UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.EndTimeUtc">
+            <summary>
+            End time UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.FromUtc">
+            <summary>
+            Start time UTC using Archive Server route naming.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.ToUtc">
+            <summary>
+            End time UTC using Archive Server route naming.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.Ordering">
+            <summary>
+            Ordering value.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.AmountMinimum">
+            <summary>
+            Minimum entry amount.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.AmountMaximum">
+            <summary>
+            Maximum entry amount.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.CreditMinimum">
+            <summary>
+            Minimum credit amount.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.CreditMaximum">
+            <summary>
+            Maximum credit amount.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.DebitMinimum">
+            <summary>
+            Minimum debit amount.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.DebitMaximum">
+            <summary>
+            Maximum debit amount.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.Labels">
+            <summary>
+            Labels that must all match.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.Tags">
+            <summary>
+            Tags that must all match.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveQuery.AllowPartial">
+            <summary>
+            Allow partially covered archive ranges.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveRangeInfo">
+            <summary>
+            Archive coverage range.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveRangeInfo.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveRangeInfo.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveRangeInfo.EntityType">
+            <summary>
+            Entity type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveRangeInfo.FromUtc">
+            <summary>
+            Range start UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveRangeInfo.ToUtc">
+            <summary>
+            Range end UTC.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveRangeInfo.RowCount">
+            <summary>
+            Row count.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveStorageObjectMetadata">
+            <summary>
+            Archive storage-provider object metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStorageObjectMetadata.Exists">
+            <summary>
+            Whether the object exists in storage.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStorageObjectMetadata.ByteCount">
+            <summary>
+            Object byte count, when reported by the provider.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStorageObjectMetadata.LastModifiedUtc">
+            <summary>
+            Last modified UTC timestamp, when reported by the provider.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStorageObjectMetadata.IsReadOnly">
+            <summary>
+            Whether the object is read-only, when reported by the provider.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStorageObjectMetadata.Properties">
+            <summary>
+            Provider-specific non-secret metadata.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveStoragePoolHealthInfo">
+            <summary>
+            Archive storage pool health response.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolHealthInfo.Healthy">
+            <summary>
+            Indicates whether the storage pool is healthy.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolHealthInfo.StoragePoolId">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolHealthInfo.Type">
+            <summary>
+            Storage pool type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolHealthInfo.Detail">
+            <summary>
+            Health detail.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolHealthInfo.CheckedUtc">
+            <summary>
+            Timestamp when health was checked.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveStoragePoolInfo">
+            <summary>
+            Archive storage pool metadata.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolInfo.Id">
+            <summary>
+            Storage pool identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolInfo.Name">
+            <summary>
+            Storage pool name.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolInfo.Type">
+            <summary>
+            Storage type.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolInfo.Prefix">
+            <summary>
+            Storage prefix.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolInfo.Format">
+            <summary>
+            Archive format.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveStoragePoolInfo.Compression">
+            <summary>
+            Archive compression.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Sdk.ArchiveVerificationResult">
+            <summary>
+            Archive verification result for a tenant/account range.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.TenantId">
+            <summary>
+            Tenant identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.AccountId">
+            <summary>
+            Account identifier.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.IsValid">
+            <summary>
+            Whether all checked archive metadata and objects are valid.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.CheckedManifests">
+            <summary>
+            Number of checked manifests.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.CheckedObjects">
+            <summary>
+            Number of checked archive objects.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.CheckedBalanceCheckpoints">
+            <summary>
+            Number of checked balance checkpoints.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.Details">
+            <summary>
+            Informational verification details.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ArchiveVerificationResult.Errors">
+            <summary>
+            Verification errors.
             </summary>
         </member>
         <member name="T:NetLedger.Sdk.Balance">
@@ -1761,9 +3113,19 @@
             Number of records to skip.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.ContinuationToken">
+            <summary>
+            Opaque continuation token returned by Archive Server.
+            </summary>
+        </member>
         <member name="P:NetLedger.Sdk.RequestHistoryQuery.BucketMinutes">
             <summary>
             Summary bucket size in minutes.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.RequestHistoryQuery.AllowPartial">
+            <summary>
+            Whether partial archive coverage is acceptable when querying Archive Server.
             </summary>
         </member>
         <member name="T:NetLedger.Sdk.RequestHistorySummary">
@@ -1899,6 +3261,11 @@
         <member name="P:NetLedger.Sdk.ServiceInfo.StartTimeUtc">
             <summary>
             The UTC timestamp when the server started.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.ServiceInfo.Archive">
+            <summary>
+            Active archive integration information.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.ServiceInfo.#ctor">
@@ -2088,6 +3455,11 @@
             Request history operations.
             </summary>
         </member>
+        <member name="P:NetLedger.Sdk.NetLedgerClient.Archive">
+            <summary>
+            Archive Server cold data and metadata operations.
+            </summary>
+        </member>
         <member name="P:NetLedger.Sdk.NetLedgerClient.BaseUrl">
             <summary>
             The base URL of the NetLedger server.
@@ -2134,6 +3506,11 @@
         <member name="M:NetLedger.Sdk.NetLedgerClient.SendAsync``1(System.Net.Http.HttpMethod,System.String,System.Object,System.Threading.CancellationToken)">
             <summary>
             Send an HTTP request to the server.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Sdk.NetLedgerClient.SendContentAsync``1(System.Net.Http.HttpMethod,System.String,System.Net.Http.HttpContent,System.Collections.Generic.Dictionary{System.String,System.String},System.Threading.CancellationToken)">
+            <summary>
+            Send an HTTP request with caller-provided content.
             </summary>
         </member>
         <member name="M:NetLedger.Sdk.NetLedgerClient.HeadAsync(System.String,System.Threading.CancellationToken)">

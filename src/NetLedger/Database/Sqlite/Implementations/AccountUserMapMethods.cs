@@ -62,7 +62,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             result.MaxResults = query.MaxResults;
             result.Skip = query.Skip;
 
-            string where = String.IsNullOrEmpty(query.TenantId) ? String.Empty : " WHERE tenantid = '" + Sanitize(query.TenantId) + "'";
+            string where = BuildWhereClause(query);
             DataTable count = await _Driver.ExecuteQueryAsync("SELECT COUNT(*) FROM accountusermaps" + where + ";", false, token).ConfigureAwait(false);
             if (count != null && count.Rows.Count > 0) result.TotalRecords = Convert.ToInt64(count.Rows[0][0]);
 
@@ -96,6 +96,28 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "AND accountid = '" + Sanitize(accountId) + "' AND userid = '" + Sanitize(userId) + "';";
             await _Driver.ExecuteQueryAsync(query, true, token).ConfigureAwait(false);
             return true;
+        }
+
+        private string BuildWhereClause(EnumerationQuery query)
+        {
+            StringBuilder where = new StringBuilder();
+            if (!String.IsNullOrEmpty(query.TenantId))
+            {
+                AppendCondition(where, "tenantid = '" + Sanitize(query.TenantId) + "'");
+            }
+
+            if (!String.IsNullOrEmpty(query.UserId))
+            {
+                AppendCondition(where, "userid = '" + Sanitize(query.UserId) + "'");
+            }
+
+            return where.ToString();
+        }
+
+        private static void AppendCondition(StringBuilder where, string condition)
+        {
+            where.Append(where.Length == 0 ? " WHERE " : " AND ");
+            where.Append(condition);
         }
 
         private AccountUserMap DataRowToMap(DataRow row)

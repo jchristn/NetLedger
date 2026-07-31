@@ -77,6 +77,15 @@ namespace NetLedger.Database.Interfaces
         Task<Entry> ReadBalanceAsOfAsync(string accountId, DateTime asOfUtc, CancellationToken token = default);
 
         /// <summary>
+        /// Read the first balance entry after a specific timestamp.
+        /// </summary>
+        /// <param name="accountId">Account identifier.</param>
+        /// <param name="afterUtc">Timestamp in UTC.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>First balance entry after the timestamp if found, null otherwise.</returns>
+        Task<Entry> ReadFirstBalanceAfterAsync(string accountId, DateTime afterUtc, CancellationToken token = default);
+
+        /// <summary>
         /// Read entries with filtering.
         /// </summary>
         /// <param name="accountId">Account identifier.</param>
@@ -136,6 +145,18 @@ namespace NetLedger.Database.Interfaces
         Task DeleteByAccountIdAsync(string accountId, CancellationToken token = default);
 
         /// <summary>
+        /// Delete committed entries up to a timestamp for one tenant account in a bounded batch.
+        /// </summary>
+        /// <param name="tenantId">Tenant identifier.</param>
+        /// <param name="accountId">Account identifier.</param>
+        /// <param name="beforeUtc">Inclusive UTC cutoff timestamp.</param>
+        /// <param name="maxRows">Maximum rows to delete.</param>
+        /// <param name="preserveEntryId">Optional entry identifier to preserve from deletion.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Deleted row count.</returns>
+        Task<long> DeleteCommittedBeforeAsync(string tenantId, string accountId, DateTime beforeUtc, int maxRows, string? preserveEntryId = null, CancellationToken token = default);
+
+        /// <summary>
         /// Check if an entry exists by identifier.
         /// </summary>
         /// <param name="id">Entry identifier.</param>
@@ -150,6 +171,15 @@ namespace NetLedger.Database.Interfaces
         /// <param name="token">Cancellation token.</param>
         /// <returns>Number of entries.</returns>
         Task<int> GetCountByAccountIdAsync(string accountId, CancellationToken token = default);
+
+        /// <summary>
+        /// Count pending non-balance entries up to a timestamp for one account.
+        /// </summary>
+        /// <param name="accountId">Account identifier.</param>
+        /// <param name="beforeUtc">Inclusive UTC cutoff timestamp.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Pending row count.</returns>
+        Task<long> CountPendingBeforeAsync(string accountId, DateTime beforeUtc, CancellationToken token = default);
 
         /// <summary>
         /// Sum pending credits for an account.

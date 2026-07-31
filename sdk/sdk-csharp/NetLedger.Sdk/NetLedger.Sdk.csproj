@@ -6,15 +6,15 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>NetLedger.Sdk.xml</DocumentationFile>
-    <Version>3.0.0</Version>
+    <Version>4.0.0</Version>
     <Authors>Joel Christner</Authors>
     <Company>Joel Christner</Company>
     <Product>NetLedger SDK</Product>
-    <Description>SDK for interacting with NetLedger Server REST API</Description>
+    <Description>SDK for NetLedger Server active-data APIs and NetLedger Archive Server cold-data, metadata, and migration APIs.</Description>
     <Copyright>(c)2026 Joel Christner</Copyright>
     <PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
-    <PackageTags>ledger;accounting;sdk;api</PackageTags>
+    <PackageTags>ledger;accounting;sdk;api;archive;cold-storage</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
@@ -22,7 +22,7 @@
     <Title>NetLedger.Sdk</Title>
     <PackageIcon>icon.jpg</PackageIcon>
     <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>NetLedger v3.0.0 SDK support for tenant headers, PrettyId string identifiers, labels, tags, and expanded enumeration filters.</PackageReleaseNotes>
+    <PackageReleaseNotes>NetLedger v4.0.0 SDK support for active/archive client separation, archive queries, archive metadata, and migration APIs.</PackageReleaseNotes>
     <IncludeSymbols>True</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>

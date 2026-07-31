@@ -22,6 +22,7 @@ Example:
 """
 
 from .client import NetLedgerClient
+from .methods import ArchiveMethods
 from .models import (
     Account,
     Entry,
@@ -51,9 +52,10 @@ from .exceptions import (
     NetLedgerValidationError
 )
 
-__version__ = '3.0.0'
+__version__ = '4.0.0'
 __all__ = [
     'NetLedgerClient',
+    'ArchiveMethods',
     'Account',
     'Entry',
     'EntryInput',

@@ -1,16 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-		<Version>3.0.0</Version>
+		<Version>4.0.0</Version>
 		<Authors>Joel Christner</Authors>
 		<Company>Joel Christner</Company>
-		<Description>REST API server for NetLedger, a self-contained ledgering library.</Description>
+		<Description>REST API server for NetLedger active-data APIs, archive export, retention-boundary enforcement, authentication, authorization, and dashboard workflows.</Description>
 		<Copyright>(c)2025 Joel Christner</Copyright>
 		<PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
 		<RepositoryType>github</RepositoryType>
+		<PackageReleaseNotes>NetLedger Server v4.0.0 active archive configuration, retention-boundary enforcement, automatic archival worker, active export APIs, and typed CORS settings.</PackageReleaseNotes>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>disable</ImplicitUsings>
 	</PropertyGroup>
@@ -21,6 +22,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\NetLedger\NetLedger.csproj" />
+		<ProjectReference Include="..\NetLedger.Archive\NetLedger.Archive.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -153,8 +153,9 @@ function ChartTooltip({ tooltip }) {
 }
 
 export default function RequestHistory() {
-  const { api, currentUser, effectivePermissions, setError } = useApp()
+  const { api, archiveApi, archiveServerUrl, currentUser, effectivePermissions, setDataSourceContext, setError, t } = useApp()
   const { isRegularUser } = getRoleFlags(currentUser, effectivePermissions)
+  const [dataSource, setDataSource] = useState('active')
   const [entries, setEntries] = useState([])
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -168,6 +169,13 @@ export default function RequestHistory() {
   const [deleteEntry, setDeleteEntry] = useState(null)
   const [deleteManyOpen, setDeleteManyOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const isArchiveSource = dataSource === 'archive'
+  const canQueryArchive = Boolean(archiveApi && archiveServerUrl)
+
+  useEffect(() => {
+    setDataSourceContext(isArchiveSource ? 'archive' : 'active')
+    return () => setDataSourceContext('active')
+  }, [isArchiveSource, setDataSourceContext])
 
   const query = useMemo(() => ({
     maxResults: pageSize,
@@ -191,9 +199,26 @@ export default function RequestHistory() {
   const loadHistory = useCallback(async () => {
     try {
       setLoading(true)
+
+      if (isArchiveSource && !canQueryArchive) {
+        setEntries([])
+        setTotalRecords(0)
+        setSummary(null)
+        setError(t('dataSource.archiveUnavailable'))
+        return
+      }
+
+      const historyClient = isArchiveSource ? archiveApi : api
+      const historyPromise = isArchiveSource
+        ? historyClient.listArchivedRequestHistory(query)
+        : historyClient.listRequestHistory(query)
+      const summaryPromise = isArchiveSource
+        ? historyClient.summarizeArchivedRequestHistory(summaryQuery)
+        : historyClient.summarizeRequestHistory(summaryQuery)
+
       const [historyResult, summaryResult] = await Promise.all([
-        api.listRequestHistory(query),
-        api.summarizeRequestHistory(summaryQuery)
+        historyPromise,
+        summaryPromise
       ])
       const normalized = normalizeEnumerationResult(historyResult)
       setEntries(normalized.objects)
@@ -204,7 +229,7 @@ export default function RequestHistory() {
     } finally {
       setLoading(false)
     }
-  }, [api, query, setError, summaryQuery])
+  }, [api, archiveApi, canQueryArchive, isArchiveSource, query, setError, summaryQuery, t])
 
   useEffect(() => {
     loadHistory()
@@ -230,7 +255,11 @@ export default function RequestHistory() {
   async function openEntry(row) {
     try {
       const id = valueOf(row, 'Id')
-      const fullEntry = id ? await api.readRequestHistoryEntry(id) : row
+      const fullEntry = id
+        ? isArchiveSource
+          ? await archiveApi.readArchivedRequestHistoryEntry(id, query)
+          : await api.readRequestHistoryEntry(id)
+        : row
       setSelectedEntry(fullEntry)
     } catch (err) {
       setError(err.message || 'Failed to load request history entry')
@@ -240,7 +269,11 @@ export default function RequestHistory() {
   async function openJson(row) {
     try {
       const id = valueOf(row, 'Id')
-      const fullEntry = id ? await api.readRequestHistoryEntry(id) : row
+      const fullEntry = id
+        ? isArchiveSource
+          ? await archiveApi.readArchivedRequestHistoryEntry(id, query)
+          : await api.readRequestHistoryEntry(id)
+        : row
       setJsonEntry(fullEntry)
     } catch (err) {
       setError(err.message || 'Failed to load request history entry')
@@ -347,10 +380,33 @@ export default function RequestHistory() {
             <h3>Filters</h3>
             <p>Narrow the chart and table by method, status, path, principal, tenant, or timestamp.</p>
           </div>
-          <button type="button" className="btn btn-secondary" onClick={loadHistory} disabled={loading}>
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <div className="request-history-header-actions">
+            <label className="request-history-source-selector" htmlFor="requestHistoryDataSource">
+              <span>{t('dataSource.label')}</span>
+              <select
+                id="requestHistoryDataSource"
+                value={dataSource}
+                onChange={(event) => {
+                  setDataSource(event.target.value === 'archive' ? 'archive' : 'active')
+                  setCurrentPage(0)
+                  setSelectedEntry(null)
+                  setJsonEntry(null)
+                }}
+              >
+                <option value="active">{t('dataSource.active')}</option>
+                <option value="archive">{t('dataSource.archive')}</option>
+              </select>
+            </label>
+            <button type="button" className="btn btn-secondary" onClick={loadHistory} disabled={loading}>
+              {loading ? t('common.refreshing') : t('common.refresh')}
+            </button>
+          </div>
         </div>
+        {isArchiveSource && (
+          <div className={canQueryArchive ? 'request-history-source-note' : 'request-history-source-note request-history-source-note-warning'}>
+            {canQueryArchive ? t('dataSource.requestHistoryArchiveDescription') : t('dataSource.archiveUnavailable')}
+          </div>
+        )}
         <form className="request-history-filters" onSubmit={applyFilters}>
           <label>
             <span>Method</span>
@@ -385,7 +441,7 @@ export default function RequestHistory() {
           <div className="filter-actions">
             <button type="submit" className="btn btn-primary">Apply</button>
             <button type="button" className="btn btn-secondary" onClick={resetFilters}>Reset</button>
-            {!isRegularUser && (
+            {!isRegularUser && !isArchiveSource && (
               <button type="button" className="btn btn-danger" onClick={() => setDeleteManyOpen(true)} disabled={totalRecords === 0}>
                 Delete Matching
               </button>
@@ -399,8 +455,8 @@ export default function RequestHistory() {
       <section className="request-history-panel request-history-table-panel">
         <div className="request-history-panel-header">
           <div>
-            <h3>Captured Requests</h3>
-            <p>Click a row to inspect request and response capture. Use the row menu for edit, view, JSON, or delete actions.</p>
+            <h3>{isArchiveSource ? t('archive.coldRequestHistory.title') : 'Captured Requests'}</h3>
+          <p>{isArchiveSource ? t('dataSource.requestHistoryArchiveDescription') : 'Click a row to inspect request and response capture. Use the row menu for edit, view, JSON, or delete actions.'}</p>
           </div>
         </div>
         <Pagination
@@ -419,18 +475,18 @@ export default function RequestHistory() {
           columns={columns}
           data={entries}
           loading={loading}
-          emptyMessage="No request history found"
+          emptyMessage={isArchiveSource ? t('archive.empty.requestHistory') : 'No request history found'}
           rowKey="Id"
           onRowClick={openEntry}
           onEdit={openEntry}
           onView={openEntry}
           onViewJson={openJson}
-          onDelete={isRegularUser ? null : setDeleteEntry}
+          onDelete={isRegularUser || isArchiveSource ? null : setDeleteEntry}
         />
       </section>
 
       <RequestDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
-      <ViewMetadataModal isOpen={Boolean(jsonEntry)} onClose={() => setJsonEntry(null)} title="Request History JSON" data={jsonEntry} />
+      <ViewMetadataModal isOpen={Boolean(jsonEntry)} onClose={() => setJsonEntry(null)} title={isArchiveSource ? t('archive.request.title', { requestId: valueOf(jsonEntry, 'Id') || '-' }) : 'Request History JSON'} data={jsonEntry} />
       <ConfirmModal
         isOpen={Boolean(deleteEntry)}
         onClose={() => setDeleteEntry(null)}

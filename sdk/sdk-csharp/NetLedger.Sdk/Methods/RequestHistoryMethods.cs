@@ -102,11 +102,13 @@ namespace NetLedger.Sdk.Methods
             Add(parameters, "toUtc", query.ToUtc?.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
             Add(parameters, "maxResults", query.MaxResults.ToString(CultureInfo.InvariantCulture));
             Add(parameters, "skip", query.Skip.ToString(CultureInfo.InvariantCulture));
+            Add(parameters, "continuationToken", query.ContinuationToken);
             if (includeBucketMinutes)
             {
                 Add(parameters, "bucketMinutes", query.BucketMinutes.ToString(CultureInfo.InvariantCulture));
             }
 
+            Add(parameters, "allowPartial", query.AllowPartial?.ToString());
             return parameters.Count == 0 ? String.Empty : "?" + String.Join("&", parameters);
         }
 

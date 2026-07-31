@@ -2,6 +2,51 @@
 
 A Python SDK for interacting with the NetLedger Server REST API.
 
+## v4.0.0 Archive Support
+
+NetLedger Server clients remain active-data clients. v4.0.0 adds Archive Server methods for cold reads, archive metadata inspection, and migration lifecycle operations. Keep active and archive clients configured with separate base URLs.
+
+```python
+from datetime import datetime, timedelta, timezone
+
+active = NetLedgerClient('http://localhost:8080', token, tenant_id=tenant_id)
+archive = NetLedgerClient('http://localhost:8081', token, tenant_id=tenant_id)
+
+health = archive.archive.health()
+manifests = archive.archive.manifests({'maxResults': 50})
+pools = archive.archive.storage_pools()
+pool_health = archive.archive.storage_pool_health(pools[0]['Id'])
+export_result = active.archive.export_tenant_account_entries(tenant_id, account_id, {
+    'ToUtc': (datetime.now(timezone.utc) - timedelta(days=365)).isoformat(),
+    'DeleteAfterCommit': False
+})
+migration = archive.archive.migration(export_result['MigrationId'])
+batches = archive.archive.migration_batches(migration['Id'])
+history_export = active.archive.export_request_history({
+    'TenantId': tenant_id,
+    'ToUtc': (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+})
+cold_entries = archive.archive.tenant_entries(tenant_id, account_id, {
+    'maxResults': 25,
+    'ordering': 'CreatedDescending',
+    'allowPartial': True
+})
+cold_balance = archive.archive.tenant_balance_as_of(
+    tenant_id,
+    account_id,
+    (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+)
+verification = archive.archive.verify_tenant_account(tenant_id, account_id)
+cold_history = archive.archive.request_history({
+    'maxResults': 25,
+    'allowPartial': True
+})
+```
+
+For externally prepared archive payloads, the Archive Server client also exposes the lower-level migration lifecycle: `create_migration`, `create_migration_batch`, `upload_migration_batch_content`, `seal_migration`, `commit_migration`, and `abort_migration`.
+
+For an end-to-end local validation that starts disposable active and archive servers, exports old entries, and verifies hot/cold retrieval seams, run `dotnet run --project src/ArchivalValidation/ArchivalValidation.csproj --framework net8.0` from the repository root.
+
 ## Installation
 
 ```bash
@@ -254,7 +299,10 @@ client = NetLedgerClient(
 ```bash
 cd tests
 python test_harness.py http://localhost:8080 your-api-key
+python test_harness.py http://localhost:8080 your-api-key http://localhost:8081
 ```
+
+The third argument is optional. When supplied, the harness also runs Archive Server health, storage-pool, metadata, request-history, and active export checks against the archive endpoint.
 
 ## Requirements
 

@@ -37,6 +37,31 @@ namespace NetLedger.Database.SqlServer.Queries
                     [createdutc] DATETIME2 NOT NULL
                 );",
 
+                @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'accountarchivalsettings')
+                CREATE TABLE [accountarchivalsettings] (
+                    [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
+                    [tenantid] NVARCHAR(64) NOT NULL,
+                    [accountid] NVARCHAR(64) NOT NULL,
+                    [enabled] BIT NULL,
+                    [maxretentiondays] BIGINT NULL,
+                    [intervalseconds] INT NULL,
+                    [maxbatchrows] INT NULL,
+                    [deleteaftercommit] BIT NULL,
+                    [storagepoolid] NVARCHAR(128) NULL,
+                    [retrymaxattempts] INT NULL,
+                    [retryinitialdelayseconds] INT NULL,
+                    [retrymaxdelayseconds] INT NULL,
+                    [lastattemptutc] DATETIME2 NULL,
+                    [lastsuccessutc] DATETIME2 NULL,
+                    [lastarchivedthroughutc] DATETIME2 NULL,
+                    [lastfailureutc] DATETIME2 NULL,
+                    [nextattemptutc] DATETIME2 NULL,
+                    [failurecount] INT NOT NULL DEFAULT 0,
+                    [lasterror] NVARCHAR(MAX) NULL,
+                    [createdutc] DATETIME2 NOT NULL,
+                    [lastupdateutc] DATETIME2 NOT NULL
+                );",
+
                 @"IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'accounts')
                 CREATE TABLE [accounts] (
                     [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
@@ -258,6 +283,9 @@ namespace NetLedger.Database.SqlServer.Queries
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_tenantid_id') CREATE INDEX [idx_accounts_tenantid_id] ON [accounts] ([tenantid], [id]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_name') CREATE INDEX [idx_accounts_name] ON [accounts] ([name]);",
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accounts_createdutc') CREATE INDEX [idx_accounts_createdutc] ON [accounts] ([createdutc]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accountarchivalsettings_tenantid_accountid') CREATE UNIQUE INDEX [idx_accountarchivalsettings_tenantid_accountid] ON [accountarchivalsettings] ([tenantid], [accountid]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accountarchivalsettings_nextattemptutc') CREATE INDEX [idx_accountarchivalsettings_nextattemptutc] ON [accountarchivalsettings] ([nextattemptutc]);",
+                "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_accountarchivalsettings_lastattemptutc') CREATE INDEX [idx_accountarchivalsettings_lastattemptutc] ON [accountarchivalsettings] ([lastattemptutc]);",
 
                 // Entries indices
                 "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_entries_tenantid_id') CREATE INDEX [idx_entries_tenantid_id] ON [entries] ([tenantid], [id]);",

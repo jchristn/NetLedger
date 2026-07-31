@@ -53,8 +53,18 @@ namespace NetLedger.Sdk
         public int Skip { get; set; }
 
         /// <summary>
+        /// Opaque continuation token returned by Archive Server.
+        /// </summary>
+        public string? ContinuationToken { get; set; }
+
+        /// <summary>
         /// Summary bucket size in minutes.
         /// </summary>
         public int BucketMinutes { get; set; } = 15;
+
+        /// <summary>
+        /// Whether partial archive coverage is acceptable when querying Archive Server.
+        /// </summary>
+        public bool? AllowPartial { get; set; }
     }
 }

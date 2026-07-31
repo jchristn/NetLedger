@@ -73,6 +73,11 @@ namespace NetLedger
         }
 
         /// <summary>
+        /// Opaque continuation token for archive request-history pagination.
+        /// </summary>
+        public string? ContinuationToken { get; set; } = null;
+
+        /// <summary>
         /// Summary bucket size in minutes. Default 15, minimum 1, maximum 1440.
         /// </summary>
         public int BucketMinutes

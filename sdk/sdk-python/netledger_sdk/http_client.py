@@ -63,6 +63,16 @@ class HttpClient:
         """Make a PUT request."""
         return self._request('PUT', path, body)
 
+    def put_raw(
+        self,
+        path: str,
+        body: Any,
+        content_type: str = 'application/octet-stream',
+        headers: Optional[Dict[str, str]] = None
+    ) -> ApiResponse:
+        """Make a PUT request with raw content."""
+        return self._raw_request('PUT', path, body, content_type, headers)
+
     def post(self, path: str, body: Optional[Any] = None) -> ApiResponse:
         """Make a POST request."""
         return self._request('POST', path, body)
@@ -113,6 +123,61 @@ class HttpClient:
             # Get request identifier from header
             request_id = response.headers.get('x-request-id')
 
+            if not response.text or response.text.strip() == '':
+                return ApiResponse(None, response.status_code, request_id)
+
+            try:
+                data = response.json()
+                return ApiResponse(
+                    data=data,
+                    status_code=response.status_code,
+                    request_id=request_id
+                )
+            except ValueError:
+                raise NetLedgerApiError(response.status_code, 'Failed to parse response')
+
+        except requests.exceptions.Timeout:
+            raise NetLedgerConnectionError('Request timed out')
+        except requests.exceptions.RequestException as e:
+            raise NetLedgerConnectionError('Failed to connect to the server', e)
+
+    def _raw_request(
+        self,
+        method: str,
+        path: str,
+        body: Any,
+        content_type: str,
+        headers: Optional[Dict[str, str]] = None
+    ) -> ApiResponse:
+        """Make an HTTP request with raw content."""
+        try:
+            url = f'{self.base_url}{path}'
+            request_headers = {'Content-Type': content_type or 'application/octet-stream'}
+            if headers:
+                request_headers.update(headers)
+
+            response = self.session.request(
+                method,
+                url,
+                data=body,
+                headers=request_headers,
+                timeout=self.timeout
+            )
+
+            if not (200 <= response.status_code < 300):
+                error_message = response.reason or 'Unknown error'
+                error_details = None
+
+                try:
+                    error_data = response.json()
+                    error_message = error_data.get('message', error_message)
+                    error_details = error_data.get('description')
+                except (ValueError, KeyError):
+                    pass
+
+                raise NetLedgerApiError(response.status_code, error_message, error_details)
+
+            request_id = response.headers.get('x-request-id')
             if not response.text or response.text.strip() == '':
                 return ApiResponse(None, response.status_code, request_id)
 

@@ -19,6 +19,10 @@ export declare class HttpClient {
      */
     put<T>(path: string, body?: unknown): Promise<ApiResponse<T>>;
     /**
+     * Make a PUT request with raw content.
+     */
+    putRaw<T>(path: string, body: Buffer | Uint8Array | string, contentType?: string, headers?: Record<string, string>): Promise<ApiResponse<T>>;
+    /**
      * Make a POST request.
      */
     post<T>(path: string, body?: unknown): Promise<ApiResponse<T>>;
@@ -38,5 +42,9 @@ export declare class HttpClient {
      * Make an HTTP request.
      */
     private request;
+    /**
+     * Make an HTTP request with raw content.
+     */
+    private rawRequest;
 }
 //# sourceMappingURL=http-client.d.ts.map

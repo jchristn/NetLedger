@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+		<Version>4.0.0</Version>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<Authors>Joel Christner</Authors>
+		<Company>Joel Christner</Company>
+		<Description>Archive contracts, catalog models, and storage abstractions for NetLedger.</Description>
+		<Copyright>(c)2026 Joel Christner</Copyright>
+		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+		<PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
+		<RepositoryType>github</RepositoryType>
+		<PackageTags>ledger finance archive cold-storage s3 retention</PackageTags>
+		<PackageReleaseNotes>NetLedger v4.0.0 archive contracts, storage abstractions, and archive catalog model support.</PackageReleaseNotes>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<DocumentationFile>NetLedger.Archive.xml</DocumentationFile>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+	</PropertyGroup>
+
+	<PropertyGroup>
+	  <NoWarn>1701;1702;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\NetLedger\NetLedger.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="AWSSDK.S3" Version="4.0.101.3" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+		<PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+		<PackageReference Include="MySqlConnector" Version="2.6.1" />
+		<PackageReference Include="Npgsql" Version="10.0.3" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\LICENSE.md">
+			<Pack>True</Pack>
+			<PackagePath></PackagePath>
+		</None>
+		<None Include="..\..\README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+</Project>

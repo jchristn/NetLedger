@@ -120,7 +120,7 @@ The current codebase is v2-oriented and mostly single-tenant. The core shapes ar
 - [ ] Add `.dockerignore` if Docker builds remain in the release workflow.
 - [ ] Keep source under `src/`, SDKs under `sdk/`, Docker under `docker/`, and documentation at root.
 - [ ] Add thorough SDK test harnesses for C#, JS/TS, and Python.
-- [ ] Keep Docker compose files as `.yaml`, matching the current repository.
+- [ ] Keep the Docker Compose file as `.yaml`, matching the current repository.
 
 ## Target Domain Model
 

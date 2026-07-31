@@ -37,5 +37,10 @@ namespace NetLedger.Server.Authentication
         /// Effective permission tuples.
         /// </summary>
         public List<EffectivePermission> Permissions { get; set; } = new List<EffectivePermission>();
+
+        /// <summary>
+        /// Account identifiers mapped to the principal inside the tenant.
+        /// </summary>
+        public List<string> MappedAccountIds { get; set; } = new List<string>();
     }
 }

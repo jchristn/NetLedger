@@ -50,6 +50,7 @@ namespace NetLedger.Database.Sqlite
             Users = new UserMethods(this);
             AuthSessions = new AuthSessionMethods(this);
             AccountUserMaps = new AccountUserMapMethods(this);
+            AccountArchivalSettings = new PortableSqlAccountArchivalSettingsMethods(this, DatabaseTypeEnum.Sqlite);
             AuditRecords = new AuditRecordMethods(this);
             RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Sqlite);
             Rbac = new RbacMethods(this);

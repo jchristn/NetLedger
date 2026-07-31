@@ -34,6 +34,11 @@ namespace NetLedger.Server.Settings
         public RequestHistorySettings RequestHistory { get; set; } = new RequestHistorySettings();
 
         /// <summary>
+        /// Archive integration settings.
+        /// </summary>
+        public ArchiveSettings Archive { get; set; } = new ArchiveSettings();
+
+        /// <summary>
         /// Instantiate.
         /// </summary>
         public ServerSettings()

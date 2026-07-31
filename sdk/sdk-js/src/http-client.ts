@@ -39,6 +39,18 @@ export class HttpClient {
     }
 
     /**
+     * Make a PUT request with raw content.
+     */
+    async putRaw<T>(
+        path: string,
+        body: Buffer | Uint8Array | string,
+        contentType: string = 'application/octet-stream',
+        headers?: Record<string, string>
+    ): Promise<ApiResponse<T>> {
+        return this.rawRequest<T>('PUT', path, body, contentType, headers);
+    }
+
+    /**
      * Make a POST request.
      */
     async post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -184,6 +196,99 @@ export class HttpClient {
             if (bodyData) {
                 req.write(bodyData);
             }
+            req.end();
+        });
+    }
+
+    /**
+     * Make an HTTP request with raw content.
+     */
+    private rawRequest<T>(
+        method: string,
+        path: string,
+        body: Buffer | Uint8Array | string,
+        contentType: string,
+        headers?: Record<string, string>
+    ): Promise<ApiResponse<T>> {
+        return new Promise<ApiResponse<T>>((resolve, reject) => {
+            const url = new URL(path, this.baseUrl);
+            const isHttps = url.protocol === 'https:';
+            const lib = isHttps ? https : http;
+            const bodyData = typeof body === 'string' ? Buffer.from(body) : Buffer.from(body);
+
+            const options: http.RequestOptions = {
+                method,
+                hostname: url.hostname,
+                port: url.port || (isHttps ? 443 : 80),
+                path: url.pathname + url.search,
+                timeout: this.timeoutMs,
+                agent: isHttps ? this.httpsAgent : this.httpAgent,
+                headers: {
+                    'Authorization': `Bearer ${this.apiKey}`,
+                    'Accept': 'application/json',
+                    'Content-Type': contentType || 'application/octet-stream',
+                    'Content-Length': bodyData.length,
+                    ...(this.tenantId ? { 'x-tenant-id': this.tenantId } : {}),
+                    ...(headers || {})
+                }
+            };
+
+            const req = lib.request(options, (res) => {
+                let data = '';
+
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+
+                res.on('end', () => {
+                    const statusCode = res.statusCode || 0;
+
+                    if (statusCode < 200 || statusCode >= 300) {
+                        let errorMessage = res.statusMessage || 'Unknown error';
+                        let errorDetails: string | undefined;
+
+                        if (data) {
+                            try {
+                                const errorResponse: ErrorResponse = JSON.parse(data);
+                                errorMessage = errorResponse.Message || errorMessage;
+                                errorDetails = errorResponse.Description;
+                            } catch {
+                                // Failed to parse error response
+                            }
+                        }
+
+                        reject(new NetLedgerApiError(statusCode, errorMessage, errorDetails));
+                        return;
+                    }
+
+                    if (!data || data.trim() === '') {
+                        resolve({ StatusCode: statusCode } as ApiResponse<T>);
+                        return;
+                    }
+
+                    try {
+                        const parsedData = JSON.parse(data);
+                        const response: ApiResponse<T> = {
+                            StatusCode: statusCode,
+                            Data: parsedData as T
+                        };
+                        resolve(response);
+                    } catch {
+                        reject(new NetLedgerApiError(statusCode, 'Failed to parse response'));
+                    }
+                });
+            });
+
+            req.on('error', (err) => {
+                reject(new NetLedgerConnectionError('Failed to connect to the server', err));
+            });
+
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new NetLedgerConnectionError('Request timed out'));
+            });
+
+            req.write(bodyData);
             req.end();
         });
     }

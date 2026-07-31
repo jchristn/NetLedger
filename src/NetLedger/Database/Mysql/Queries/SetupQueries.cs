@@ -37,6 +37,31 @@ namespace NetLedger.Database.Mysql.Queries
                     PRIMARY KEY (`accountid`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
 
+                @"CREATE TABLE IF NOT EXISTS `accountarchivalsettings` (
+                    `id` VARCHAR(64) NOT NULL,
+                    `tenantid` VARCHAR(64) NOT NULL,
+                    `accountid` VARCHAR(64) NOT NULL,
+                    `enabled` TINYINT(1) NULL,
+                    `maxretentiondays` BIGINT NULL,
+                    `intervalseconds` INT NULL,
+                    `maxbatchrows` INT NULL,
+                    `deleteaftercommit` TINYINT(1) NULL,
+                    `storagepoolid` VARCHAR(128) NULL,
+                    `retrymaxattempts` INT NULL,
+                    `retryinitialdelayseconds` INT NULL,
+                    `retrymaxdelayseconds` INT NULL,
+                    `lastattemptutc` DATETIME(6) NULL,
+                    `lastsuccessutc` DATETIME(6) NULL,
+                    `lastarchivedthroughutc` DATETIME(6) NULL,
+                    `lastfailureutc` DATETIME(6) NULL,
+                    `nextattemptutc` DATETIME(6) NULL,
+                    `failurecount` INT NOT NULL DEFAULT 0,
+                    `lasterror` TEXT NULL,
+                    `createdutc` DATETIME(6) NOT NULL,
+                    `lastupdateutc` DATETIME(6) NOT NULL,
+                    PRIMARY KEY (`id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
+
                 @"CREATE TABLE IF NOT EXISTS `accounts` (
                     `id` VARCHAR(64) NOT NULL,
                     `tenantid` VARCHAR(64) NOT NULL DEFAULT '',
@@ -259,6 +284,9 @@ namespace NetLedger.Database.Mysql.Queries
                 "CREATE INDEX `idx_accounts_tenantid_id` ON `accounts` (`tenantid`, `id`);",
                 "CREATE INDEX `idx_accounts_name` ON `accounts` (`name`);",
                 "CREATE INDEX `idx_accounts_createdutc` ON `accounts` (`createdutc`);",
+                "CREATE UNIQUE INDEX `idx_accountarchivalsettings_tenantid_accountid` ON `accountarchivalsettings` (`tenantid`, `accountid`);",
+                "CREATE INDEX `idx_accountarchivalsettings_nextattemptutc` ON `accountarchivalsettings` (`nextattemptutc`);",
+                "CREATE INDEX `idx_accountarchivalsettings_lastattemptutc` ON `accountarchivalsettings` (`lastattemptutc`);",
 
                 // Entries indices
                 "CREATE INDEX `idx_entries_tenantid_id` ON `entries` (`tenantid`, `id`);",

@@ -14,7 +14,9 @@ namespace NetLedger.Sdk.Test
 
         private static string _Endpoint = string.Empty;
         private static string _ApiKey = string.Empty;
+        private static string _ArchiveEndpoint = string.Empty;
         private static NetLedgerClient _Client = null!;
+        private static NetLedgerClient? _ArchiveClient = null;
         private static List<TestResult> _Results = new List<TestResult>();
         private static Stopwatch _TotalStopwatch = new Stopwatch();
 
@@ -30,22 +32,39 @@ namespace NetLedger.Sdk.Test
 
             if (args.Length < 2)
             {
-                Console.WriteLine("Usage: NetLedger.Sdk.Test <endpoint> <api-key>");
+                Console.WriteLine("Usage: NetLedger.Sdk.Test <endpoint> <api-key> [archive-endpoint]");
                 Console.WriteLine();
                 Console.WriteLine("Example: NetLedger.Sdk.Test http://localhost:8080 your-api-key-here");
+                Console.WriteLine("Example: NetLedger.Sdk.Test http://localhost:8080 your-api-key-here http://localhost:8081");
                 return 1;
             }
 
             _Endpoint = args[0];
             _ApiKey = args[1];
+            if (args.Length > 2)
+            {
+                _ArchiveEndpoint = args[2];
+            }
 
             Console.WriteLine($"Endpoint: {_Endpoint}");
+            if (!String.IsNullOrWhiteSpace(_ArchiveEndpoint))
+            {
+                Console.WriteLine($"Archive Endpoint: {_ArchiveEndpoint}");
+            }
             Console.WriteLine($"API Key: {_ApiKey.Substring(0, Math.Min(8, _ApiKey.Length))}...");
             Console.WriteLine();
 
             try
             {
-                _Client = new NetLedgerClient(_Endpoint, _ApiKey);
+                if (!String.IsNullOrWhiteSpace(_ArchiveEndpoint))
+                {
+                    _Client = new NetLedgerClient(_Endpoint, _ApiKey, "default");
+                    _ArchiveClient = new NetLedgerClient(_ArchiveEndpoint, _ApiKey, "default");
+                }
+                else
+                {
+                    _Client = new NetLedgerClient(_Endpoint, _ApiKey);
+                }
             }
             catch (Exception ex)
             {
@@ -64,11 +83,13 @@ namespace NetLedger.Sdk.Test
                 await RunBalanceTests().ConfigureAwait(false);
                 await RunApiKeyTests().ConfigureAwait(false);
                 await RunRequestHistoryTests().ConfigureAwait(false);
+                await RunArchiveTests().ConfigureAwait(false);
                 await CleanupTests().ConfigureAwait(false);
             }
             finally
             {
                 _TotalStopwatch.Stop();
+                _ArchiveClient?.Dispose();
                 _Client.Dispose();
             }
 
@@ -742,6 +763,94 @@ namespace NetLedger.Sdk.Test
                 }).ConfigureAwait(false);
                 if (summary.TotalCount < 0) throw new Exception("Request history summary total count invalid");
             }).ConfigureAwait(false);
+
+            Console.WriteLine();
+        }
+
+        private static async Task RunArchiveTests()
+        {
+            if (_ArchiveClient == null)
+            {
+                return;
+            }
+
+            PrintSectionHeader("ARCHIVE SERVER TESTS");
+
+            await RunTest("Archive Health Check", async () =>
+            {
+                ArchiveHealth health = await _ArchiveClient.Archive.HealthAsync().ConfigureAwait(false);
+                if (!health.Healthy) throw new Exception("Archive health returned false");
+            }).ConfigureAwait(false);
+
+            await RunTest("Archive Storage Pools", async () =>
+            {
+                List<ArchiveStoragePoolInfo> pools = await _ArchiveClient.Archive.StoragePoolsAsync(new ArchiveQuery
+                {
+                    MaxResults = 10
+                }).ConfigureAwait(false);
+                if (pools.Count == 0) throw new Exception("Archive Server should report at least one storage pool");
+
+                ArchiveStoragePoolInfo pool = pools[0];
+                if (String.IsNullOrWhiteSpace(pool.Id)) throw new Exception("Archive storage pool ID missing");
+                ArchiveStoragePoolHealthInfo health = await _ArchiveClient.Archive.StoragePoolHealthAsync(pool.Id).ConfigureAwait(false);
+                if (String.IsNullOrWhiteSpace(health.StoragePoolId)) throw new Exception("Archive storage pool health ID missing");
+            }).ConfigureAwait(false);
+
+            await RunTest("Archive Metadata Lists", async () =>
+            {
+                List<ArchiveMigrationInfo> migrations = await _ArchiveClient.Archive.MigrationsAsync(new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
+                if (migrations.Count > 0 && !String.IsNullOrWhiteSpace(migrations[0].Id))
+                {
+                    ArchiveMigrationInfo migration = await _ArchiveClient.Archive.MigrationAsync(migrations[0].Id).ConfigureAwait(false);
+                    if (String.IsNullOrWhiteSpace(migration.Id)) throw new Exception("Archive migration detail ID missing");
+                    await _ArchiveClient.Archive.MigrationBatchesAsync(migration.Id, new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
+                }
+
+                List<ArchiveManifestInfo> manifests = await _ArchiveClient.Archive.ManifestsAsync(new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
+                if (manifests.Count > 0 && !String.IsNullOrWhiteSpace(manifests[0].Id))
+                {
+                    ArchiveManifestInfo manifest = await _ArchiveClient.Archive.ManifestAsync(manifests[0].Id).ConfigureAwait(false);
+                    if (String.IsNullOrWhiteSpace(manifest.Id)) throw new Exception("Archive manifest detail ID missing");
+                    await _ArchiveClient.Archive.ManifestCheckpointsAsync(manifest.Id, new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
+                    List<ArchiveObjectInfo> objects = await _ArchiveClient.Archive.ManifestObjectsAsync(manifest.Id, new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
+                    if (objects.Count > 0 && !String.IsNullOrWhiteSpace(objects[0].Id))
+                    {
+                        ArchiveObjectMetadataInfo metadata = await _ArchiveClient.Archive.ObjectMetadataAsync(objects[0].Id).ConfigureAwait(false);
+                        if (String.IsNullOrWhiteSpace(metadata.ObjectId)) throw new Exception("Archive object metadata ID missing");
+                    }
+                }
+
+                await _ArchiveClient.Archive.RangesAsync(new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+            await RunTest("Archive Server Request History Summary", async () =>
+            {
+                RequestHistorySummary summary = await _ArchiveClient.Archive.ArchiveServerRequestHistorySummaryAsync(new RequestHistoryQuery
+                {
+                    MaxResults = 100,
+                    BucketMinutes = 15
+                }).ConfigureAwait(false);
+                if (summary.TotalCount < 0) throw new Exception("Archive Server request history total count invalid");
+            }).ConfigureAwait(false);
+
+            if (!String.IsNullOrWhiteSpace(_TestAccountId))
+            {
+                await RunTest("Active Export No-Row Retention Range", async () =>
+                {
+                    ArchiveExportResponse response = await _Client.Archive.ExportTenantAccountEntriesAsync(
+                        "default",
+                        _TestAccountId,
+                        new ArchiveExportRequest
+                        {
+                            FromUtc = DateTime.UnixEpoch,
+                            ToUtc = DateTime.UtcNow.AddDays(-2),
+                            MaxBatchRows = 10,
+                            DeleteAfterCommit = false
+                        }).ConfigureAwait(false);
+
+                    if (response.RowsExported != 0) throw new Exception("No-row export should not export current SDK harness rows");
+                }).ConfigureAwait(false);
+            }
 
             Console.WriteLine();
         }

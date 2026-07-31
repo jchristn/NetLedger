@@ -11,6 +11,7 @@ import Tenants from './views/Tenants'
 import Users from './views/Users'
 import RequestHistory from './views/RequestHistory'
 import ApiExplorer from './views/ApiExplorer'
+import Archive from './views/Archive'
 import { getRoleFlags } from './utils/roles'
 
 function PrivateRoute({ children }) {
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="accounts" element={<RoleRoute allow={(flags) => flags.isAdmin}><Accounts /></RoleRoute>} />
         <Route path="entries" element={<RoleRoute allow={(flags) => flags.isAdmin}><Entries /></RoleRoute>} />
         <Route path="request-history" element={<RequestHistory />} />
+        <Route path="archive" element={<Archive />} />
         <Route path="api-explorer" element={<ApiExplorer />} />
         <Route path="security" element={<Navigate to="/tenants" replace />} />
       </Route>

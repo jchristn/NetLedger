@@ -52,6 +52,11 @@ namespace NetLedger.Database
         public IAccountUserMapMethods AccountUserMaps { get; protected set; }
 
         /// <summary>
+        /// Account archival settings methods.
+        /// </summary>
+        public IAccountArchivalSettingsMethods AccountArchivalSettings { get; protected set; }
+
+        /// <summary>
         /// Audit record methods.
         /// </summary>
         public IAuditRecordMethods AuditRecords { get; protected set; }

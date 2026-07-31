@@ -2,6 +2,45 @@
 
 A JavaScript/TypeScript SDK for interacting with the NetLedger Server REST API.
 
+## v4.0.0 Archive Support
+
+NetLedger Server clients remain active-data clients. v4.0.0 adds Archive Server methods for cold reads, archive metadata inspection, and migration lifecycle operations. Keep active and archive clients configured with separate base URLs.
+
+```typescript
+const active = new NetLedgerClient('http://localhost:8080', token, { tenantId });
+const archive = new NetLedgerClient('http://localhost:8081', token, { tenantId });
+
+const health = await archive.archive.health();
+const manifests = await archive.archive.manifests({ maxResults: 50 });
+const pools = await archive.archive.storagePools();
+const poolHealth = await archive.archive.storagePoolHealth(pools[0].Id);
+const exportResult = await active.archive.exportTenantAccountEntries(tenantId, accountId, {
+    ToUtc: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+    DeleteAfterCommit: false
+});
+const migration = await archive.archive.migration(exportResult.MigrationId!);
+const batches = await archive.archive.migrationBatches(migration.Id);
+const historyExport = await active.archive.exportRequestHistory({
+    TenantId: tenantId,
+    ToUtc: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+});
+const coldEntries = await archive.archive.tenantEntries(tenantId, accountId, {
+    maxResults: 25,
+    ordering: 'CreatedDescending',
+    allowPartial: true
+});
+const coldBalance = await archive.archive.tenantBalanceAsOf(tenantId, accountId, new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
+const verification = await archive.archive.verifyTenantAccount(tenantId, accountId);
+const coldHistory = await archive.archive.requestHistory({
+    MaxResults: 25,
+    AllowPartial: true
+});
+```
+
+For externally prepared archive payloads, the Archive Server client also exposes the lower-level migration lifecycle: `createMigration`, `createMigrationBatch`, `uploadMigrationBatchContent`, `sealMigration`, `commitMigration`, and `abortMigration`.
+
+For an end-to-end local validation that starts disposable active and archive servers, exports old entries, and verifies hot/cold retrieval seams, run `dotnet run --project src/ArchivalValidation/ArchivalValidation.csproj --framework net8.0` from the repository root.
+
 ## Installation
 
 ```bash
@@ -233,7 +272,10 @@ npm run build
 
 # Run tests
 npm test -- http://localhost:8080 your-api-key
+npm test -- http://localhost:8080 your-api-key http://localhost:8081
 ```
+
+The third argument is optional. When supplied, the harness also runs Archive Server health, storage-pool, metadata, request-history, and active export checks against the archive endpoint.
 
 ## License
 

@@ -6,6 +6,7 @@ namespace NetLedger.Server.API.Agnostic
     using System.Threading.Tasks;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
     using SyslogLogging;
 
@@ -21,6 +22,7 @@ namespace NetLedger.Server.API.Agnostic
         private readonly LoggingModule _Logging;
         private readonly Ledger _Ledger;
         private readonly AuthorizationService _AuthorizationService;
+        private readonly ActiveArchiveBoundaryService _ArchiveBoundary;
 
         #endregion
 
@@ -38,6 +40,7 @@ namespace NetLedger.Server.API.Agnostic
             _Logging = logging ?? throw new ArgumentNullException(nameof(logging));
             _Ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             _AuthorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
+            _ArchiveBoundary = new ActiveArchiveBoundaryService(_Settings);
 
             _Logging.Debug(_Header + "initialized");
         }
@@ -68,6 +71,11 @@ namespace NetLedger.Server.API.Agnostic
             {
                 return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
             }
+
+            DateTime? fromUtc = req.StartTimeUtc;
+            ResponseContext? archiveRangeError = _ArchiveBoundary.ApplyActiveRange(req, ref fromUtc, req.EndTimeUtc, "Entry");
+            if (archiveRangeError != null) return archiveRangeError;
+            req.StartTimeUtc = fromUtc;
 
             EnumerationQuery query = new EnumerationQuery
             {
@@ -208,8 +216,15 @@ namespace NetLedger.Server.API.Agnostic
                 queryReq = new EnumerationQuery();
             }
 
+            DateTime? fromUtc = queryReq.CreatedAfterUtc ?? req.StartTimeUtc;
+            DateTime? toUtc = queryReq.CreatedBeforeUtc ?? req.EndTimeUtc;
+            ResponseContext? archiveRangeError = _ArchiveBoundary.ApplyActiveRange(req, ref fromUtc, toUtc, "Entry");
+            if (archiveRangeError != null) return archiveRangeError;
+
             queryReq.AccountId = req.AccountId;
             queryReq.TenantId = req.TenantId;
+            queryReq.CreatedAfterUtc = fromUtc;
+            queryReq.CreatedBeforeUtc = toUtc;
 
             EnumerationResult<Entry> result = await _Ledger.EnumerateTransactionsAsync(queryReq, token).ConfigureAwait(false);
 
@@ -404,5 +419,4 @@ namespace NetLedger.Server.API.Agnostic
         #endregion
     }
 }
-
 

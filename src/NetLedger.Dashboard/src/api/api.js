@@ -20,6 +20,7 @@ export class NetLedgerApi {
     this.apiKey = apiKey
     this.tenantId = tenantId
     this.onAuthenticationFailed = typeof options.onAuthenticationFailed === 'function' ? options.onAuthenticationFailed : null
+    this.localeProvider = typeof options.localeProvider === 'function' ? options.localeProvider : null
   }
 
   handleAuthenticationFailure(error) {
@@ -66,6 +67,10 @@ export class NetLedgerApi {
 
     const headers = {
       'Content-Type': 'application/json'
+    }
+    const locale = this.localeProvider ? this.localeProvider() : ''
+    if (locale) {
+      headers['Accept-Language'] = locale
     }
 
     if (this.apiKey) {
@@ -175,6 +180,10 @@ export class NetLedgerApi {
     }
 
     const headers = { ...extraHeaders }
+    const locale = this.localeProvider ? this.localeProvider() : ''
+    if (locale && !headers['Accept-Language'] && !headers['accept-language']) {
+      headers['Accept-Language'] = locale
+    }
     if (body !== null && body !== undefined && body !== '' && !headers['Content-Type'] && !headers['content-type']) {
       headers['Content-Type'] = 'application/json'
     }
@@ -642,6 +651,110 @@ export class NetLedgerApi {
 
   async deleteRequestHistory(options = {}) {
     return this.delete('/v1.0/api/request-history', options)
+  }
+
+  async getArchiveHealth() {
+    return this.get('/v1/health')
+  }
+
+  async listArchiveRanges(options = {}) {
+    return this.get('/v1/archive/ranges', options)
+  }
+
+  async listArchiveManifests(options = {}) {
+    return this.get('/v1/archive/manifests', options)
+  }
+
+  async readArchiveManifest(manifestId) {
+    return this.get(`/v1/archive/manifests/${encodeURIComponent(manifestId)}`)
+  }
+
+  async listArchiveManifestObjects(manifestId, options = {}) {
+    return this.get(`/v1/archive/manifests/${encodeURIComponent(manifestId)}/objects`, options)
+  }
+
+  async listArchiveManifestCheckpoints(manifestId, options = {}) {
+    return this.get(`/v1/archive/manifests/${encodeURIComponent(manifestId)}/checkpoints`, options)
+  }
+
+  async verifyArchiveManifest(manifestId) {
+    return this.post(`/v1/archive/manifests/${encodeURIComponent(manifestId)}/verify`)
+  }
+
+  async quarantineArchiveManifest(manifestId) {
+    return this.post(`/v1/archive/manifests/${encodeURIComponent(manifestId)}/quarantine`)
+  }
+
+  async supersedeArchiveManifest(manifestId) {
+    return this.post(`/v1/archive/manifests/${encodeURIComponent(manifestId)}/supersede`)
+  }
+
+  async listArchiveStoragePools(options = {}) {
+    return this.get('/v1/archive/storage-pools', options)
+  }
+
+  async getArchiveStoragePoolHealth(storagePoolId) {
+    return this.get(`/v1/archive/storage-pools/${encodeURIComponent(storagePoolId)}/health`)
+  }
+
+  async listArchiveMigrations(options = {}) {
+    return this.get('/v1/archive/migrations', options)
+  }
+
+  async exportEntriesToArchive(request = {}) {
+    return this.post('/v1/archive/exports/entries', request)
+  }
+
+  async exportRequestHistoryToArchive(request = {}) {
+    return this.post('/v1/archive/exports/request-history', request)
+  }
+
+  async exportTenantAccountEntriesToArchive(tenantId, accountId, request = {}) {
+    return this.post(`/v1/tenants/${encodeURIComponent(tenantId)}/accounts/${encodeURIComponent(accountId)}/archive/export`, request)
+  }
+
+  async listArchivedEntries(accountId, options = {}) {
+    return this.get(`/v1/archive/accounts/${encodeURIComponent(accountId)}/entries`, options)
+  }
+
+  async listArchivedTenantEntries(tenantId, accountId, options = {}) {
+    return this.get(`/v1/tenants/${encodeURIComponent(tenantId)}/accounts/${encodeURIComponent(accountId)}/entries`, options)
+  }
+
+  async verifyArchivedAccount(accountId, options = {}) {
+    return this.get(`/v1/archive/accounts/${encodeURIComponent(accountId)}/verify`, options)
+  }
+
+  async verifyArchivedTenantAccount(tenantId, accountId, options = {}) {
+    return this.get(`/v1/tenants/${encodeURIComponent(tenantId)}/accounts/${encodeURIComponent(accountId)}/verify`, options)
+  }
+
+  async readArchiveObjectMetadata(objectId) {
+    return this.get(`/v1/archive/objects/${encodeURIComponent(objectId)}/metadata`)
+  }
+
+  async listArchivedRequestHistory(options = {}) {
+    return this.get('/v1/request-history', options)
+  }
+
+  async summarizeArchivedRequestHistory(options = {}) {
+    return this.get('/v1/request-history/summary', options)
+  }
+
+  async readArchivedRequestHistoryEntry(id, options = {}) {
+    return this.get(`/v1/request-history/${encodeURIComponent(id)}`, options)
+  }
+
+  async listArchiveServerRequestHistory(options = {}) {
+    return this.get('/v1/archive-server/request-history', options)
+  }
+
+  async summarizeArchiveServerRequestHistory(options = {}) {
+    return this.get('/v1/archive-server/request-history/summary', options)
+  }
+
+  async readArchiveServerRequestHistoryEntry(id, options = {}) {
+    return this.get(`/v1/archive-server/request-history/${encodeURIComponent(id)}`, options)
   }
 }
 

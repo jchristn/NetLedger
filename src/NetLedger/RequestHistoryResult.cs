@@ -29,6 +29,11 @@ namespace NetLedger
         public bool EndOfResults { get; set; } = true;
 
         /// <summary>
+        /// Opaque continuation token for fetching the next page.
+        /// </summary>
+        public string? ContinuationToken { get; set; } = null;
+
+        /// <summary>
         /// Maximum records requested.
         /// </summary>
         public int MaxResults { get; set; } = 25;

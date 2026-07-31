@@ -342,6 +342,18 @@ namespace NetLedger.Database.Portable
             return result == null || result.Rows.Count == 0 ? null : DataRowToEntry(result.Rows[0]);
         }
 
+        public async Task<Entry> ReadFirstBalanceAfterAsync(string accountId, DateTime afterUtc, CancellationToken token = default)
+        {
+            string where = Column("accountguid") + " = '" + Sanitize(accountId) + "' AND " +
+                Column("type") + " = '" + EntryType.Balance + "' AND " +
+                Column("createdutc") + " > '" + FormatTimestamp(afterUtc) + "'";
+            DataTable result = await _Driver.ExecuteQueryAsync(
+                SelectOne("entries", where, Column("createdutc") + " ASC, " + Column("id") + " ASC"),
+                false,
+                token).ConfigureAwait(false);
+            return result == null || result.Rows.Count == 0 ? null : DataRowToEntry(result.Rows[0]);
+        }
+
         public async Task<List<Entry>> ReadWithFilterAsync(string accountId, FilterBuilder filter, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder("SELECT * FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "'");
@@ -460,6 +472,33 @@ namespace NetLedger.Database.Portable
             return _Driver.ExecuteQueryAsync("DELETE FROM " + Table("entries") + " WHERE " + Column("accountguid") + " = '" + Sanitize(accountId) + "';", true, token);
         }
 
+        public async Task<long> DeleteCommittedBeforeAsync(string tenantId, string accountId, DateTime beforeUtc, int maxRows, string? preserveEntryId = null, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(tenantId)) throw new ArgumentNullException(nameof(tenantId));
+            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+            if (maxRows < 1) throw new ArgumentOutOfRangeException(nameof(maxRows), "Max rows must be at least 1.");
+
+            string where = Column("tenantid") + " = '" + Sanitize(tenantId) + "' AND " +
+                Column("accountguid") + " = '" + Sanitize(accountId) + "' AND " +
+                Column("iscommitted") + " = " + Bool(true) + " AND " +
+                Column("createdutc") + " <= '" + FormatTimestamp(beforeUtc) + "'";
+            if (!String.IsNullOrWhiteSpace(preserveEntryId))
+            {
+                where += " AND " + Column("id") + " != '" + Sanitize(preserveEntryId) + "'";
+            }
+
+            string limitedIds = BuildLimitedIdSelect(where, maxRows);
+            DataTable countResult = await _Driver.ExecuteQueryAsync("SELECT COUNT(*) FROM (" + limitedIds + ") AS archivaldeleteids;", false, token).ConfigureAwait(false);
+            long deleted = countResult != null && countResult.Rows.Count > 0 ? Convert.ToInt64(countResult.Rows[0][0], CultureInfo.InvariantCulture) : 0L;
+            if (deleted == 0) return 0L;
+
+            string deleteIds = _DatabaseType == DatabaseTypeEnum.Mysql
+                ? "SELECT " + Column("id") + " FROM (" + limitedIds + ") AS archivaldeleteids"
+                : limitedIds;
+            await _Driver.ExecuteQueryAsync("DELETE FROM " + Table("entries") + " WHERE " + Column("id") + " IN (" + deleteIds + ");", true, token).ConfigureAwait(false);
+            return deleted;
+        }
+
         public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
             return await CountAsync("id = '" + Sanitize(id) + "'", token).ConfigureAwait(false) > 0;
@@ -468,6 +507,17 @@ namespace NetLedger.Database.Portable
         public async Task<int> GetCountByAccountIdAsync(string accountId, CancellationToken token = default)
         {
             return (int)await CountAsync("accountguid = '" + Sanitize(accountId) + "'", token).ConfigureAwait(false);
+        }
+
+        public async Task<long> CountPendingBeforeAsync(string accountId, DateTime beforeUtc, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+
+            string where = Column("accountguid") + " = '" + Sanitize(accountId) + "' AND " +
+                Column("type") + " != '" + EntryType.Balance + "' AND " +
+                Column("iscommitted") + " = " + Bool(false) + " AND " +
+                Column("createdutc") + " <= '" + FormatTimestamp(beforeUtc) + "'";
+            return await CountAsync(where, token).ConfigureAwait(false);
         }
 
         public async Task<decimal> SumPendingCreditsAsync(string accountId, CancellationToken token = default)
@@ -549,6 +599,18 @@ namespace NetLedger.Database.Portable
             if (ordering == EnumerationOrderEnum.AmountDescending) return "ORDER BY " + Column("amount") + " DESC, " + Column("id") + " DESC";
             if (ordering == EnumerationOrderEnum.AmountAscending) return "ORDER BY " + Column("amount") + " ASC, " + Column("id") + " ASC";
             return "ORDER BY " + Column("createdutc") + " DESC, " + Column("id") + " DESC";
+        }
+
+        private string BuildLimitedIdSelect(string where, int maxRows)
+        {
+            string count = maxRows.ToString(CultureInfo.InvariantCulture);
+            string orderBy = " ORDER BY " + Column("createdutc") + " ASC, " + Column("id") + " ASC";
+            if (_DatabaseType == DatabaseTypeEnum.SqlServer)
+            {
+                return "SELECT TOP " + count + " " + Column("id") + " FROM " + Table("entries") + " WHERE " + where + orderBy;
+            }
+
+            return "SELECT " + Column("id") + " FROM " + Table("entries") + " WHERE " + where + orderBy + " LIMIT " + count;
         }
 
         private async Task<long> CountAsync(string where, CancellationToken token)

@@ -5,6 +5,8 @@ This document provides comprehensive documentation for the NetLedger.Server REST
 ## Table of Contents
 
 - [Overview](#overview)
+  - [v4.0.0 Archive Contract](#v400-archive-contract)
+  - [v3.0.0 Tenant And Metadata Contract](#v300-tenant-and-metadata-contract)
 - [Authentication](#authentication)
 - [Common Response Headers](#common-response-headers)
 - [Error Responses](#error-responses)
@@ -13,8 +15,10 @@ This document provides comprehensive documentation for the NetLedger.Server REST
   - [Account Endpoints](#account-endpoints)
   - [Entry Endpoints](#entry-endpoints)
   - [Balance and Commit Endpoints](#balance-and-commit-endpoints)
-  - [API Key Management Endpoints](#api-key-management-endpoints)
+  - [Credential Management Endpoints](#credential-management-endpoints)
   - [Request History Endpoints](#request-history-endpoints)
+  - [Active Archive Export and Settings Endpoints](#active-archive-export-and-settings-endpoints)
+  - [Archive Server Endpoints](#archive-server-endpoints)
 
 ---
 
@@ -29,6 +33,170 @@ The NetLedger REST API provides programmatic access to ledger operations includi
 **OpenAPI document**: `GET /openapi.json`
 
 The dashboard API Explorer loads `GET /openapi.json` and executes requests with the current signed-in session. Request History is available in the dashboard and through the `/v1.0/api/request-history` API aliases.
+
+### v4.0.0 Archive Contract
+
+NetLedger v4.0.0 keeps active APIs under `/v1` and introduces archive-aware server configuration plus the Archive Server contract. NetLedger Server remains active-only.
+
+NetLedger Archive Server is queried directly for cold data by clients such as the existing NetLedger dashboard and SDK archive clients.
+
+Active server archive settings:
+
+```json
+{
+  "Archive": {
+    "Enabled": false,
+    "ArchiveServerEndpoint": "http://localhost:8081",
+    "ServiceAccessKey": "default",
+    "ServiceSecretKey": "default",
+    "DefaultActiveDataRetentionDays": 365,
+    "Tenants": [],
+    "Automatic": {
+      "Enabled": false,
+      "MaxRetentionDays": 365,
+      "IntervalSeconds": 3600,
+      "InitialDelaySeconds": 30,
+      "MaxAccountsPerRun": 100,
+      "MaxBatchRows": 50000,
+      "DeleteAfterCommit": false,
+      "StoragePoolId": "asp_default",
+      "Retry": {
+        "MaxAttempts": 3,
+        "InitialDelaySeconds": 5,
+        "MaxDelaySeconds": 300
+      }
+    }
+  }
+}
+```
+
+Retention values clamp to 1 through `Int32.MaxValue` days. The minimum effective retention window is one day.
+
+Archive settings have three levels of granularity:
+
+- Server-level `Archive` settings control whether archival exists, which Archive Server is used, and the default retention and automatic archival policy.
+- Tenant retention overrides can adjust the active-data retention window for all accounts in a tenant.
+- Account archive settings can override automatic archival behavior for one account while preserving worker state.
+
+When archiving is enabled, `ArchiveServerEndpoint` must be an absolute HTTP or HTTPS URI. `Archive.ServiceAccessKey` and `Archive.ServiceSecretKey` are sent by background automatic archival tasks when calling Archive Server.
+
+Both service credential fields must be specified together or left empty.
+
+`Archive.Automatic.Enabled` is the global default for the background worker. Account-specific settings can override it; `Archive.Enabled=false` still disables all archive movement.
+
+The worker archives committed entries older than the effective `MaxRetentionDays`, writes worker state to `accountarchivalsettings`, retries per policy, and optionally performs active cleanup after Archive Server commit.
+
+Deployment overrides are available for archive-related operational values.
+
+NetLedger Server accepts `NETLEDGER_DATABASE_*`, `NETLEDGER_ARCHIVE_ENABLED`, `NETLEDGER_ARCHIVE_SERVER_ENDPOINT`, `NETLEDGER_ARCHIVE_SERVICE_ACCESS_KEY`, `NETLEDGER_ARCHIVE_SERVICE_SECRET_KEY`, and `NETLEDGER_ARCHIVE_DEFAULT_ACTIVE_DATA_RETENTION_DAYS`.
+
+It also accepts the `NETLEDGER_ARCHIVE_AUTO_*` / `NETLEDGER_ARCHIVE_AUTOMATIC_*` settings for automatic archival, schedule, batching, cleanup, storage-pool, and retry policy.
+
+NetLedger Archive Server accepts `NETLEDGER_ARCHIVE_CATALOG_*` for catalog database settings and `NETLEDGER_ARCHIVE_STORAGE_*` or `NETLEDGER_ARCHIVE_STORAGE_{POOL_ID}_*` for storage-pool paths, S3-compatible endpoint fields, and secret material.
+
+Storage-pool secret overrides are runtime-only and are not exposed by archive metadata responses.
+
+Archive reads, archive metadata management, and migration APIs are implemented by NetLedger Archive Server. NetLedger Server must not silently blend active and cold rows in one response.
+
+`GET /` and `GET /v1/service` on NetLedger Server include an `Archive` object with `Enabled`, `ArchiveServerEndpoint`, `ActiveDataRetentionDays`, and `ActiveBoundaryUtc` so clients can show the active/cold cutoff without probing archived ranges.
+
+When archiving is enabled, NetLedger Server enforces the active-data boundary before returning entries, request history, and historical balances. Requests wholly older than the configured boundary return `409` with `Error` set to `DataArchived`.
+
+Requests that cross the boundary return `409` with `Error` set to `DataRangeSplit` unless the caller supplies `allowPartial=true`; in that case NetLedger Server clamps the lower bound to the active boundary and returns active rows only.
+
+Responses from NetLedger Server include `x-netledger-data-scope: active`. Responses from NetLedger Archive Server include `x-netledger-data-scope: archive`.
+
+Active server export route:
+
+```
+POST /v1/archive/exports/entries
+POST /v1/archive/exports/request-history
+POST /v1/tenants/{tenantId}/accounts/{accountId}/archive/export
+```
+
+The export routes push committed active entries or request-history rows to NetLedger Archive Server through the migration protocol. `DeleteAfterCommit=true` runs active cleanup only after Archive Server commit succeeds.
+
+Ledger-entry cleanup acquires the account lock, rejects pending rows at or before the cutoff, and creates or reuses a committed balance anchor at the cutoff.
+
+It then deletes committed rows in bounded batches while preserving that anchor and verifies the remaining active balance chain.
+
+Request-history cleanup deletes the exported tenant/range scope after commit. Export responses include `ActiveCleanupExecuted` and `ActiveCleanupRowsDeleted`.
+
+Active server automatic archival settings routes:
+
+```
+GET    /v1/accounts/{accountId}/archive/settings
+PUT    /v1/accounts/{accountId}/archive/settings
+DELETE /v1/accounts/{accountId}/archive/settings
+GET    /v1/tenants/{tenantId}/accounts/{accountId}/archive/settings
+PUT    /v1/tenants/{tenantId}/accounts/{accountId}/archive/settings
+DELETE /v1/tenants/{tenantId}/accounts/{accountId}/archive/settings
+```
+
+PUT replaces account override fields. Null values inherit the global `Archive.Automatic` policy. DELETE clears override fields while preserving worker state such as `LastArchivedThroughUtc`, `LastSuccessUtc`, and retry metadata.
+
+Archive Server default base URL:
+
+```
+http://localhost:8081
+```
+
+Archive Server currently exposes these v4 contract routes:
+
+```
+GET  /v1/service
+GET  /v1/health
+GET  /openapi.json
+GET  /v1/archive/ranges
+GET  /v1/tenants/{tenantId}/archive/ranges
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/archive/ranges
+GET  /v1/archive/manifests
+GET  /v1/archive/manifests/{manifestId}
+GET  /v1/archive/manifests/{manifestId}/objects
+GET  /v1/archive/objects/{objectId}/metadata
+GET  /v1/archive/manifests/{manifestId}/checkpoints
+POST /v1/archive/manifests/{manifestId}/verify
+POST /v1/archive/manifests/{manifestId}/quarantine
+POST /v1/archive/manifests/{manifestId}/supersede
+GET  /v1/archive/storage-pools
+GET  /v1/archive/storage-pools/{storagePoolId}/health
+GET  /v1/archive/accounts/{accountId}/entries
+GET  /v1/archive/accounts/{accountId}/balance/asof
+GET  /v1/archive/accounts/{accountId}/verify
+GET  /v1/request-history
+GET  /v1/request-history/summary
+GET  /v1/request-history/{id}
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/entries
+POST /v1/tenants/{tenantId}/accounts/{accountId}/entries/enumerate
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/balance/asof
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/verify
+GET  /v1/archive/migrations
+GET  /v1/archive/migrations/{migrationId}
+GET  /v1/archive/migrations/{migrationId}/batches
+POST /v1/archive/migrations
+POST /v1/archive/migrations/{migrationId}/batches
+PUT  /v1/archive/migrations/{migrationId}/batches/{batchId}/content
+POST /v1/archive/migrations/{migrationId}/seal
+POST /v1/archive/migrations/{migrationId}/commit
+POST /v1/archive/migrations/{migrationId}/abort
+GET  /v1/archive-server/request-history
+GET  /v1/archive-server/request-history/summary
+GET  /v1/archive-server/request-history/{id}
+```
+
+Archive Server also registers `/api/v1/...` aliases for the archive routes above. Cold entry enumeration returns the active API's `EnumerationResult<Entry>` envelope and cold request-history enumeration returns the active API's `RequestHistoryResult` envelope.
+
+Both can read committed JSONL.Gzip archive objects from filesystem or S3-compatible storage pools.
+
+Archive enumerations accept `maxResults`, `skip`, and returned `continuationToken` values; continuation tokens are opaque and rejected when filters change.
+
+Archive Server rejects partially covered cold ranges by default when `Archive.RequireCompleteCoverage=true`; send `allowPartial=true` only when a partial cold result is acceptable.
+
+Migration create, batch metadata, batch content upload, seal, commit, and abort are catalog-backed and idempotency-aware.
+
+Manifest state transitions, object metadata reads, balance-as-of archive reads, archive account verification, and Archive Server operational request-history reads are catalog-backed.
+
+JSONL.Gzip is the only accepted v4 runtime archive format; Parquet is reserved for a future format/index workstream and is rejected by v4 migration creation.
 
 ### v3.0.0 Tenant And Metadata Contract
 
@@ -195,7 +363,7 @@ All endpoints except `HEAD /`, `GET /`, `POST /v1/auth/tenants`, and `POST /v1/a
 Authorization: Bearer <session-token-or-access-key>
 ```
 
-API keys are managed through the API Key Management endpoints. Admin endpoints require an API key with admin privileges.
+Credentials are managed through the Credential Management endpoints. Admin endpoints require a session or credential with admin privileges.
 
 ---
 
@@ -208,6 +376,7 @@ All endpoints include the following response headers:
 | `x-hostname` | Server hostname |
 | `x-api-version` | Current API version (v1) |
 | `x-request-id` | Unique request identifier for tracking |
+| `x-netledger-data-scope` | `active` from NetLedger Server or `archive` from NetLedger Archive Server on data-bearing responses |
 | `Content-Type` | `application/json` |
 
 ---
@@ -233,7 +402,7 @@ All endpoints return standardized error responses:
 | 200 | OK - Request succeeded |
 | 201 | Created - Resource created successfully |
 | 400 | Bad Request - Invalid request parameters |
-| 401 | Unauthorized - Missing or invalid API key |
+| 401 | Unauthorized - Missing or invalid session or credential |
 | 403 | Forbidden - Insufficient permissions |
 | 404 | Not Found - Resource does not exist |
 | 408 | Request Timeout |
@@ -255,6 +424,7 @@ Check if the service is running.
 
 ```
 HEAD /
+GET /v1/health
 ```
 
 **Response**: `200 OK` (empty body)
@@ -267,6 +437,7 @@ Retrieve service metadata including version and uptime.
 
 ```
 GET /
+GET /v1/service
 ```
 
 **Response**: `200 OK`
@@ -274,12 +445,28 @@ GET /
 ```json
 {
   "Name": "NetLedger.Server",
-  "Version": "1.0.0",
+  "Version": "4.0.0",
   "StartTimeUtc": "2025-12-23T00:00:00Z",
   "UptimeSeconds": 3600,
-  "UptimeFormatted": "1h 0m 0s"
+  "UptimeFormatted": "1h 0m 0s",
+  "Archive": {
+    "Enabled": true,
+    "ArchiveServerEndpoint": "http://localhost:8081",
+    "ActiveDataRetentionDays": 365,
+    "ActiveBoundaryUtc": "2024-12-23T00:00:00Z"
+  }
 }
 ```
+
+#### Get OpenAPI Document
+
+Retrieve the OpenAPI document used by the dashboard API Explorer.
+
+```
+GET /openapi.json
+```
+
+**Response**: `200 OK`
 
 ---
 
@@ -1192,6 +1379,140 @@ Bulk delete accepts the same filters as enumeration and deletes only records wit
 
 ---
 
+### Active Archive Export and Settings Endpoints
+
+These endpoints live on NetLedger Server (`http://localhost:8080` by default). They move active rows to NetLedger Archive Server and configure account-level automatic archival overrides. NetLedger Server remains the source for active rows only.
+
+#### Export Active Entries
+
+```
+POST /v1/archive/exports/entries
+POST /v1/tenants/{tenantId}/accounts/{accountId}/archive/export
+```
+
+**Request Body**:
+
+```json
+{
+  "TenantId": "default",
+  "AccountId": "acct_01h000000000000000000000",
+  "FromUtc": "2024-01-01T00:00:00Z",
+  "ToUtc": "2025-01-01T00:00:00Z",
+  "StoragePoolId": "asp_default",
+  "IdempotencyKey": "entries-2024",
+  "MaxBatchRows": 50000,
+  "DeleteAfterCommit": false
+}
+```
+
+`DeleteAfterCommit=true` deletes active rows only after Archive Server commit succeeds and after NetLedger Server preserves the account balance anchor.
+
+#### Export Active Request History
+
+```
+POST /v1/archive/exports/request-history
+```
+
+The request body is the same shape as entry export, except `AccountId` is optional and normally omitted for tenant-scoped request-history export.
+
+#### Account Archive Settings
+
+```
+GET    /v1/accounts/{accountId}/archive/settings
+PUT    /v1/accounts/{accountId}/archive/settings
+DELETE /v1/accounts/{accountId}/archive/settings
+GET    /v1/tenants/{tenantId}/accounts/{accountId}/archive/settings
+PUT    /v1/tenants/{tenantId}/accounts/{accountId}/archive/settings
+DELETE /v1/tenants/{tenantId}/accounts/{accountId}/archive/settings
+```
+
+**PUT Request Body**:
+
+```json
+{
+  "Enabled": true,
+  "MaxRetentionDays": 365,
+  "IntervalSeconds": 3600,
+  "MaxBatchRows": 50000,
+  "DeleteAfterCommit": false,
+  "StoragePoolId": "asp_default",
+  "RetryMaxAttempts": 3,
+  "RetryInitialDelaySeconds": 5,
+  "RetryMaxDelaySeconds": 300
+}
+```
+
+Null fields inherit from the global `Archive.Automatic` policy. DELETE clears override fields while retaining worker state.
+
+---
+
+### Archive Server Endpoints
+
+These endpoints live on NetLedger Archive Server (`http://localhost:8081` by default). Archive Server direct reads return cold data and include `x-netledger-data-scope: archive`.
+
+#### Service and Metadata
+
+```
+GET  /v1/service
+GET  /v1/health
+GET  /openapi.json
+GET  /v1/archive/ranges
+GET  /v1/tenants/{tenantId}/archive/ranges
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/archive/ranges
+GET  /v1/archive/manifests
+GET  /v1/archive/manifests/{manifestId}
+GET  /v1/archive/manifests/{manifestId}/objects
+GET  /v1/archive/manifests/{manifestId}/checkpoints
+GET  /v1/archive/objects/{objectId}/metadata
+GET  /v1/archive/storage-pools
+GET  /v1/archive/storage-pools/{storagePoolId}/health
+```
+
+#### Cold Ledger Reads
+
+```
+GET  /v1/archive/accounts/{accountId}/entries
+GET  /v1/archive/accounts/{accountId}/balance/asof
+GET  /v1/archive/accounts/{accountId}/verify
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/entries
+POST /v1/tenants/{tenantId}/accounts/{accountId}/entries/enumerate
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/balance/asof
+GET  /v1/tenants/{tenantId}/accounts/{accountId}/verify
+```
+
+Cold entry routes accept the active entry filters plus archive controls such as `allowPartial`, `continuationToken`, `fromUtc`, and `toUtc`.
+
+#### Cold Request History
+
+```
+GET /v1/request-history
+GET /v1/request-history/summary
+GET /v1/request-history/{id}
+GET /v1/archive-server/request-history
+GET /v1/archive-server/request-history/summary
+GET /v1/archive-server/request-history/{id}
+```
+
+`/v1/request-history` reads archived NetLedger Server request history. `/v1/archive-server/request-history` reads Archive Server operational request history.
+
+#### Migration Lifecycle
+
+```
+GET  /v1/archive/migrations
+POST /v1/archive/migrations
+GET  /v1/archive/migrations/{migrationId}
+GET  /v1/archive/migrations/{migrationId}/batches
+POST /v1/archive/migrations/{migrationId}/batches
+PUT  /v1/archive/migrations/{migrationId}/batches/{batchId}/content
+POST /v1/archive/migrations/{migrationId}/seal
+POST /v1/archive/migrations/{migrationId}/commit
+POST /v1/archive/migrations/{migrationId}/abort
+```
+
+The v4.0.0 migration lifecycle accepts only JSONL.Gzip payloads. Archive Server validates uploaded content before committing manifests and coverage ranges.
+
+---
+
 ## Data Types
 
 ### Entry Types
@@ -1215,11 +1536,14 @@ Bulk delete accepts the same filters as enumeration and deletes only records wit
 
 ## API Summary
 
-| Category | Count | Endpoints |
-|----------|-------|-----------|
-| Service | 2 | Health check, service info |
-| Account | 6 | List, create, check exists, get by identifier, get by name, delete |
-| Entry | 8 | Get entries, enumerate, pending entries, pending credits, pending debits, add credits, add debits, cancel |
-| Balance/Commit | 5 | Get balance, historical balance, all balances, commit, verify |
-| API Key Management | 3 | List, create, revoke |
-| **Total** | **24** | |
+| Category | Surface |
+|----------|---------|
+| Service | Health, service info, and OpenAPI document |
+| Identity, Tenant, and RBAC | Tenant discovery, login/logout, effective permissions, tenants, users, sessions, audit, roles, permissions, and account-user maps |
+| Account | Active account create, enumerate, read, exists, read by name, and delete, including tenant route aliases |
+| Entry | Active entry list/enumerate, pending reads, credit/debit writes, and pending cancellation, including tenant route aliases |
+| Balance/Commit | Active current balance, balance as-of, all balances, commit, and balance-chain verification |
+| Credential Management | Credential enumerate, create, and revoke, including tenant route aliases |
+| Request History | Active request-history enumerate, summarize, read, and delete, including `/v1.0/api/request-history` compatibility aliases |
+| Active Archive Export and Settings | Active entry export, request-history export, tenant-account export, and account automatic archival settings |
+| Archive Server | Cold entries, cold request history, archive metadata, object metadata, storage pools, manifest actions, migration lifecycle, and Archive Server operational request history |

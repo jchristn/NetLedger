@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useApp } from '../context/useApp'
 import { HiddenValueDisplay, HiddenValueInput } from './HiddenValue'
+import LanguageSelector from '../i18n/LanguageSelector'
 import './Login.css'
 
 const LOGIN_STEP_EMAIL = 'email'
@@ -28,7 +29,7 @@ function getTenantLabel(tenant) {
 }
 
 export default function Login() {
-  const { discoverTenants, loginWithPassword, theme, toggleTheme } = useApp()
+  const { discoverTenants, loginWithPassword, theme, toggleTheme, locale, setLocale, t } = useApp()
   const [serverUrl, setServerUrl] = useState(() => {
     return getConfiguredServerUrl()
   })
@@ -50,12 +51,12 @@ export default function Login() {
 
   const handleEmailContinue = async () => {
     if (!serverUrl.trim()) {
-      setError('Server URL is required')
+      setError(t('login.serverRequired'))
       return
     }
 
     if (!email.trim()) {
-      setError('Email is required')
+      setError(t('login.emailRequired'))
       return
     }
 
@@ -66,7 +67,7 @@ export default function Login() {
       const matches = Array.isArray(tenants) ? tenants : []
 
       if (matches.length === 0) {
-        setError('No tenant was found for that email')
+        setError(t('login.noTenant'))
         return
       }
 
@@ -83,7 +84,7 @@ export default function Login() {
       setTenantId(savedTenantIsAvailable ? savedTenantId : '')
       setStep(LOGIN_STEP_TENANT)
     } catch (err) {
-      setError(err.message || 'Unable to discover tenants for that email')
+      setError(err.message || t('login.unableDiscover'))
     } finally {
       setIsLoading(false)
     }
@@ -91,7 +92,7 @@ export default function Login() {
 
   const handleTenantContinue = () => {
     if (!tenantId.trim()) {
-      setError('Select a tenant to continue')
+      setError(t('login.tenantRequired'))
       return
     }
 
@@ -101,7 +102,7 @@ export default function Login() {
 
   const handlePasswordLogin = async () => {
     if (!password) {
-      setError('Password is required')
+      setError(t('login.passwordRequired'))
       return
     }
 
@@ -110,10 +111,10 @@ export default function Login() {
     try {
       const result = await loginWithPassword(serverUrl.trim(), tenantId.trim(), email.trim(), password)
       if (!result.success) {
-        setError(result.error || 'Failed to connect')
+        setError(result.error || t('common.error'))
       }
     } catch (err) {
-      setError(err.message || 'An unexpected error occurred')
+      setError(err.message || t('login.unexpected'))
     } finally {
       setIsLoading(false)
     }
@@ -137,7 +138,7 @@ export default function Login() {
   }
 
   const selectedTenant = tenantOptions.find((tenant) => getTenantId(tenant) === tenantId)
-  const submitLabel = step === LOGIN_STEP_PASSWORD ? 'Connect' : 'Continue'
+  const submitLabel = step === LOGIN_STEP_PASSWORD ? t('common.connect') : t('common.continue')
 
   return (
     <div className="login-container">
@@ -148,7 +149,7 @@ export default function Login() {
               <img src="/favicon.ico" alt="NetLedger" className="login-logo-img" />
             </div>
             <h1 className="login-title">NetLedger</h1>
-            <p className="login-subtitle">Connect to your ledger server</p>
+            <p className="login-subtitle">{t('login.subtitle')}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
@@ -162,7 +163,7 @@ export default function Login() {
             )}
 
             <div className="form-group">
-              <label htmlFor="serverUrl">Server URL</label>
+              <label htmlFor="serverUrl">{t('login.serverUrl')}</label>
               <input
                 type="url"
                 id="serverUrl"
@@ -175,11 +176,11 @@ export default function Login() {
                 disabled={isLoading || step !== LOGIN_STEP_EMAIL}
                 autoComplete="url"
               />
-              <span className="form-hint">The URL of your NetLedger server</span>
+              <span className="form-hint">{t('login.serverHint')}</span>
             </div>
 
             <div className="form-group">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">{t('login.email')}</label>
               <input
                 type="email"
                 id="email"
@@ -196,40 +197,40 @@ export default function Login() {
 
             {step === LOGIN_STEP_TENANT && (
               <div className="form-group">
-                <label htmlFor="tenantSelect">Tenant</label>
+                <label htmlFor="tenantSelect">{t('login.tenant')}</label>
                 <select
                   id="tenantSelect"
                   value={tenantId}
                   onChange={(e) => setTenantId(e.target.value)}
                   disabled={isLoading}
                 >
-                  <option value="">Select tenant</option>
+                  <option value="">{t('login.tenantSelect')}</option>
                   {tenantOptions.map((tenant) => (
                     <option key={getTenantId(tenant)} value={getTenantId(tenant)}>
                       {getTenantLabel(tenant)}
                     </option>
                   ))}
                 </select>
-                <span className="form-hint">This email is mapped to multiple tenants</span>
+                <span className="form-hint">{t('login.tenantHint')}</span>
               </div>
             )}
 
             {step === LOGIN_STEP_PASSWORD && (
               <>
                 <div className="login-step-summary">
-                  <span>Email</span>
+                  <span>{t('login.email')}</span>
                   <strong>{email.trim()}</strong>
-                  <span>Tenant</span>
+                  <span>{t('login.tenant')}</span>
                   <strong>{selectedTenant ? getTenantLabel(selectedTenant) : tenantId}</strong>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="password">Password</label>
+                  <label htmlFor="password">{t('login.password')}</label>
                   <HiddenValueInput
                     id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    placeholder={t('login.passwordPlaceholder')}
                     disabled={isLoading}
                     autoComplete="current-password"
                     autoFocus
@@ -250,7 +251,7 @@ export default function Login() {
                   }}
                   disabled={isLoading}
                 >
-                  Back
+                  {t('common.back')}
                 </button>
               )}
 
@@ -262,7 +263,7 @@ export default function Login() {
                 {isLoading ? (
                   <>
                     <span className="spinner spinner-sm"></span>
-                    {step === LOGIN_STEP_PASSWORD ? 'Connecting...' : 'Checking...'}
+                    {step === LOGIN_STEP_PASSWORD ? t('common.connecting') : t('common.checking')}
                   </>
                 ) : (
                   submitLabel
@@ -276,7 +277,7 @@ export default function Login() {
               type="button"
               className="btn btn-ghost login-theme-toggle"
               onClick={toggleTheme}
-              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              title={t('login.theme', { mode: theme === 'light' ? t('topbar.dark') : t('topbar.light') })}
             >
               {theme === 'light' ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -296,11 +297,18 @@ export default function Login() {
                 </svg>
               )}
             </button>
+            <LanguageSelector
+              id="loginLanguageSelect"
+              className="login-language-selector"
+              locale={locale}
+              onChange={setLocale}
+              label={t('login.language')}
+            />
           </div>
         </div>
 
         <div className="login-default-credentials">
-          <span>Deployment defaults:</span>
+          <span>{t('login.defaultCredentials')}</span>
           <span>tenant <code>default</code></span>
           <span><code>admin@netledger</code></span>
           <span className="login-default-password">

@@ -7,6 +7,7 @@ from .balance import BalanceMethods
 from .apikey import ApiKeyMethods
 from .identity import IdentityMethods
 from .request_history import RequestHistoryMethods
+from .archive import ArchiveMethods
 
 __all__ = [
     'ServiceMethods',
@@ -15,5 +16,6 @@ __all__ = [
     'BalanceMethods',
     'ApiKeyMethods',
     'IdentityMethods',
-    'RequestHistoryMethods'
+    'RequestHistoryMethods',
+    'ArchiveMethods'
 ]

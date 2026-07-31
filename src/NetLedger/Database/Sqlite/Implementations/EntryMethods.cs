@@ -180,6 +180,23 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
+        public async Task<Entry> ReadFirstBalanceAfterAsync(string accountId, DateTime afterUtc, CancellationToken token = default)
+        {
+            string query =
+                "SELECT * FROM entries " +
+                "WHERE accountguid = '" + Sanitize(accountId) + "' " +
+                "AND type = '" + EntryType.Balance.ToString() + "' " +
+                "AND createdutc > '" + afterUtc.ToUniversalTime().ToString(SetupQueries.TimestampFormat) + "' " +
+                "ORDER BY createdutc ASC, id ASC LIMIT 1;";
+
+            DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
+
+            if (result == null || result.Rows.Count == 0) return null;
+
+            return DataRowToEntry(result.Rows[0]);
+        }
+
+        /// <inheritdoc />
         public async Task<List<Entry>> ReadWithFilterAsync(string accountId, FilterBuilder filter, CancellationToken token = default)
         {
             StringBuilder query = new StringBuilder(
@@ -402,6 +419,32 @@ namespace NetLedger.Database.Sqlite.Implementations
         }
 
         /// <inheritdoc />
+        public async Task<long> DeleteCommittedBeforeAsync(string tenantId, string accountId, DateTime beforeUtc, int maxRows, string? preserveEntryId = null, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(tenantId)) throw new ArgumentNullException(nameof(tenantId));
+            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+            if (maxRows < 1) throw new ArgumentOutOfRangeException(nameof(maxRows), "Max rows must be at least 1.");
+
+            string where =
+                "tenantid = '" + Sanitize(tenantId) + "' " +
+                "AND accountguid = '" + Sanitize(accountId) + "' " +
+                "AND committed = 1 " +
+                "AND createdutc <= '" + beforeUtc.ToUniversalTime().ToString(SetupQueries.TimestampFormat) + "'";
+            if (!String.IsNullOrWhiteSpace(preserveEntryId))
+            {
+                where += " AND id != '" + Sanitize(preserveEntryId) + "'";
+            }
+
+            string limitedIds = "SELECT id FROM entries WHERE " + where + " ORDER BY createdutc ASC, id ASC LIMIT " + maxRows.ToString(CultureInfo.InvariantCulture);
+            DataTable countResult = await _Driver.ExecuteQueryAsync("SELECT COUNT(*) FROM (" + limitedIds + ") AS archivaldeleteids;", false, token).ConfigureAwait(false);
+            long deleted = countResult != null && countResult.Rows.Count > 0 ? Convert.ToInt64(countResult.Rows[0][0], CultureInfo.InvariantCulture) : 0L;
+            if (deleted == 0) return 0L;
+
+            await _Driver.ExecuteQueryAsync("DELETE FROM entries WHERE id IN (" + limitedIds + ");", true, token).ConfigureAwait(false);
+            return deleted;
+        }
+
+        /// <inheritdoc />
         public async Task<bool> ExistsByIdAsync(string id, CancellationToken token = default)
         {
             string query = "SELECT COUNT(*) FROM entries WHERE id = '" + Sanitize(id.ToString()) + "';";
@@ -427,6 +470,28 @@ namespace NetLedger.Database.Sqlite.Implementations
             }
 
             return 0;
+        }
+
+        /// <inheritdoc />
+        public async Task<long> CountPendingBeforeAsync(string accountId, DateTime beforeUtc, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+
+            string query =
+                "SELECT COUNT(*) FROM entries " +
+                "WHERE accountguid = '" + Sanitize(accountId) + "' " +
+                "AND type != '" + EntryType.Balance.ToString() + "' " +
+                "AND committed = 0 " +
+                "AND createdutc <= '" + beforeUtc.ToUniversalTime().ToString(SetupQueries.TimestampFormat) + "';";
+
+            DataTable result = await _Driver.ExecuteQueryAsync(query, false, token).ConfigureAwait(false);
+
+            if (result != null && result.Rows.Count > 0)
+            {
+                return Convert.ToInt64(result.Rows[0][0], CultureInfo.InvariantCulture);
+            }
+
+            return 0L;
         }
 
         /// <inheritdoc />

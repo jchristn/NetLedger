@@ -6,7 +6,11 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/NetLedger.svg)](https://www.nuget.org/packages/NetLedger)
 [![License](https://img.shields.io/github/license/jchristn/NetLedger)](https://github.com/jchristn/NetLedger/blob/main/LICENSE.md)
 
-NetLedger is a thread-safe ledgering library for .NET 8.0 and .NET 10.0 that provides tenant-aware debit/credit workflows with auditable pending and committed entry lifecycles. It supports SQLite for embedded deployments and MySQL, PostgreSQL, and SQL Server for external database deployments.
+NetLedger is a thread-safe ledgering library for .NET 8.0 and .NET 10.0 that provides tenant-aware debit/credit workflows with auditable pending and committed entry lifecycles.
+
+It supports SQLite for embedded deployments and MySQL, PostgreSQL, and SQL Server for external database deployments.
+
+Current release: v4.0.0.
 
 <details>
 <summary>Screenshots</summary>
@@ -22,6 +26,33 @@ NetLedger is a thread-safe ledgering library for .NET 8.0 and .NET 10.0 that pro
 ![Screenshot 5](Assets/ss5.png)
 
 </details>
+
+## v4.0.0
+
+NetLedger v4.0.0 is the archive-readiness release. It introduces active server archive configuration, typed CORS configuration, NetLedger Archive Server,
+Docker Hub documentation, dashboard archive screens, SDK archive clients, and active-to-archive export APIs.
+
+For user-facing archive setup and operating guidance, see [ARCHIVAL.md](ARCHIVAL.md).
+
+What is new in v4.0.0:
+
+- Active archive configuration in NetLedger Server through `Archive.Enabled`, `ArchiveServerEndpoint`, service credentials, `DefaultActiveDataRetentionDays`, automatic archival policy, and per-tenant retention overrides.
+- Archive settings are configured at the server level, tenant retention level, and account automatic-archival level. The minimum effective retention window is one day.
+- Supported deployment modes include active server only, active plus Archive Server with filesystem storage, active plus Archive Server with S3-compatible storage, and separate or shared physical databases when archive table names do not overlap.
+- Retention settings clamp to 1 through `Int32.MaxValue` days and default to 365 days.
+- NetLedger Server enforces the configured active-data boundary for entries, request history, and historical balance reads, returning typed `409` conflicts instead of silently blending active and cold rows.
+- NetLedger Server service info exposes archive status, the Archive Server endpoint when enabled, the resolved retention window, and the active-data boundary.
+- Typed `Webserver.Cors` settings for NetLedger Server and NetLedger Archive Server.
+- `NetLedger.Archive` and `NetLedger.Archive.Server` projects with archive models, SQL catalog support, filesystem and S3-compatible storage pools, and NetLedger Server introspection auth.
+- Archive Server routes cover health/OpenAPI, metadata, migration lifecycle, complete-coverage checks, archive verification, and JSONL.Gzip cold reads.
+- NetLedger Server export APIs and a background automatic archival worker for pushing committed active entries to Archive Server migration batches.
+- Account-specific automatic archival settings override global defaults and persist worker state, including retry metadata and archived-through watermarks.
+- `DeleteAfterCommit=true` performs active cleanup only after Archive Server commit, preserving the entry balance chain and deleting exported request-history scope after commit.
+- NetLedger dashboard Archive page for direct Archive Server endpoint configuration, cold entry and request-history queries, archive manifests, ranges, storage pools, and permission-aware metadata actions.
+- Active/Archive selectors on Entries and Request History keep cold reads explicit.
+- C#, JavaScript/TypeScript, and Python SDK archive method groups for active export calls and separately configured Archive Server cold reads.
+- `ArchivalValidation` standalone smoke-test app for disposable active/archive servers, active export, Archive Server metadata, cold search/retrieval, hot/cold boundary failures, and SDK migration lifecycle validation.
+- v4 Docker documentation and immutable image tag guidance.
 
 ## v3.0.0
 
@@ -178,7 +209,7 @@ dotnet build src/NetLedger.sln
 dotnet run --project src/Test/Test.csproj
 
 # Run the automated test suite against SQLite
-dotnet run --project src/Test.Automated/Test.Automated.csproj -- --type sqlite
+dotnet run --project src/Test.Automated/Test.Automated.csproj -- --dbtype sqlite
 
 # Run the REST API server
 dotnet run --project src/NetLedger.Server/NetLedger.Server.csproj
@@ -201,9 +232,25 @@ docker compose logs -f
 
 This starts:
 - **NetLedger Server** on `http://localhost:8080` - REST API server
+- **NetLedger Archive Server** on `http://localhost:8081` - cold-data API server
 - **NetLedger Dashboard** on `http://localhost:3000` - Web-based management UI
+- **Less3** on `http://localhost:8000` - preferred S3-compatible archive object store
+- **Less3 UI** on `http://localhost:3001` - Less3 object-store dashboard
 
 Fresh deployments create tenant `default` with `admin@netledger` / `password`.
+
+The default Docker deployment is pre-wired for S3-compatible archival through Less3. Archive Server uses endpoint `http://less3:8000`, Less3's seeded `default` bucket and `default` credentials, and the `netledger-archive` object prefix.
+
+Less3 persists its SQLite catalog, object files, temporary uploads, and logs under `docker/less3/`.
+
+The single `compose.yaml` starts Less3, Less3 UI, NetLedger Server, NetLedger Archive Server, and NetLedger Dashboard together.
+
+Production deployments should replace the sample `default/default` object-store credential with secret-manager injection, TLS, and a least-privilege bucket or prefix policy.
+
+```bash
+cd docker
+docker compose up -d
+```
 
 To stop the services:
 
@@ -221,7 +268,16 @@ The Docker setup uses configuration files in the `docker/server/` directory:
   "Webserver": {
     "Hostname": "+",
     "Port": 8080,
-    "Ssl": false
+    "Ssl": false,
+    "Cors": {
+      "Enabled": true,
+      "AllowedOrigins": [ "http://localhost:3000" ],
+      "AllowedMethods": [ "OPTIONS", "HEAD", "GET", "PUT", "POST", "DELETE" ],
+      "AllowedHeaders": [ "*" ],
+      "ExposedHeaders": [ "Content-Type", "x-netledger-data-scope", "x-request-id", "x-hostname", "x-api-version" ],
+      "AllowCredentials": false,
+      "MaxAgeSeconds": 600
+    }
   },
   "Logging": {
     "EnableConsole": true,
@@ -243,9 +299,66 @@ The Docker setup uses configuration files in the `docker/server/` directory:
     "ConnectionTimeoutSeconds": 30,
     "MaxPoolSize": 100,
     "LogQueries": false
+  },
+  "Archive": {
+    "Enabled": false,
+    "ArchiveServerEndpoint": "http://archive-server:8081",
+    "ServiceAccessKey": "default",
+    "ServiceSecretKey": "default",
+    "DefaultActiveDataRetentionDays": 365,
+    "Tenants": [],
+    "Automatic": {
+      "Enabled": false,
+      "MaxRetentionDays": 365,
+      "IntervalSeconds": 3600,
+      "InitialDelaySeconds": 30,
+      "MaxAccountsPerRun": 100,
+      "MaxBatchRows": 50000,
+      "DeleteAfterCommit": false,
+      "StoragePoolId": "asp_default",
+      "Retry": {
+        "MaxAttempts": 3,
+        "InitialDelaySeconds": 5,
+        "MaxDelaySeconds": 300
+      }
+    }
   }
 }
 ```
+
+Environment overrides are supported for deployment-owned values. NetLedger Server accepts `NETLEDGER_DATABASE_*` plus these archive overrides:
+
+```text
+NETLEDGER_ARCHIVE_ENABLED
+NETLEDGER_ARCHIVE_SERVER_ENDPOINT
+NETLEDGER_ARCHIVE_SERVICE_ACCESS_KEY
+NETLEDGER_ARCHIVE_SERVICE_SECRET_KEY
+NETLEDGER_ARCHIVE_DEFAULT_ACTIVE_DATA_RETENTION_DAYS
+NETLEDGER_ARCHIVE_AUTO_*
+```
+
+NetLedger Archive Server accepts the same database suffixes under `NETLEDGER_ARCHIVE_CATALOG_`.
+
+Storage-pool overrides use `NETLEDGER_ARCHIVE_STORAGE_` for the default pool or `NETLEDGER_ARCHIVE_STORAGE_{POOL_ID}_` for a specific pool after uppercasing the pool ID and replacing non-alphanumeric characters with `_`.
+
+For example, `asp_default` becomes `NETLEDGER_ARCHIVE_STORAGE_ASP_DEFAULT_BASE_PATH`. Supported storage suffixes are:
+
+```text
+TYPE
+BASE_PATH
+BUCKET
+PREFIX
+REGION
+ENDPOINT
+ACCESS_KEY
+SECRET_KEY
+SESSION_TOKEN
+SERVER_SIDE_ENCRYPTION
+FORMAT
+COMPRESSION
+```
+
+Secret values are runtime-only and are not written to the archive catalog or returned by metadata APIs.
 
 ## Dashboard
 
@@ -282,10 +395,12 @@ The dashboard provides:
 - Entry commit operations
 - API Explorer backed by `GET /openapi.json`
 - Request History with filters, summaries, detail views, scoped deletion for admins, and a Traffic over Time chart
+- Archive page for direct Archive Server endpoint configuration, cold entry reads, manifests, ranges, storage pools, migrations, archive verification, and permission-aware metadata actions
+- Active/Archive data-source selectors on Entries and Request History for direct cold-data reads without blending active and archived rows
 
 ## SDKs
 
-NetLedger provides official SDKs for integrating with the REST API server:
+NetLedger provides official SDKs for integrating with the active REST API server and the NetLedger Archive Server:
 
 ### .NET SDK
 
@@ -313,6 +428,23 @@ await client.Balance.CommitAsync(account.Id);
 // API Explorer and Request History support
 string openApiJson = await client.Service.GetOpenApiJsonAsync();
 EnumerationResult<RequestHistoryEntry> history = await client.RequestHistory.EnumerateAsync(new RequestHistoryQuery { MaxResults = 25 });
+```
+
+Archive operations use separate active and archive clients so hot and cold data are never silently blended:
+
+```csharp
+using NetLedgerClient active = new NetLedgerClient("http://localhost:8080", "netledgeradmin", "default");
+using NetLedgerClient archive = new NetLedgerClient("http://localhost:8081", "netledgeradmin", "default");
+
+ArchiveExportResponse export = await active.Archive.ExportTenantAccountEntriesAsync(
+    "default",
+    account.Id,
+    new ArchiveExportRequest { ToUtc = DateTime.UtcNow.AddDays(-365), DeleteAfterCommit = false });
+
+EnumerationResult<Entry> coldEntries = await archive.Archive.TenantEntriesAsync(
+    "default",
+    account.Id,
+    new ArchiveQuery { MaxResults = 25, AllowPartial = true });
 ```
 
 See [sdk/sdk-csharp/NetLedger.Sdk/README.md](sdk/sdk-csharp/NetLedger.Sdk/README.md) for full documentation.
@@ -345,7 +477,51 @@ const openApiSpec = await client.service.getOpenApiSpec();
 const history = await client.requestHistory.enumerate({ MaxResults: 25 });
 ```
 
+Archive operations use separate active and archive clients:
+
+```typescript
+const active = new NetLedgerClient('http://localhost:8080', 'netledgeradmin', { tenantId: 'default' });
+const archive = new NetLedgerClient('http://localhost:8081', 'netledgeradmin', { tenantId: 'default' });
+
+const exportResult = await active.archive.exportTenantAccountEntries('default', account.Id, {
+    ToUtc: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+    DeleteAfterCommit: false
+});
+
+const coldEntries = await archive.archive.tenantEntries('default', account.Id, {
+    maxResults: 25,
+    allowPartial: true
+});
+```
+
 See [sdk/sdk-js/README.md](sdk/sdk-js/README.md) for full documentation.
+
+### Python SDK
+
+```bash
+pip install netledger-sdk
+```
+
+```python
+from datetime import datetime, timedelta, timezone
+from netledger_sdk import NetLedgerClient
+
+active = NetLedgerClient('http://localhost:8080', 'netledgeradmin', tenant_id='default')
+archive = NetLedgerClient('http://localhost:8081', 'netledgeradmin', tenant_id='default')
+account_id = 'acct_01h000000000000000000000'
+
+export_result = active.archive.export_tenant_account_entries('default', account_id, {
+    'ToUtc': (datetime.now(timezone.utc) - timedelta(days=365)).isoformat(),
+    'DeleteAfterCommit': False
+})
+
+cold_entries = archive.archive.tenant_entries('default', account_id, {
+    'maxResults': 25,
+    'allowPartial': True
+})
+```
+
+See [sdk/sdk-python/README.md](sdk/sdk-python/README.md) for full documentation.
 
 ## REST API
 
@@ -953,7 +1129,12 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## Version History
 
-### v3.0.0 (Current)
+### v4.0.0 (Current)
+- Active archive integration settings, retention policy configuration, typed CORS settings, Archive Server SQL catalog support, and filesystem and S3-compatible archive storage.
+  Migration lifecycle routes, archive verification, and optional post-commit active cleanup.
+  JSONL.Gzip cold entry and request-history reads, SDK archive clients, the `ArchivalValidation` live smoke-test app, dashboard archive-query requirements, and Docker Hub documentation.
+
+### v3.0.0
 - Tenant-scoped ledger data, authentication, authorization, credentials, sessions, RBAC, and audit records.
 - PrettyId string identifiers on public models.
 - Account and entry labels/tags with metadata-aware search and enumeration.

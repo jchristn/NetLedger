@@ -68,6 +68,7 @@ namespace NetLedger.Database.SqlServer
             Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.SqlServer);
             AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.SqlServer);
             AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.SqlServer);
+            AccountArchivalSettings = new PortableSqlAccountArchivalSettingsMethods(this, DatabaseTypeEnum.SqlServer);
             AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.SqlServer);
             RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.SqlServer);
             Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.SqlServer);

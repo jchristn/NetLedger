@@ -7,6 +7,8 @@ namespace NetLedger.Server.API.REST
     using NetLedger.Database;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Services;
+    using NetLedger.Server.Settings;
     using SyslogLogging;
     using WatsonWebserver.Core;
 
@@ -19,18 +21,22 @@ namespace NetLedger.Server.API.REST
         private readonly DatabaseDriverBase _Driver;
         private readonly AuthService _AuthService;
         private readonly LoggingModule _Logging;
+        private readonly ActiveArchiveBoundaryService _ArchiveBoundary;
 
         /// <summary>
         /// Instantiate request history handler.
         /// </summary>
         /// <param name="driver">Database driver.</param>
+        /// <param name="settings">Server settings.</param>
         /// <param name="authService">Authentication service.</param>
         /// <param name="logging">Logging module.</param>
-        internal RestRequestHistoryHandler(DatabaseDriverBase driver, AuthService authService, LoggingModule logging)
+        internal RestRequestHistoryHandler(DatabaseDriverBase driver, ServerSettings settings, AuthService authService, LoggingModule logging)
         {
             _Driver = driver ?? throw new ArgumentNullException(nameof(driver));
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
             _AuthService = authService ?? throw new ArgumentNullException(nameof(authService));
             _Logging = logging ?? throw new ArgumentNullException(nameof(logging));
+            _ArchiveBoundary = new ActiveArchiveBoundaryService(settings);
             _Logging.Debug(_Header + "initialized");
         }
 
@@ -47,6 +53,13 @@ namespace NetLedger.Server.API.REST
             if (!scopeError.Success)
             {
                 await SendResponseAsync(ctx, scopeError).ConfigureAwait(false);
+                return;
+            }
+
+            ResponseContext? archiveRangeError = ApplyActiveHistoryRange(req, filter);
+            if (archiveRangeError != null)
+            {
+                await SendResponseAsync(ctx, archiveRangeError).ConfigureAwait(false);
                 return;
             }
 
@@ -73,6 +86,13 @@ namespace NetLedger.Server.API.REST
             if (!scopeError.Success)
             {
                 await SendResponseAsync(ctx, scopeError).ConfigureAwait(false);
+                return;
+            }
+
+            ResponseContext? archiveRangeError = ApplyActiveHistoryRange(req, filter);
+            if (archiveRangeError != null)
+            {
+                await SendResponseAsync(ctx, archiveRangeError).ConfigureAwait(false);
                 return;
             }
 
@@ -108,6 +128,14 @@ namespace NetLedger.Server.API.REST
             if (entry == null || !CanAccessEntry(req, entry))
             {
                 await SendResponseAsync(ctx, ResponseContext.FromError(req, ApiErrorEnum.NotFound, id, "Request history entry was not found.")).ConfigureAwait(false);
+                return;
+            }
+
+            DateTime? fromUtc = entry.CreatedUtc;
+            ResponseContext? archiveRangeError = _ArchiveBoundary.ApplyActiveRange(req, ref fromUtc, entry.CreatedUtc, "RequestHistory");
+            if (archiveRangeError != null)
+            {
+                await SendResponseAsync(ctx, archiveRangeError).ConfigureAwait(false);
                 return;
             }
 
@@ -155,6 +183,13 @@ namespace NetLedger.Server.API.REST
             if (!scopeError.Success)
             {
                 await SendResponseAsync(ctx, scopeError).ConfigureAwait(false);
+                return;
+            }
+
+            ResponseContext? archiveRangeError = ApplyActiveHistoryRange(req, filter);
+            if (archiveRangeError != null)
+            {
+                await SendResponseAsync(ctx, archiveRangeError).ConfigureAwait(false);
                 return;
             }
 
@@ -244,6 +279,15 @@ namespace NetLedger.Server.API.REST
             }
 
             return new ResponseContext(req);
+        }
+
+        private ResponseContext? ApplyActiveHistoryRange(RequestContext req, RequestHistoryFilter filter)
+        {
+            DateTime? fromUtc = filter.FromUtc;
+            ResponseContext? error = _ArchiveBoundary.ApplyActiveRange(req, ref fromUtc, filter.ToUtc, "RequestHistory");
+            if (error != null) return error;
+            filter.FromUtc = fromUtc;
+            return null;
         }
 
         private static bool CanAccessEntry(RequestContext req, RequestHistoryEntry entry)

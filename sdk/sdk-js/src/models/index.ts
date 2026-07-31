@@ -192,6 +192,17 @@ export interface ApiKeyInfo {
 /**
  * Service information.
  */
+export interface ActiveArchiveInfo {
+    /** Whether archive integration is enabled. */
+    Enabled: boolean;
+    /** Archive Server endpoint when enabled. */
+    ArchiveServerEndpoint?: string;
+    /** Active retention period for the resolved tenant. */
+    ActiveDataRetentionDays: number;
+    /** Oldest timestamp retained by active APIs. */
+    ActiveBoundaryUtc: string;
+}
+
 export interface ServiceInfo {
     /** Service name. */
     Name: string;
@@ -203,6 +214,8 @@ export interface ServiceInfo {
     UptimeFormatted: string;
     /** UTC timestamp when server started. */
     StartTimeUtc: string;
+    /** Active archive integration information. */
+    Archive?: ActiveArchiveInfo;
 }
 
 /**
@@ -318,7 +331,9 @@ export interface RequestHistoryQuery {
     ToUtc?: string;
     MaxResults?: number;
     Skip?: number;
+    ContinuationToken?: string;
     BucketMinutes?: number;
+    AllowPartial?: boolean;
 }
 
 export interface RequestHistorySummaryBucket {
@@ -339,6 +354,223 @@ export interface RequestHistorySummary {
 
 export interface RequestHistoryDeleteResult {
     DeletedCount: number;
+}
+
+export interface ArchiveHealth {
+    Healthy: boolean;
+    Version?: string;
+    Details?: string[];
+}
+
+export interface ArchiveQuery {
+    maxResults?: number;
+    skip?: number;
+    continuationToken?: string;
+    search?: string;
+    tenantId?: string;
+    accountId?: string;
+    entityType?: string;
+    storagePoolId?: string;
+    migrationId?: string;
+    manifestStatus?: string;
+    migrationStatus?: string;
+    fromUtc?: string;
+    toUtc?: string;
+    startTime?: string;
+    endTime?: string;
+    ordering?: string;
+    amountMinimum?: number;
+    amountMaximum?: number;
+    creditMinimum?: number;
+    creditMaximum?: number;
+    debitMinimum?: number;
+    debitMaximum?: number;
+    labels?: string[];
+    tags?: Record<string, string>;
+    allowPartial?: boolean;
+}
+
+export interface ArchiveRangeInfo {
+    TenantId: string;
+    AccountId?: string;
+    EntityType: string;
+    FromUtc: string;
+    ToUtc: string;
+    RowCount: number;
+}
+
+export interface ArchiveManifest {
+    Id: string;
+    TenantId: string;
+    AccountId?: string;
+    EntityType: string;
+    StoragePoolId: string;
+    FromUtc: string;
+    ToUtc: string;
+    RowCount: number;
+    ContentHashSha256: string;
+    ManifestHashSha256: string;
+    Status: string;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+
+export interface ArchiveObject {
+    Id: string;
+    ManifestId: string;
+    StoragePoolId: string;
+    RelativePath: string;
+    RowCount: number;
+    ByteCount: number;
+    ContentHashSha256: string;
+    CreatedUtc: string;
+}
+
+export interface ArchiveBalanceCheckpoint {
+    Id: string;
+    TenantId: string;
+    AccountId: string;
+    ManifestId: string;
+    AsOfUtc: string;
+    Balance: number;
+    CreatedUtc: string;
+}
+
+export interface ArchiveStorageObjectMetadata {
+    Exists: boolean;
+    ByteCount?: number;
+    LastModifiedUtc?: string;
+    IsReadOnly?: boolean;
+    Properties: Record<string, string>;
+}
+
+export interface ArchiveObjectMetadata {
+    ObjectId?: string;
+    ManifestId?: string;
+    StoragePoolId?: string;
+    CatalogByteCount: number;
+    CatalogContentHashSha256?: string;
+    Storage: ArchiveStorageObjectMetadata;
+}
+
+export interface ArchiveStoragePool {
+    Id: string;
+    Name: string;
+    Type: string;
+    Prefix: string;
+    Format: string;
+    Compression: string;
+}
+
+export interface ArchiveStoragePoolHealth {
+    Healthy: boolean;
+    StoragePoolId?: string;
+    Type?: string;
+    Detail?: string;
+    CheckedUtc?: string;
+}
+
+export interface ArchiveMigration {
+    Id: string;
+    TenantId: string;
+    AccountId?: string;
+    EntityType: string;
+    StoragePoolId: string;
+    Format: string;
+    Compression: string;
+    FromUtc: string;
+    ToUtc: string;
+    Status: string;
+    IdempotencyKey: string;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+
+export interface ArchiveMigrationRequest {
+    TenantId?: string;
+    AccountId?: string;
+    EntityType?: string;
+    StoragePoolId?: string;
+    Format?: string;
+    Compression?: string;
+    FromUtc?: string;
+    ToUtc?: string;
+    IdempotencyKey?: string;
+}
+
+export interface ArchiveMigrationBatchRequest {
+    Id?: string;
+    SequenceNumber: number;
+    RowCount: number;
+    ByteCount?: number;
+    ContentHashSha256?: string;
+}
+
+export interface ArchiveMigrationBatch {
+    Id: string;
+    MigrationId: string;
+    StoragePoolId: string;
+    TenantId: string;
+    AccountId?: string;
+    SequenceNumber: number;
+    RowCount: number;
+    ByteCount: number;
+    ContentHashSha256: string;
+    TemporaryRelativePath: string;
+    CommittedRelativePath: string;
+    Status: string;
+    CreatedUtc: string;
+    LastUpdateUtc: string;
+}
+
+export interface ArchiveBalanceInfo {
+    AccountId?: string;
+    TenantId?: string;
+    AsOfUtc: string;
+    Balance: number;
+    ManifestId?: string;
+}
+
+export interface ArchiveExportRequest {
+    TenantId?: string;
+    AccountId?: string;
+    FromUtc?: string;
+    ToUtc?: string;
+    StoragePoolId?: string;
+    IdempotencyKey?: string;
+    MaxBatchRows?: number;
+    DeleteAfterCommit?: boolean;
+}
+
+export interface ArchiveExportBatchResult {
+    BatchId?: string;
+    SequenceNumber: number;
+    RowCount: number;
+    ByteCount: number;
+    ContentHashSha256?: string;
+}
+
+export interface ArchiveExportResponse {
+    MigrationId?: string;
+    ManifestId?: string;
+    TenantId?: string;
+    AccountId?: string;
+    RowsExported: number;
+    BytesUploaded: number;
+    ActiveCleanupExecuted: boolean;
+    ActiveCleanupRowsDeleted: number;
+    Batches: ArchiveExportBatchResult[];
+}
+
+export interface ArchiveVerificationResult {
+    TenantId: string;
+    AccountId: string;
+    IsValid: boolean;
+    CheckedManifests: number;
+    CheckedObjects: number;
+    CheckedBalanceCheckpoints: number;
+    Details: string[];
+    Errors: string[];
 }
 
 export interface TenantInfo {

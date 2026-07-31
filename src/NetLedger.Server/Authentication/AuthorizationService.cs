@@ -157,8 +157,9 @@ namespace NetLedger.Server.Authentication
         /// Get effective permissions for a request principal.
         /// </summary>
         /// <param name="req">Request context.</param>
+        /// <param name="token">Cancellation token.</param>
         /// <returns>Effective permission response.</returns>
-        public EffectivePermissionsResponse GetEffectivePermissions(RequestContext req)
+        public async Task<EffectivePermissionsResponse> GetEffectivePermissionsAsync(RequestContext req, CancellationToken token = default)
         {
             if (req == null) throw new ArgumentNullException(nameof(req));
 
@@ -184,9 +185,57 @@ namespace NetLedger.Server.Authentication
                 response.Permissions.Add(new EffectivePermission { ResourceType = "Account", OperationType = "Read" });
                 response.Permissions.Add(new EffectivePermission { ResourceType = "Entry", OperationType = "Write" });
                 response.Permissions.Add(new EffectivePermission { ResourceType = "Balance", OperationType = "Read" });
+                await AddMappedAccountIdsAsync(response, req, token).ConfigureAwait(false);
             }
 
             return response;
+        }
+
+        /// <summary>
+        /// Get effective permissions for a request principal.
+        /// </summary>
+        /// <param name="req">Request context.</param>
+        /// <returns>Effective permission response.</returns>
+        public EffectivePermissionsResponse GetEffectivePermissions(RequestContext req)
+        {
+            return GetEffectivePermissionsAsync(req).GetAwaiter().GetResult();
+        }
+
+        private async Task AddMappedAccountIdsAsync(EffectivePermissionsResponse response, RequestContext req, CancellationToken token)
+        {
+            if (response == null) throw new ArgumentNullException(nameof(response));
+            if (req?.Auth == null || String.IsNullOrEmpty(req.Auth.PrincipalId) || String.IsNullOrEmpty(response.TenantId)) return;
+            if (!String.Equals(req.Auth.PrincipalType, "User", StringComparison.OrdinalIgnoreCase)) return;
+
+            HashSet<string> accountIds = new HashSet<string>(StringComparer.Ordinal);
+            int skip = 0;
+            while (true)
+            {
+                EnumerationResult<AccountUserMap> maps = await _Driver.AccountUserMaps.EnumerateAsync(new EnumerationQuery
+                {
+                    TenantId = response.TenantId,
+                    UserId = req.Auth.PrincipalId,
+                    MaxResults = 1000,
+                    Skip = skip
+                }, token).ConfigureAwait(false);
+
+                foreach (AccountUserMap map in maps.Objects)
+                {
+                    if (!String.IsNullOrEmpty(map.AccountId))
+                    {
+                        accountIds.Add(map.AccountId);
+                    }
+                }
+
+                if (maps.EndOfResults || maps.Objects.Count == 0)
+                {
+                    break;
+                }
+
+                skip += maps.Objects.Count;
+            }
+
+            response.MappedAccountIds.AddRange(accountIds);
         }
 
         private async Task<AuthorizationDecision> AuthorizeRbacAsync(

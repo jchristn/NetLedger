@@ -241,6 +241,7 @@ class ServiceInfo:
     start_time_utc: Optional[str] = None
     uptime_seconds: int = 0
     uptime_formatted: str = ""
+    archive: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ServiceInfo":
@@ -250,7 +251,8 @@ class ServiceInfo:
             version=data.get("Version") or data.get("version", ""),
             start_time_utc=data.get("StartTimeUtc") or data.get("startTimeUtc"),
             uptime_seconds=data.get("UptimeSeconds") or data.get("uptimeSeconds", 0),
-            uptime_formatted=data.get("UptimeFormatted") or data.get("uptimeFormatted", "")
+            uptime_formatted=data.get("UptimeFormatted") or data.get("uptimeFormatted", ""),
+            archive=data.get("Archive") or data.get("archive")
         )
 
 
@@ -407,6 +409,7 @@ class RequestHistoryQuery:
     """Query for request history enumeration and summaries."""
     max_results: int = 25
     skip: int = 0
+    continuation_token: Optional[str] = None
     tenant_id: Optional[str] = None
     principal_id: Optional[str] = None
     method: Optional[str] = None
@@ -415,6 +418,7 @@ class RequestHistoryQuery:
     from_utc: Optional[str] = None
     to_utc: Optional[str] = None
     bucket_minutes: int = 15
+    allow_partial: Optional[bool] = None
 
 
 @dataclass

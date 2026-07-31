@@ -45,6 +45,30 @@ CREATE TABLE IF NOT EXISTS accountlocks (
     createdutc TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS accountarchivalsettings (
+    id TEXT PRIMARY KEY,
+    tenantid TEXT NOT NULL,
+    accountid TEXT NOT NULL,
+    enabled INTEGER,
+    maxretentiondays INTEGER,
+    intervalseconds INTEGER,
+    maxbatchrows INTEGER,
+    deleteaftercommit INTEGER,
+    storagepoolid TEXT,
+    retrymaxattempts INTEGER,
+    retryinitialdelayseconds INTEGER,
+    retrymaxdelayseconds INTEGER,
+    lastattemptutc TEXT,
+    lastsuccessutc TEXT,
+    lastarchivedthroughutc TEXT,
+    lastfailureutc TEXT,
+    nextattemptutc TEXT,
+    failurecount INTEGER NOT NULL DEFAULT 0,
+    lasterror TEXT,
+    createdutc TEXT NOT NULL,
+    lastupdateutc TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS entries (
     id TEXT PRIMARY KEY,
     tenantid TEXT NOT NULL DEFAULT '',
@@ -278,6 +302,9 @@ CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_id ON accounts(tenantid, id);
 CREATE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name);
 CREATE INDEX IF NOT EXISTS idx_accounts_tenantid_name ON accounts(tenantid, name);
 CREATE INDEX IF NOT EXISTS idx_accounts_createdutc ON accounts(createdutc);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accountarchivalsettings_tenantid_accountid ON accountarchivalsettings(tenantid, accountid);
+CREATE INDEX IF NOT EXISTS idx_accountarchivalsettings_nextattemptutc ON accountarchivalsettings(nextattemptutc);
+CREATE INDEX IF NOT EXISTS idx_accountarchivalsettings_lastattemptutc ON accountarchivalsettings(lastattemptutc);
 
 CREATE INDEX IF NOT EXISTS idx_entries_tenantid_id ON entries(tenantid, id);
 CREATE INDEX IF NOT EXISTS idx_entries_accountguid ON entries(accountguid);

@@ -65,9 +65,10 @@ const formatTags = (tags) => {
 }
 
 export default function Entries() {
-  const { api, setError, currentUser, effectivePermissions } = useApp()
+  const { api, archiveApi, archiveServerUrl, setDataSourceContext, setError, currentUser, effectivePermissions, t } = useApp()
   const { isSystemAdmin } = getRoleFlags(currentUser, effectivePermissions)
   const [searchParams, setSearchParams] = useSearchParams()
+  const [dataSource, setDataSource] = useState(searchParams.get('source') === 'archive' ? 'archive' : 'active')
 
   // Account selection state
   const [accounts, setAccounts] = useState([])
@@ -110,6 +111,13 @@ export default function Entries() {
 
   const selectedAccountTenantId = selectedAccount ? getAccountTenantId(selectedAccount) : ''
   const requestTenantId = isSystemAdmin ? selectedTenantId || selectedAccountTenantId || null : null
+  const isArchiveSource = dataSource === 'archive'
+  const canQueryArchive = Boolean(archiveApi && archiveServerUrl)
+
+  useEffect(() => {
+    setDataSourceContext(isArchiveSource ? 'archive' : 'active')
+    return () => setDataSourceContext('active')
+  }, [isArchiveSource, setDataSourceContext])
 
   const loadTenants = useCallback(async () => {
     if (!isSystemAdmin) {
@@ -154,7 +162,31 @@ export default function Entries() {
       setLoading(true)
 
       let result
-      if (showOnlyPending) {
+      if (isArchiveSource) {
+        if (!canQueryArchive) {
+          setEntries([])
+          setTotalRecords(0)
+          setError(t('dataSource.archiveUnavailable'))
+          return
+        }
+
+        const archiveQuery = {
+          maxResults: pageSize,
+          skip: currentPage * pageSize,
+          ordering: appliedFilters.ordering,
+          search: appliedFilters.search.trim() || null,
+          startTime: toApiDate(appliedFilters.startTime),
+          endTime: toApiDate(appliedFilters.endTime),
+          allowPartial: true
+        }
+
+        result = requestTenantId
+          ? await archiveApi.listArchivedTenantEntries(requestTenantId, selectedAccountId, archiveQuery)
+          : await archiveApi.listArchivedEntries(selectedAccountId, archiveQuery)
+        const { objects, totalRecords } = normalizeEnumerationResult(result)
+        setEntries(objects)
+        setTotalRecords(totalRecords)
+      } else if (showOnlyPending) {
         result = await api.getPendingEntries(selectedAccountId, requestTenantId)
         // Pending entries endpoint returns an array directly or wrapped
         const entriesList = Array.isArray(result) ? result : (result?.Objects || result?.objects || [])
@@ -187,10 +219,13 @@ export default function Entries() {
     } finally {
       setLoading(false)
     }
-  }, [api, selectedAccountId, currentPage, pageSize, showOnlyPending, appliedFilters, requestTenantId, setError])
+  }, [api, archiveApi, canQueryArchive, currentPage, pageSize, showOnlyPending, appliedFilters, requestTenantId, selectedAccountId, setError, isArchiveSource, t])
 
   const loadBalance = useCallback(async () => {
-    if (!selectedAccountId) return
+    if (!selectedAccountId || isArchiveSource) {
+      setBalance(null)
+      return
+    }
 
     try {
       const result = await api.getBalance(selectedAccountId, requestTenantId)
@@ -199,7 +234,7 @@ export default function Entries() {
       // Balance might not exist yet
       setBalance(null)
     }
-  }, [api, selectedAccountId, requestTenantId])
+  }, [api, selectedAccountId, requestTenantId, isArchiveSource])
 
   useEffect(() => {
     loadTenants()
@@ -218,7 +253,8 @@ export default function Entries() {
       // Update URL
       setSearchParams({
         ...(isSystemAdmin && selectedTenantId ? { tenant: selectedTenantId } : {}),
-        account: selectedAccountId
+        account: selectedAccountId,
+        ...(isArchiveSource ? { source: 'archive' } : {})
       })
     } else {
       setEntries([])
@@ -226,7 +262,15 @@ export default function Entries() {
       setBalance(null)
       setSearchParams(isSystemAdmin && selectedTenantId ? { tenant: selectedTenantId } : {})
     }
-  }, [isSystemAdmin, selectedAccountId, selectedTenantId, loadEntries, loadBalance, setSearchParams])
+  }, [isSystemAdmin, isArchiveSource, selectedAccountId, selectedTenantId, loadEntries, loadBalance, setSearchParams])
+
+  const handleDataSourceChange = (event) => {
+    const source = event.target.value === 'archive' ? 'archive' : 'active'
+    setDataSource(source)
+    setShowOnlyPending(false)
+    setCurrentPage(0)
+    setSelectedEntry(null)
+  }
 
   const handleTenantChange = (e) => {
     setSelectedTenantId(e.target.value)
@@ -550,6 +594,31 @@ export default function Entries() {
         const isPending = !isCommitted
         const type = row.type || row.Type
 
+        if (isArchiveSource) {
+          return (
+            <ActionMenu
+              items={[
+                {
+                  label: 'View',
+                  onClick: () => openViewModal(row)
+                },
+                {
+                  label: 'View JSON',
+                  icon: (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                  ),
+                  onClick: () => openMetadataModal(row)
+                }
+              ]}
+            />
+          )
+        }
+
         return (
           <ActionMenu
             items={[
@@ -665,8 +734,17 @@ export default function Entries() {
               />
             </div>
 
+            <div className="data-source-selector">
+              <label htmlFor="entryDataSource">{t('dataSource.label')}</label>
+              <select id="entryDataSource" value={dataSource} onChange={handleDataSourceChange}>
+                <option value="active">{t('dataSource.active')}</option>
+                <option value="archive">{t('dataSource.archive')}</option>
+              </select>
+            </div>
+
             {selectedAccountId && (
               <>
+                {!isArchiveSource && (
                 <div className="entries-filter">
                   <label className="checkbox-label">
                     <input
@@ -680,7 +758,9 @@ export default function Entries() {
                     <span>Show only pending entries</span>
                   </label>
                 </div>
+                )}
 
+                {!isArchiveSource && (
                 <div className="entries-actions">
                   <button
                     className="btn btn-success"
@@ -712,9 +792,16 @@ export default function Entries() {
                     Commit Entries
                   </button>
                 </div>
+                )}
               </>
             )}
           </div>
+
+          {isArchiveSource && (
+            <div className={canQueryArchive ? 'data-source-note' : 'data-source-note data-source-note-warning'}>
+              {canQueryArchive ? t('dataSource.entriesArchiveDescription') : t('dataSource.archiveUnavailable')}
+            </div>
+          )}
 
           {selectedAccountId && (
             <div className="entry-search-panel">
@@ -903,7 +990,7 @@ export default function Entries() {
           )}
 
           {/* Balance Summary */}
-          {selectedAccountId && balance && (
+          {selectedAccountId && !isArchiveSource && balance && (
             <div className="balance-summary">
               <div className="balance-item">
                 <span className="balance-label">Committed Balance</span>
@@ -956,8 +1043,8 @@ export default function Entries() {
             columns={columns}
             data={entries}
             loading={loading}
-            emptyMessage={showOnlyPending ? 'No pending entries' : 'No entries found'}
-            onRowClick={openEditModal}
+            emptyMessage={isArchiveSource ? t('archive.empty.entriesNotFound') : showOnlyPending ? 'No pending entries' : 'No entries found'}
+            onRowClick={isArchiveSource ? openViewModal : openEditModal}
             rowKey="id"
           />
         </>

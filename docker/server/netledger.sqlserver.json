@@ -2,7 +2,16 @@
   "Webserver": {
     "Hostname": "+",
     "Port": 8080,
-    "Ssl": false
+    "Ssl": false,
+    "Cors": {
+      "Enabled": true,
+      "AllowedOrigins": [ "*" ],
+      "AllowedMethods": [ "OPTIONS", "HEAD", "GET", "PUT", "POST", "DELETE" ],
+      "AllowedHeaders": [ "*" ],
+      "ExposedHeaders": [ "Content-Type", "X-Requested-With", "x-netledger-data-scope", "x-hostname", "x-api-version", "x-request-id" ],
+      "AllowCredentials": false,
+      "MaxAgeSeconds": 600
+    }
   },
   "Logging": {
     "EnableConsole": true,
@@ -11,6 +20,29 @@
   "Authentication": {
     "Enabled": true,
     "DefaultAdminKey": "netledgeradmin"
+  },
+  "Archive": {
+    "Enabled": false,
+    "ArchiveServerEndpoint": "http://archive-server:8081",
+    "ServiceAccessKey": "default",
+    "ServiceSecretKey": "default",
+    "DefaultActiveDataRetentionDays": 365,
+    "Tenants": [],
+    "Automatic": {
+      "Enabled": false,
+      "MaxRetentionDays": 365,
+      "IntervalSeconds": 3600,
+      "InitialDelaySeconds": 30,
+      "MaxAccountsPerRun": 100,
+      "MaxBatchRows": 50000,
+      "DeleteAfterCommit": false,
+      "StoragePoolId": "asp_default",
+      "Retry": {
+        "MaxAttempts": 3,
+        "InitialDelaySeconds": 5,
+        "MaxDelaySeconds": 300
+      }
+    }
   },
   "Database": {
     "Type": "SqlServer",

@@ -1,6 +1,7 @@
 namespace NetLedger.Sdk
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
     using System.Net;
     using System.Net.Http;
@@ -99,6 +100,14 @@ namespace NetLedger.Sdk
         }
 
         /// <summary>
+        /// Archive Server cold data and metadata operations.
+        /// </summary>
+        public IArchiveMethods Archive
+        {
+            get { return _ArchiveMethods; }
+        }
+
+        /// <summary>
         /// The base URL of the NetLedger server.
         /// </summary>
         public string BaseUrl
@@ -142,6 +151,7 @@ namespace NetLedger.Sdk
         private readonly IApiKeyMethods _ApiKeyMethods;
         private readonly IIdentityMethods _IdentityMethods;
         private readonly IRequestHistoryMethods _RequestHistoryMethods;
+        private readonly IArchiveMethods _ArchiveMethods;
 
         #endregion
 
@@ -227,6 +237,7 @@ namespace NetLedger.Sdk
             _ApiKeyMethods = new ApiKeyMethods(this);
             _IdentityMethods = new IdentityMethods(this);
             _RequestHistoryMethods = new RequestHistoryMethods(this);
+            _ArchiveMethods = new ArchiveMethods(this);
         }
 
         #endregion
@@ -291,6 +302,77 @@ namespace NetLedger.Sdk
                         (int)response.StatusCode,
                         error?.Message ?? response.ReasonPhrase ?? "Unknown error",
                         error?.Description);
+                }
+
+                if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)
+                {
+                    return new ApiResponse<T>(default, (int)response.StatusCode);
+                }
+
+                await using Stream responseStream = await response.Content.ReadAsStreamAsync(cts.Token).ConfigureAwait(false);
+                T? data = await JsonSerializer.DeserializeAsync<T>(responseStream, _DeserializeOptions, cts.Token).ConfigureAwait(false);
+                return new ApiResponse<T>(data, (int)response.StatusCode);
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new NetLedgerConnectionException("Request timed out.", null);
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new NetLedgerConnectionException("Failed to connect to the server.", ex);
+            }
+        }
+
+        /// <summary>
+        /// Send an HTTP request with caller-provided content.
+        /// </summary>
+        internal async Task<ApiResponse<T>> SendContentAsync<T>(
+            HttpMethod method,
+            string path,
+            HttpContent content,
+            Dictionary<string, string>? headers = null,
+            CancellationToken cancellationToken = default)
+        {
+            ObjectDisposedException.ThrowIf(_Disposed, nameof(NetLedgerClient));
+            if (content == null) throw new ArgumentNullException(nameof(content));
+
+            string url = $"{_BaseUrl}{path}";
+
+            using HttpRequestMessage request = new HttpRequestMessage(method, url);
+            request.Content = content;
+
+            if (headers != null)
+            {
+                foreach (KeyValuePair<string, string> header in headers)
+                {
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+            }
+
+            using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_TimeoutMs);
+
+            try
+            {
+                using HttpResponseMessage response = await _HttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    string responseBody = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                    ErrorResponse? error = null;
+                    try
+                    {
+                        error = JsonSerializer.Deserialize<ErrorResponse>(responseBody, _DeserializeOptions);
+                    }
+                    catch
+                    {
+                        // Failed to parse error response
+                    }
+
+                    throw new NetLedgerApiException(
+                        (int)response.StatusCode,
+                        error?.Message ?? response.ReasonPhrase ?? "Unknown error",
+                        error?.Description ?? responseBody);
                 }
 
                 if (response.StatusCode == HttpStatusCode.NoContent || response.Content.Headers.ContentLength == 0)

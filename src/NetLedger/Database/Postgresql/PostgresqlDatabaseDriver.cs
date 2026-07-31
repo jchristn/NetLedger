@@ -65,6 +65,7 @@ namespace NetLedger.Database.Postgresql
             Users = new PortableSqlUserMethods(this, DatabaseTypeEnum.Postgresql);
             AuthSessions = new PortableSqlAuthSessionMethods(this, DatabaseTypeEnum.Postgresql);
             AccountUserMaps = new PortableSqlAccountUserMapMethods(this, DatabaseTypeEnum.Postgresql);
+            AccountArchivalSettings = new PortableSqlAccountArchivalSettingsMethods(this, DatabaseTypeEnum.Postgresql);
             AuditRecords = new PortableSqlAuditRecordMethods(this, DatabaseTypeEnum.Postgresql);
             RequestHistory = new PortableSqlRequestHistoryMethods(this, DatabaseTypeEnum.Postgresql);
             Rbac = new PortableSqlRbacMethods(this, DatabaseTypeEnum.Postgresql);

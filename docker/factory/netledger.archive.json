@@ -1,0 +1,63 @@
+{
+  "Webserver": {
+    "Hostname": "+",
+    "Port": 8081,
+    "Ssl": false,
+    "Cors": {
+      "Enabled": true,
+      "AllowedOrigins": [ "*" ],
+      "AllowedMethods": [ "OPTIONS", "HEAD", "GET", "PUT", "POST", "DELETE" ],
+      "AllowedHeaders": [ "*" ],
+      "ExposedHeaders": [ "Content-Type", "x-netledger-data-scope", "x-request-id", "x-hostname", "x-api-version" ],
+      "AllowCredentials": false,
+      "MaxAgeSeconds": 600
+    }
+  },
+  "Logging": {
+    "EnableConsole": true,
+    "MinimumLevel": "Info",
+    "LogRequests": true
+  },
+  "Authentication": {
+    "Enabled": true,
+    "Mode": "NetLedgerIntrospection",
+    "NetLedgerServerUrl": "http://server:8080",
+    "RequireTlsForSecrets": false,
+    "IntrospectionCacheSeconds": 30
+  },
+  "Catalog": {
+    "Type": "Sqlite",
+    "Filename": "/app/data/netledger.archive.catalog.db",
+    "LogQueries": false
+  },
+  "Archive": {
+    "DefaultStoragePoolId": "asp_default",
+    "RequireCompleteCoverage": true,
+    "MaxEnumerationResults": 1000,
+    "MaxMigrationBatchRows": 50000,
+    "MaxMigrationBatchBytes": 134217728,
+    "AcceptedFormats": [ "JsonlGzip" ],
+    "PreferredFormat": "JsonlGzip"
+  },
+  "StoragePools": [
+    {
+      "Id": "asp_default",
+      "Name": "Less3 archive",
+      "Type": "S3",
+      "Bucket": "default",
+      "Prefix": "netledger-archive",
+      "Region": "us-west-1",
+      "Endpoint": "http://less3:8000",
+      "AccessKey": "default",
+      "SecretKey": "default",
+      "Format": "JsonlGzip",
+      "Compression": "Gzip"
+    }
+  ],
+  "RequestHistory": {
+    "Enabled": true,
+    "RetentionDays": 30,
+    "MaxRequestBodyBytes": 65536,
+    "MaxResponseBodyBytes": 65536
+  }
+}

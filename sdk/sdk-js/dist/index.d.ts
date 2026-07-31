@@ -5,6 +5,7 @@ import { BalanceMethods } from './methods/balance';
 import { ApiKeyMethods } from './methods/apikey';
 import { IdentityMethods } from './methods/identity';
 import { RequestHistoryMethods } from './methods/request-history';
+import { ArchiveMethods } from './methods/archive';
 export * from './models';
 export * from './errors';
 /**
@@ -52,6 +53,8 @@ export declare class NetLedgerClient {
     readonly identity: IdentityMethods;
     /** Request history operations. */
     readonly requestHistory: RequestHistoryMethods;
+    /** Archive Server cold data and metadata operations. */
+    readonly archive: ArchiveMethods;
     /** The base URL of the NetLedger server. */
     readonly baseUrl: string;
     /**

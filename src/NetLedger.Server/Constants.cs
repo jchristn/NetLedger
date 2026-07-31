@@ -50,6 +50,11 @@ namespace NetLedger.Server
         public static readonly string ApiVersionHeader = "x-api-version";
 
         /// <summary>
+        /// Data scope header name.
+        /// </summary>
+        public static readonly string DataScopeHeader = "x-netledger-data-scope";
+
+        /// <summary>
         /// Current API version.
         /// </summary>
         public static readonly string CurrentApiVersion = "v1";

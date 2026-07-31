@@ -57,6 +57,8 @@ class RequestHistoryMethods:
             'maxResults': query.max_results,
             'skip': query.skip
         }
+        if query.continuation_token:
+            params['continuationToken'] = query.continuation_token
         if query.tenant_id:
             params['tenantId'] = query.tenant_id
         if query.principal_id:
@@ -73,6 +75,8 @@ class RequestHistoryMethods:
             params['toUtc'] = query.to_utc
         if include_bucket_minutes:
             params['bucketMinutes'] = query.bucket_minutes
+        if query.allow_partial is not None:
+            params['allowPartial'] = str(query.allow_partial).lower()
 
         query_string = urlencode(params)
         return f'?{query_string}' if query_string else ''

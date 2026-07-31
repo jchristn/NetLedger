@@ -14,6 +14,7 @@ const pageTitles = {
   '/accounts': 'Accounts',
   '/entries': 'Entries',
   '/request-history': 'Request History',
+  '/archive': 'Archive',
   '/api-explorer': 'API Explorer'
 }
 

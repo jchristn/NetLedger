@@ -81,7 +81,9 @@ export class RequestHistoryMethods {
             if (query.ToUtc !== undefined) params.append('toUtc', query.ToUtc);
             if (query.MaxResults !== undefined) params.append('maxResults', query.MaxResults.toString());
             if (query.Skip !== undefined) params.append('skip', query.Skip.toString());
+            if (query.ContinuationToken !== undefined) params.append('continuationToken', query.ContinuationToken);
             if (includeBucketMinutes && query.BucketMinutes !== undefined) params.append('bucketMinutes', query.BucketMinutes.toString());
+            if (query.AllowPartial !== undefined) params.append('allowPartial', String(query.AllowPartial));
         }
 
         const queryString = params.toString();

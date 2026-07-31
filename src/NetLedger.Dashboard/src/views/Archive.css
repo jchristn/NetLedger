@@ -1,0 +1,208 @@
+.archive-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.archive-panel {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.archive-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.archive-panel-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.archive-panel-header p {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.archive-endpoint-form,
+.archive-query-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 0.75rem;
+  padding: 1rem;
+  align-items: end;
+}
+
+.archive-endpoint-field,
+.archive-query-form .filter-wide {
+  grid-column: span 2;
+}
+
+.archive-endpoint-form label,
+.archive-query-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 0;
+}
+
+.archive-endpoint-form span,
+.archive-query-form span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.archive-query-form .archive-checkbox-field {
+  align-items: center;
+  flex-direction: row;
+  gap: 0.5rem;
+  min-height: 38px;
+}
+
+.archive-query-form .archive-checkbox-field input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.archive-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.archive-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}
+
+.archive-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 58px;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.archive-stat span {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.archive-stat strong {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.archive-table-panel .data-table-container,
+.archive-panel > .data-table-container {
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.archive-panel .pagination {
+  margin: 1rem 1rem 0;
+}
+
+.archive-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.archive-action-row .btn-sm,
+.archive-panel .btn-sm {
+  min-height: 30px;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+}
+
+.archive-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 22px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.archive-path-cell {
+  display: inline-block;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.archive-inline-error {
+  margin: 0 1rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(198, 40, 40, 0.3);
+  border-radius: var(--radius-md);
+  background: rgba(198, 40, 40, 0.08);
+  color: var(--color-danger);
+}
+
+@media (max-width: 1100px) {
+  .archive-endpoint-form,
+  .archive-query-form,
+  .archive-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .archive-panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .archive-endpoint-form,
+  .archive-query-form,
+  .archive-summary-grid,
+  .archive-endpoint-field,
+  .archive-query-form .filter-wide {
+    grid-template-columns: 1fr;
+    grid-column: auto;
+  }
+
+  .archive-action-row {
+    justify-content: flex-start;
+  }
+}

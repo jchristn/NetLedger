@@ -1,10 +1,13 @@
 namespace Test.Automated
 {
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
     using System.Threading.Tasks;
     using NetLedger.Database;
     using Test.Shared;
     using Touchstone.Cli;
+    using Touchstone.Core;
 
     /// <summary>
     /// Touchstone console runner.
@@ -27,7 +30,7 @@ namespace Test.Automated
             DatabaseSettings settings;
             try
             {
-                settings = ParseArguments(args);
+                settings = NetLedgerTestConfiguration.ParseArguments(RemoveRunnerArguments(args));
             }
             catch (ArgumentException e)
             {
@@ -39,81 +42,18 @@ namespace Test.Automated
 
             NetLedgerSuites.Configure(settings);
             Console.WriteLine("Database provider: " + settings.Type);
-            if (settings.Type == DatabaseTypeEnum.Sqlite)
+            Console.WriteLine(NetLedgerTestConfiguration.Describe(settings));
+
+            string? suiteFilter = ReadRunnerOption(args, "suite");
+            string? testFilter = ReadRunnerOption(args, "test");
+            IReadOnlyList<TestSuiteDescriptor> suites = FilterSuites(NetLedgerSuites.All, suiteFilter, testFilter);
+            if (!String.IsNullOrWhiteSpace(suiteFilter) || !String.IsNullOrWhiteSpace(testFilter))
             {
-                Console.WriteLine("SQLite fixtures use isolated temporary database files.");
-            }
-            else
-            {
-                Console.WriteLine("Host: " + settings.Hostname + ":" + settings.GetEffectivePort());
-                Console.WriteLine("Database: " + settings.DatabaseName);
-                Console.WriteLine("User: " + settings.Username);
+                Console.WriteLine("Test filter: suite=" + (suiteFilter ?? "*") + " test=" + (testFilter ?? "*"));
             }
 
             Console.WriteLine();
-            return await ConsoleRunner.RunAsync(NetLedgerSuites.All).ConfigureAwait(false);
-        }
-
-        private static DatabaseSettings ParseArguments(string[] args)
-        {
-            DatabaseSettings settings = new DatabaseSettings
-            {
-                Type = DatabaseTypeEnum.Sqlite,
-                RequireEncryption = false,
-                ConnectionTimeoutSeconds = 60
-            };
-
-            for (int i = 0; i < args.Length; i++)
-            {
-                string argument = args[i];
-                string normalized = argument.Trim().ToLowerInvariant();
-
-                if (normalized == "--type" || normalized == "-t")
-                {
-                    settings.Type = NetLedgerSuites.ParseDatabaseType(ReadValue(args, ref i, argument));
-                }
-                else if (normalized == "--host" || normalized == "-h")
-                {
-                    settings.Hostname = ReadValue(args, ref i, argument);
-                }
-                else if (normalized == "--port" || normalized == "-p")
-                {
-                    string portValue = ReadValue(args, ref i, argument);
-                    if (!Int32.TryParse(portValue, out int port))
-                    {
-                        throw new ArgumentException("Port must be an integer.");
-                    }
-
-                    settings.Port = port;
-                }
-                else if (normalized == "--user" || normalized == "-u")
-                {
-                    settings.Username = ReadValue(args, ref i, argument);
-                }
-                else if (normalized == "--password")
-                {
-                    settings.Password = ReadValue(args, ref i, argument);
-                }
-                else if (normalized == "--database" || normalized == "-d")
-                {
-                    settings.DatabaseName = ReadValue(args, ref i, argument);
-                }
-                else if (normalized == "--schema")
-                {
-                    settings.Schema = ReadValue(args, ref i, argument);
-                }
-                else if (normalized == "--log-queries")
-                {
-                    settings.LogQueries = true;
-                }
-                else
-                {
-                    throw new ArgumentException("Unknown argument '" + argument + "'.");
-                }
-            }
-
-            ApplyProviderDefaults(settings);
-            return settings;
+            return await ConsoleRunner.RunAsync(suites).ConfigureAwait(false);
         }
 
         private static bool IsHelpRequested(string[] args)
@@ -130,53 +70,141 @@ namespace Test.Automated
             return false;
         }
 
-        private static string ReadValue(string[] args, ref int index, string argument)
-        {
-            if (index + 1 >= args.Length)
-            {
-                throw new ArgumentException("Missing value for " + argument + ".");
-            }
-
-            index++;
-            return args[index];
-        }
-
-        private static void ApplyProviderDefaults(DatabaseSettings settings)
-        {
-            if (settings.Type == DatabaseTypeEnum.Sqlite)
-            {
-                return;
-            }
-
-            if (String.IsNullOrEmpty(settings.Hostname))
-            {
-                settings.Hostname = "localhost";
-            }
-
-            if (String.IsNullOrEmpty(settings.DatabaseName))
-            {
-                settings.DatabaseName = "netledger";
-            }
-
-            if (settings.Type == DatabaseTypeEnum.SqlServer)
-            {
-                if (String.IsNullOrEmpty(settings.Username)) settings.Username = "sa";
-                if (String.IsNullOrEmpty(settings.Password)) settings.Password = "NetLedger!Passw0rd";
-            }
-            else
-            {
-                if (String.IsNullOrEmpty(settings.Username)) settings.Username = "netledger";
-                if (String.IsNullOrEmpty(settings.Password)) settings.Password = "netledger";
-            }
-        }
-
         private static void ShowHelp()
         {
             Console.WriteLine("Usage:");
-            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --type sqlite");
-            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --type mysql --host localhost --port 3307 --user netledger --password netledger --database netledger");
-            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --type postgresql --host localhost --port 5433 --user netledger --password netledger --database netledger");
-            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --type sqlserver --host localhost --port 14330 --user sa --password NetLedger!Passw0rd --database netledger");
+            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --dbtype sqlite");
+            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --dbtype mysql --dbhostname localhost --dbport 43306 --dbusername netledger --dbpassword netledger --dbname netledger");
+            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --dbtype postgres --dbhostname localhost --dbport 45432 --dbusername netledger --dbpassword netledger --dbname netledger");
+            Console.WriteLine("  dotnet run --project src/Test.Automated/Test.Automated.csproj -- --dbtype sqlserver --dbhostname localhost --dbport 41433 --dbusername sa --dbpassword NetLedger!Passw0rd --dbname netledger");
+            Console.WriteLine("Optional filters: --suite archive --test automatic_archive_account_override_exports_old_entries");
+        }
+
+        private static string[] RemoveRunnerArguments(string[] args)
+        {
+            List<string> databaseArgs = new List<string>();
+            if (args == null)
+            {
+                return databaseArgs.ToArray();
+            }
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                string argument = args[i] ?? String.Empty;
+                string? inlineValue;
+                string normalized = NormalizeArgument(argument, out inlineValue);
+                if (normalized == "suite" || normalized == "test")
+                {
+                    if (inlineValue == null && i + 1 < args.Length)
+                    {
+                        i++;
+                    }
+
+                    continue;
+                }
+
+                databaseArgs.Add(argument);
+            }
+
+            return databaseArgs.ToArray();
+        }
+
+        private static string? ReadRunnerOption(string[] args, string name)
+        {
+            if (args == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                string? inlineValue;
+                string normalized = NormalizeArgument(args[i] ?? String.Empty, out inlineValue);
+                if (normalized == name)
+                {
+                    if (inlineValue != null)
+                    {
+                        return inlineValue;
+                    }
+
+                    if (i + 1 >= args.Length)
+                    {
+                        throw new ArgumentException("--" + name + " requires a value.");
+                    }
+
+                    return args[i + 1];
+                }
+            }
+
+            return null;
+        }
+
+        private static IReadOnlyList<TestSuiteDescriptor> FilterSuites(
+            IReadOnlyList<TestSuiteDescriptor> suites,
+            string? suiteFilter,
+            string? testFilter)
+        {
+            if (suites == null) throw new ArgumentNullException(nameof(suites));
+
+            List<TestSuiteDescriptor> filtered = new List<TestSuiteDescriptor>();
+            foreach (TestSuiteDescriptor suite in suites)
+            {
+                if (!MatchesFilter(suite.SuiteId, suiteFilter))
+                {
+                    continue;
+                }
+
+                List<TestCaseDescriptor> cases = suite.Cases
+                    .Where(testCase => MatchesFilter(testCase.CaseId, testFilter))
+                    .ToList();
+                if (cases.Count == 0)
+                {
+                    continue;
+                }
+
+                filtered.Add(new TestSuiteDescriptor(
+                    suite.SuiteId,
+                    suite.DisplayName,
+                    cases,
+                    suite.BeforeSuiteAsync,
+                    suite.AfterSuiteAsync));
+            }
+
+            return filtered;
+        }
+
+        private static bool MatchesFilter(string value, string? filter)
+        {
+            if (String.IsNullOrWhiteSpace(filter))
+            {
+                return true;
+            }
+
+            return value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeArgument(string argument, out string? inlineValue)
+        {
+            inlineValue = null;
+            if (String.IsNullOrWhiteSpace(argument))
+            {
+                return String.Empty;
+            }
+
+            string normalized = argument.Trim();
+            while (normalized.StartsWith("-", StringComparison.Ordinal))
+            {
+                normalized = normalized.Substring(1);
+            }
+
+            int equalsIndex = normalized.IndexOf('=');
+            if (equalsIndex >= 0)
+            {
+                inlineValue = normalized.Substring(equalsIndex + 1);
+                normalized = normalized.Substring(0, equalsIndex);
+            }
+
+            return normalized.Replace("-", String.Empty, StringComparison.Ordinal).Replace("_", String.Empty, StringComparison.Ordinal).ToLowerInvariant();
         }
     }
 }

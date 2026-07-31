@@ -10,7 +10,8 @@ from .methods import (
     BalanceMethods,
     ApiKeyMethods,
     IdentityMethods,
-    RequestHistoryMethods
+    RequestHistoryMethods,
+    ArchiveMethods
 )
 
 
@@ -71,6 +72,7 @@ class NetLedgerClient:
         self.api_key = ApiKeyMethods(self._http_client)
         self.identity = IdentityMethods(self._http_client)
         self.request_history = RequestHistoryMethods(self._http_client)
+        self.archive = ArchiveMethods(self._http_client)
 
     @classmethod
     def login(cls, base_url: str, tenant_id: str, email: str, password: str, timeout_seconds: float = 30.0) -> 'NetLedgerClient':
@@ -87,6 +89,7 @@ class NetLedgerClient:
         client.api_key = ApiKeyMethods(http_client)
         client.identity = IdentityMethods(http_client)
         client.request_history = RequestHistoryMethods(http_client)
+        client.archive = ArchiveMethods(http_client)
         return client
 
     def close(self) -> None:

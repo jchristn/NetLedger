@@ -9,14 +9,18 @@ interface TestResult {
 
 class TestHarness {
     private client: NetLedgerClient;
+    private archiveClient?: NetLedgerClient;
     private results: TestResult[] = [];
     private totalStartTime: number = 0;
     private testAccountID: string = '';
     private testEntryIDs: string[] = [];
     private enumerationTestAccountID: string = '';
 
-    constructor(endpoint: string, apiKey: string) {
-        this.client = new NetLedgerClient(endpoint, apiKey);
+    constructor(endpoint: string, apiKey: string, archiveEndpoint?: string) {
+        this.client = new NetLedgerClient(endpoint, apiKey, archiveEndpoint ? { tenantId: 'default' } : undefined);
+        if (archiveEndpoint) {
+            this.archiveClient = new NetLedgerClient(archiveEndpoint, apiKey, { tenantId: 'default' });
+        }
     }
 
     async run(): Promise<number> {
@@ -36,6 +40,7 @@ class TestHarness {
             await this.runEnumerationTests();
             await this.runApiKeyTests();
             await this.runRequestHistoryTests();
+            await this.runArchiveTests();
             await this.runCleanupTests();
         } catch (err) {
             console.error('Fatal error:', err);
@@ -691,6 +696,71 @@ class TestHarness {
         console.log();
     }
 
+    private async runArchiveTests(): Promise<void> {
+        if (!this.archiveClient) return;
+
+        this.printSectionHeader('ARCHIVE SERVER TESTS');
+
+        await this.runTest('Archive Health Check', async () => {
+            const health = await this.archiveClient!.archive.health();
+            if (!health.Healthy) throw new Error('Archive health returned false');
+        });
+
+        await this.runTest('Archive Storage Pools', async () => {
+            const pools = await this.archiveClient!.archive.storagePools({ maxResults: 10 });
+            if (pools.length === 0) throw new Error('Archive Server should report at least one storage pool');
+
+            const pool = pools[0];
+            if (!pool.Id) throw new Error('Archive storage pool ID missing');
+            const health = await this.archiveClient!.archive.storagePoolHealth(pool.Id);
+            if (!health.StoragePoolId) throw new Error('Archive storage pool health ID missing');
+        });
+
+        await this.runTest('Archive Metadata Lists', async () => {
+            const migrations = await this.archiveClient!.archive.migrations({ maxResults: 10 });
+            if (migrations.length > 0 && migrations[0].Id) {
+                const migration = await this.archiveClient!.archive.migration(migrations[0].Id);
+                if (!migration.Id) throw new Error('Archive migration detail ID missing');
+                await this.archiveClient!.archive.migrationBatches(migration.Id, { maxResults: 10 });
+            }
+
+            const manifests = await this.archiveClient!.archive.manifests({ maxResults: 10 });
+            if (manifests.length > 0 && manifests[0].Id) {
+                const manifest = await this.archiveClient!.archive.manifest(manifests[0].Id);
+                if (!manifest.Id) throw new Error('Archive manifest detail ID missing');
+                await this.archiveClient!.archive.manifestCheckpoints(manifest.Id, { maxResults: 10 });
+                const objects = await this.archiveClient!.archive.manifestObjects(manifest.Id, { maxResults: 10 });
+                if (objects.length > 0 && objects[0].Id) {
+                    const metadata = await this.archiveClient!.archive.objectMetadata(objects[0].Id);
+                    if (!metadata.ObjectId) throw new Error('Archive object metadata ID missing');
+                }
+            }
+
+            await this.archiveClient!.archive.ranges({ maxResults: 10 });
+        });
+
+        await this.runTest('Archive Server Request History Summary', async () => {
+            const summary = await this.archiveClient!.archive.archiveServerRequestHistorySummary({ MaxResults: 100, BucketMinutes: 15 });
+            if (summary.TotalCount === undefined || summary.TotalCount < 0) {
+                throw new Error('Archive Server request history total count invalid');
+            }
+        });
+
+        if (this.testAccountID) {
+            await this.runTest('Active Export No-Row Retention Range', async () => {
+                const response = await this.client.archive.exportTenantAccountEntries('default', this.testAccountID, {
+                    FromUtc: new Date(0).toISOString(),
+                    ToUtc: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                    MaxBatchRows: 10,
+                    DeleteAfterCommit: false
+                });
+                if (response.RowsExported !== 0) throw new Error('No-row export should not export current SDK harness rows');
+            });
+        }
+
+        console.log();
+    }
+
     private async runCleanupTests(): Promise<void> {
         this.printSectionHeader('CLEANUP');
 
@@ -778,18 +848,20 @@ async function main(): Promise<void> {
     const args = process.argv.slice(2);
 
     if (args.length < 2) {
-        console.log('Usage: node test-harness.js <endpoint> <api-key>');
+        console.log('Usage: node test-harness.js <endpoint> <api-key> [archive-endpoint]');
         console.log();
         console.log('Example: node test-harness.js http://localhost:8080 your-api-key-here');
+        console.log('Example: node test-harness.js http://localhost:8080 your-api-key-here http://localhost:8081');
         process.exit(1);
     }
 
     const endpoint = args[0];
     const apiKey = args[1];
+    const archiveEndpoint = args.length > 2 ? args[2] : undefined;
 
     console.log(`API Key: ${apiKey.substring(0, Math.min(8, apiKey.length))}...`);
 
-    const harness = new TestHarness(endpoint, apiKey);
+    const harness = new TestHarness(endpoint, apiKey, archiveEndpoint);
     const exitCode = await harness.run();
     process.exit(exitCode);
 }

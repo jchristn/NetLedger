@@ -3,20 +3,30 @@ namespace Test.Shared
     using System;
     using System.Collections.Generic;
     using System.Data;
+    using System.Data.Common;
     using System.IO;
     using System.Linq;
     using System.Text;
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Data.SqlClient;
     using Microsoft.Data.Sqlite;
+    using MySqlConnector;
     using NetLedger;
+    using NetLedger.Archive;
+    using NetLedger.Archive.Catalog.Sql;
+    using NetLedger.Archive.Models;
+    using NetLedger.Archive.Settings;
+    using NetLedger.Archive.Storage;
     using NetLedger.Database;
     using NetLedger.Server.API.Agnostic;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
     using NetLedger.Server.Models.Identity;
+    using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
+    using Npgsql;
     using SyslogLogging;
     using Touchstone.Core;
 
@@ -42,6 +52,7 @@ namespace Test.Shared
                 return new List<TestSuiteDescriptor>
                 {
                     IdentifierSuite(),
+                    ArchiveSuite(),
                     MetadataSuite(),
                     LedgerSuite(),
                     CredentialSuite(),
@@ -60,7 +71,7 @@ namespace Test.Shared
         public static void Configure(DatabaseSettings settings)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
-            _ConfiguredSettings = CloneDatabaseSettings(settings);
+            _ConfiguredSettings = NetLedgerTestConfiguration.CloneDatabaseSettings(settings);
         }
 
         /// <summary>
@@ -70,15 +81,7 @@ namespace Test.Shared
         /// <returns>Database type.</returns>
         public static DatabaseTypeEnum ParseDatabaseType(string value)
         {
-            if (String.IsNullOrEmpty(value)) return DatabaseTypeEnum.Sqlite;
-
-            string normalized = value.Trim().ToLowerInvariant();
-            if (normalized == "sqlite") return DatabaseTypeEnum.Sqlite;
-            if (normalized == "mysql") return DatabaseTypeEnum.Mysql;
-            if (normalized == "postgres" || normalized == "postgresql") return DatabaseTypeEnum.Postgresql;
-            if (normalized == "sqlserver" || normalized == "mssql") return DatabaseTypeEnum.SqlServer;
-
-            throw new ArgumentException("Unsupported database type '" + value + "'.");
+            return NetLedgerTestConfiguration.ParseDatabaseType(value);
         }
 
         private static TestSuiteDescriptor IdentifierSuite()
@@ -110,6 +113,729 @@ namespace Test.Shared
                         string second = NetLedgerId.Generate(IdentifierPrefixes.Entry);
                         Assert(String.CompareOrdinal(first, second) < 0, "Generated IDs did not sort by generation order.");
                         return Task.CompletedTask;
+                    })
+                });
+        }
+
+        private static TestSuiteDescriptor ArchiveSuite()
+        {
+            string suiteId = "archive";
+            return new TestSuiteDescriptor(
+                suiteId,
+                "Archive catalog and storage contracts",
+                new List<TestCaseDescriptor>
+                {
+                    new TestCaseDescriptor(suiteId, "archive_id_prefix_length_sort", "Archive IDs use configured prefixes and remain K-sortable", _ =>
+                    {
+                        List<string> prefixes = new List<string>
+                        {
+                            ArchiveIdentifierPrefixes.StoragePool,
+                            ArchiveIdentifierPrefixes.Migration,
+                            ArchiveIdentifierPrefixes.MigrationBatch,
+                            ArchiveIdentifierPrefixes.Manifest,
+                            ArchiveIdentifierPrefixes.Range,
+                            ArchiveIdentifierPrefixes.Object,
+                            ArchiveIdentifierPrefixes.Checkpoint,
+                            ArchiveIdentifierPrefixes.Audit,
+                            ArchiveIdentifierPrefixes.RequestHistory,
+                            ArchiveIdentifierPrefixes.ObjectLock
+                        };
+
+                        foreach (string prefix in prefixes)
+                        {
+                            string id = ArchiveId.Generate(prefix);
+                            Assert(id.StartsWith(prefix, StringComparison.Ordinal), "Archive ID prefix mismatch for " + prefix + ".");
+                            Assert(id.Length == NetLedgerId.Length, "Archive ID length mismatch for " + prefix + ".");
+                        }
+
+                        string first = ArchiveId.Generate(ArchiveIdentifierPrefixes.Manifest);
+                        Thread.Sleep(2);
+                        string second = ArchiveId.Generate(ArchiveIdentifierPrefixes.Manifest);
+                        Assert(String.CompareOrdinal(first, second) < 0, "Archive IDs did not sort by generation order.");
+                        return Task.CompletedTask;
+                    }),
+                    new TestCaseDescriptor(suiteId, "archive_continuation_token_filter_hash", "Archive continuation tokens are opaque and bound to their query filters", _ =>
+                    {
+                        ArchiveQuery query = new ArchiveQuery
+                        {
+                            TenantId = "ten_archive_token",
+                            AccountId = "acct_archive_token",
+                            EntityType = ArchiveEntityType.Entries,
+                            ManifestStatus = ArchiveManifestStatus.Committed,
+                            FromUtc = new DateTime(2026, 01, 01, 00, 00, 00, DateTimeKind.Utc),
+                            ToUtc = new DateTime(2026, 02, 01, 00, 00, 00, DateTimeKind.Utc),
+                            Search = "invoice",
+                            Ordering = EnumerationOrderEnum.AmountDescending,
+                            AmountMinimum = 10m,
+                            MaxResults = 25
+                        };
+                        query.Labels = new List<string> { "paid", "external" };
+                        query.Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["source"] = "api"
+                        };
+
+                        string token = ArchiveContinuationToken.Create(query, "entries", 37);
+                        Assert(!token.Contains("acct_archive_token", StringComparison.Ordinal), "Continuation token exposed raw account identifiers.");
+
+                        query.ContinuationToken = token;
+                        int cursor = ArchiveContinuationToken.ResolveRowCursor(query, "entries");
+                        Assert(cursor == 37, "Continuation token did not resolve the expected row cursor.");
+
+                        bool rejectedChangedFilter = false;
+                        query.Search = "other";
+                        try
+                        {
+                            ArchiveContinuationToken.ResolveRowCursor(query, "entries");
+                        }
+                        catch (InvalidDataException)
+                        {
+                            rejectedChangedFilter = true;
+                        }
+
+                        Assert(rejectedChangedFilter, "Continuation token was accepted after filters changed.");
+
+                        bool rejectedSkip = false;
+                        query.Search = "invoice";
+                        query.Skip = 1;
+                        try
+                        {
+                            ArchiveContinuationToken.ResolveRowCursor(query, "entries");
+                        }
+                        catch (InvalidDataException)
+                        {
+                            rejectedSkip = true;
+                        }
+
+                        Assert(rejectedSkip, "Continuation token was accepted together with skip.");
+                        return Task.CompletedTask;
+                    }),
+                    new TestCaseDescriptor(suiteId, "archive_runtime_accepts_jsonl_only", "Archive runtime defaults accept only JSONL.Gzip in v4", _ =>
+                    {
+                        ArchiveRuntimeSettings settings = new ArchiveRuntimeSettings();
+                        Assert(settings.PreferredFormat == ArchiveFormat.JsonlGzip, "Archive runtime preferred format was not JSONL.Gzip.");
+                        Assert(settings.AcceptedFormats.Count == 1 && settings.AcceptedFormats[0] == ArchiveFormat.JsonlGzip, "Archive runtime accepted an unsupported v4 format.");
+                        return Task.CompletedTask;
+                    }),
+                    new TestCaseDescriptor(suiteId, "archive_catalog_table_isolation", "Archive catalog creates only approved archive table names", async token =>
+                    {
+                        ArchiveCatalogSettings settings = CreateArchiveCatalogSettings();
+                        HashSet<string> beforeTables = await ReadSqlTableNamesAsync(settings, token).ConfigureAwait(false);
+
+                        await using ArchiveSqlCatalog catalog = new ArchiveSqlCatalog(settings);
+                        await catalog.InitializeAsync(token).ConfigureAwait(false);
+
+                        HashSet<string> tableNames = await ReadSqlTableNamesAsync(settings, token).ConfigureAwait(false);
+                        HashSet<string> createdTables = new HashSet<string>(tableNames, StringComparer.OrdinalIgnoreCase);
+                        createdTables.ExceptWith(beforeTables);
+
+                        foreach (string tableName in createdTables)
+                        {
+                            Assert(ArchiveCatalogTables.IsApproved(tableName), settings.Type + " archive catalog created unexpected table name: " + tableName + ".");
+                        }
+
+                        foreach (string tableName in ArchiveCatalogTables.Approved)
+                        {
+                            Assert(tableNames.Contains(tableName), settings.Type + " archive catalog table was not created: " + tableName + ".");
+                        }
+
+                        foreach (string tableName in ActiveLedgerTableNames())
+                        {
+                            Assert(!ArchiveCatalogTables.IsApproved(tableName), "Archive catalog approved active table name: " + tableName + ".");
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "archive_catalog_metadata_crud", "Archive catalog persists migration, manifest, object, range, and checkpoint metadata", async token =>
+                    {
+                        ArchiveCatalogSettings settings = CreateArchiveCatalogSettings();
+
+                        await using ArchiveSqlCatalog catalog = new ArchiveSqlCatalog(settings);
+                        await catalog.InitializeAsync(token).ConfigureAwait(false);
+
+                        string tenantId = "ten_archive_" + UniqueSuffix(12);
+                        string accountId = "acct_archive_" + UniqueSuffix(12);
+                        ArchiveStoragePool pool = await catalog.StoragePools.UpsertAsync(new ArchiveStoragePool
+                        {
+                            Id = "asp_test_" + UniqueSuffix(8),
+                            Name = "Archive test pool",
+                            Type = ArchiveStoragePoolType.FileSystem,
+                            BasePath = Path.Combine(Path.GetTempPath(), "netledger-archive-test-" + UniqueSuffix(8)),
+                            Prefix = "test",
+                            Format = ArchiveFormat.JsonlGzip,
+                            Compression = ArchiveCompression.Gzip
+                        }, token).ConfigureAwait(false);
+
+                        DateTime fromUtc = DateTime.UtcNow.AddDays(-7);
+                        DateTime toUtc = DateTime.UtcNow.AddDays(-1);
+                        ArchiveMigration migration = await catalog.Migrations.CreateAsync(new ArchiveMigration
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            EntityType = ArchiveEntityType.Entries,
+                            StoragePoolId = pool.Id,
+                            Format = ArchiveFormat.JsonlGzip,
+                            Compression = ArchiveCompression.Gzip,
+                            FromUtc = fromUtc,
+                            ToUtc = toUtc,
+                            Status = ArchiveMigrationStatus.Pending,
+                            IdempotencyKey = "idem_" + UniqueSuffix(16)
+                        }, token).ConfigureAwait(false);
+
+                        ArchiveMigration? readByIdempotency = await catalog.Migrations.ReadByIdempotencyKeyAsync(migration.IdempotencyKey, token).ConfigureAwait(false);
+                        Assert(readByIdempotency != null && readByIdempotency.Id == migration.Id, "Migration idempotency lookup failed.");
+
+                        ArchiveMigrationBatch batch = await catalog.Migrations.CreateBatchAsync(new ArchiveMigrationBatch
+                        {
+                            MigrationId = migration.Id,
+                            StoragePoolId = pool.Id,
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            SequenceNumber = 0,
+                            RowCount = 2,
+                            ByteCount = 128,
+                            ContentHashSha256 = "abcd",
+                            TemporaryRelativePath = "_tmp/" + migration.Id + "/part.jsonl.gz",
+                            CommittedRelativePath = "test/v1/entity=entries/tenantid=" + tenantId + "/part.jsonl.gz",
+                            Status = ArchiveMigrationBatchStatus.Uploaded
+                        }, token).ConfigureAwait(false);
+
+                        ArchiveMigrationBatch? readBatch = await catalog.Migrations.ReadBatchAsync(migration.Id, batch.Id, token).ConfigureAwait(false);
+                        Assert(readBatch != null && readBatch.SequenceNumber == 0, "Migration batch read failed.");
+
+                        ArchiveManifest manifest = await catalog.Manifests.CreateAsync(new ArchiveManifest
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            MigrationId = migration.Id,
+                            EntityType = ArchiveEntityType.Entries,
+                            StoragePoolId = pool.Id,
+                            FromUtc = fromUtc,
+                            ToUtc = toUtc,
+                            RowCount = 2,
+                            CreditTotal = 10m,
+                            DebitTotal = 1m,
+                            ContentHashSha256 = "content",
+                            ManifestHashSha256 = "manifest",
+                            Status = ArchiveManifestStatus.Committed
+                        }, token).ConfigureAwait(false);
+
+                        await catalog.Objects.CreateAsync(new ArchiveObject
+                        {
+                            ManifestId = manifest.Id,
+                            StoragePoolId = pool.Id,
+                            RelativePath = batch.CommittedRelativePath,
+                            RowCount = 2,
+                            ByteCount = 128,
+                            ContentHashSha256 = "abcd"
+                        }, token).ConfigureAwait(false);
+
+                        await catalog.Ranges.CreateAsync(new ArchiveRangeInfo
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            ManifestId = manifest.Id,
+                            EntityType = ArchiveEntityType.Entries,
+                            FromUtc = fromUtc,
+                            ToUtc = toUtc,
+                            RowCount = 2
+                        }, token).ConfigureAwait(false);
+
+                        await catalog.BalanceCheckpoints.CreateAsync(new ArchiveBalanceCheckpoint
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            ManifestId = manifest.Id,
+                            AsOfUtc = toUtc,
+                            Balance = 9m
+                        }, token).ConfigureAwait(false);
+
+                        ArchiveRequestHistoryRange requestHistoryRange = await catalog.RequestHistoryRanges.CreateAsync(new ArchiveRequestHistoryRange
+                        {
+                            TenantId = tenantId,
+                            ManifestId = manifest.Id,
+                            FromUtc = fromUtc,
+                            ToUtc = toUtc,
+                            RowCount = 2,
+                            MethodCountsJson = "{\"GET\":2}",
+                            StatusCodeCountsJson = "{\"200\":2}"
+                        }, token).ConfigureAwait(false);
+
+                        EnumerationResult<ArchiveManifest> manifests = await catalog.Manifests.EnumerateAsync(new ArchiveQuery
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            MigrationId = migration.Id,
+                            MaxResults = 10
+                        }, token).ConfigureAwait(false);
+                        Assert(manifests.Objects.Count == 1 && manifests.Objects[0].Id == manifest.Id, "Manifest enumeration did not respect tenant/account/migration filters.");
+
+                        EnumerationResult<ArchiveObject> objects = await catalog.Objects.EnumerateByManifestAsync(manifest.Id, new ArchiveQuery { MaxResults = 10 }, token).ConfigureAwait(false);
+                        Assert(objects.Objects.Count == 1 && objects.Objects[0].RelativePath == batch.CommittedRelativePath, "Object enumeration by manifest failed.");
+
+                        ArchiveBalanceCheckpoint? checkpoint = await catalog.BalanceCheckpoints.ReadAsOfAsync(tenantId, accountId, DateTime.UtcNow, token).ConfigureAwait(false);
+                        Assert(checkpoint != null && checkpoint.Balance == 9m, "Balance checkpoint read-as-of failed.");
+
+                        EnumerationResult<ArchiveRequestHistoryRange> requestHistoryRanges = await catalog.RequestHistoryRanges.EnumerateAsync(new ArchiveQuery
+                        {
+                            TenantId = tenantId,
+                            MigrationId = manifest.Id,
+                            MaxResults = 10
+                        }, token).ConfigureAwait(false);
+                        Assert(requestHistoryRanges.Objects.Count == 1 && requestHistoryRanges.Objects[0].Id == requestHistoryRange.Id, "Request history range enumeration failed.");
+
+                        ArchiveManifest quarantined = await catalog.Manifests.UpdateStatusAsync(manifest.Id, ArchiveManifestStatus.Quarantined, token).ConfigureAwait(false);
+                        Assert(quarantined.Status == ArchiveManifestStatus.Quarantined, "Manifest status update failed.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "manual_migration_recovery_abort_cleans_temporary_payload", "Manual migration recovery abort removes temporary payloads and exposes no manifest", async token =>
+                    {
+                        ArchiveCatalogSettings settings = CreateArchiveCatalogSettings();
+                        string directory = Path.Combine(Path.GetTempPath(), "netledger-archive-recovery-" + UniqueSuffix(16));
+                        try
+                        {
+                            await using ArchiveSqlCatalog catalog = new ArchiveSqlCatalog(settings);
+                            await catalog.InitializeAsync(token).ConfigureAwait(false);
+                            FileSystemArchiveObjectStore store = new FileSystemArchiveObjectStore(directory);
+
+                            string tenantId = "ten_archive_recovery_" + UniqueSuffix(8);
+                            string accountId = "acct_archive_recovery_" + UniqueSuffix(8);
+                            ArchiveStoragePool pool = await catalog.StoragePools.UpsertAsync(new ArchiveStoragePool
+                            {
+                                Id = "asp_recovery_" + UniqueSuffix(8),
+                                Name = "Recovery drill pool",
+                                Type = ArchiveStoragePoolType.FileSystem,
+                                BasePath = directory,
+                                Format = ArchiveFormat.JsonlGzip,
+                                Compression = ArchiveCompression.Gzip
+                            }, token).ConfigureAwait(false);
+
+                            ArchiveMigration migration = await catalog.Migrations.CreateAsync(new ArchiveMigration
+                            {
+                                TenantId = tenantId,
+                                AccountId = accountId,
+                                EntityType = ArchiveEntityType.Entries,
+                                StoragePoolId = pool.Id,
+                                Format = ArchiveFormat.JsonlGzip,
+                                Compression = ArchiveCompression.Gzip,
+                                FromUtc = DateTime.UtcNow.AddDays(-3),
+                                ToUtc = DateTime.UtcNow.AddDays(-2),
+                                IdempotencyKey = "recovery-" + UniqueSuffix(12),
+                                Status = ArchiveMigrationStatus.Receiving
+                            }, token).ConfigureAwait(false);
+
+                            string temporaryPath = "_tmp/" + migration.Id + "/part-000000000000.jsonl.gz";
+                            string committedPath = "v1/entity=entries/tenantid=" + tenantId + "/accountid=" + accountId + "/manifest=pending/part-000000000000.jsonl.gz";
+                            byte[] payload = Encoding.UTF8.GetBytes("interrupted archive payload");
+                            using (MemoryStream stream = new MemoryStream(payload))
+                            {
+                                await store.WriteTemporaryAsync(temporaryPath, stream, token).ConfigureAwait(false);
+                            }
+
+                            ArchiveMigrationBatch batch = await catalog.Migrations.CreateBatchAsync(new ArchiveMigrationBatch
+                            {
+                                MigrationId = migration.Id,
+                                StoragePoolId = pool.Id,
+                                TenantId = tenantId,
+                                AccountId = accountId,
+                                SequenceNumber = 0,
+                                RowCount = 1,
+                                ByteCount = payload.Length,
+                                ContentHashSha256 = "manual-recovery-drill",
+                                TemporaryRelativePath = temporaryPath,
+                                CommittedRelativePath = committedPath,
+                                Status = ArchiveMigrationBatchStatus.Uploaded
+                            }, token).ConfigureAwait(false);
+
+                            ArchiveObjectMetadata beforeAbort = await store.ReadMetadataAsync(temporaryPath, token).ConfigureAwait(false);
+                            Assert(beforeAbort.Exists, "Recovery drill did not create the temporary archive payload.");
+
+                            await store.DeleteTemporaryAsync(batch.TemporaryRelativePath, token).ConfigureAwait(false);
+                            batch.Status = ArchiveMigrationBatchStatus.Failed;
+                            await catalog.Migrations.UpdateBatchAsync(batch, token).ConfigureAwait(false);
+                            migration = await catalog.Migrations.UpdateStatusAsync(migration.Id, ArchiveMigrationStatus.Aborted, token).ConfigureAwait(false);
+                            await catalog.AuditRecords.CreateAsync(new ArchiveAuditRecord
+                            {
+                                TenantId = tenantId,
+                                PrincipalId = "manual-recovery-drill",
+                                Action = "MigrationRecoveryAborted",
+                                TargetType = "ArchiveMigration",
+                                TargetId = migration.Id,
+                                Metadata = "{\"Decision\":\"Permit\",\"Reason\":\"Shared recovery drill aborted interrupted migration.\"}"
+                            }, token).ConfigureAwait(false);
+
+                            ArchiveObjectMetadata afterAbort = await store.ReadMetadataAsync(temporaryPath, token).ConfigureAwait(false);
+                            Assert(!afterAbort.Exists, "Recovery drill left a temporary archive payload behind.");
+                            ArchiveMigration? aborted = await catalog.Migrations.ReadByIdAsync(migration.Id, token).ConfigureAwait(false);
+                            Assert(aborted != null && aborted.Status == ArchiveMigrationStatus.Aborted, "Recovery drill did not mark the migration aborted.");
+                            ArchiveMigrationBatch? recoveredBatch = await catalog.Migrations.ReadBatchAsync(migration.Id, batch.Id, token).ConfigureAwait(false);
+                            Assert(recoveredBatch != null && recoveredBatch.Status == ArchiveMigrationBatchStatus.Failed, "Recovery drill did not mark the interrupted batch failed.");
+
+                            EnumerationResult<ArchiveManifest> manifests = await catalog.Manifests.EnumerateAsync(new ArchiveQuery
+                            {
+                                TenantId = tenantId,
+                                AccountId = accountId,
+                                MigrationId = migration.Id,
+                                MaxResults = 10
+                            }, token).ConfigureAwait(false);
+                            Assert(manifests.Objects.Count == 0, "Recovery drill exposed a manifest for an aborted migration.");
+                        }
+                        finally
+                        {
+                            if (Directory.Exists(directory))
+                            {
+                                Directory.Delete(directory, true);
+                            }
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "archive_catalog_audit_and_request_history_capture", "Archive catalog persists archive audit and server request history rows", async token =>
+                    {
+                        ArchiveCatalogSettings settings = CreateArchiveCatalogSettings();
+
+                        await using ArchiveSqlCatalog catalog = new ArchiveSqlCatalog(settings);
+                        await catalog.InitializeAsync(token).ConfigureAwait(false);
+
+                        ArchiveAuditRecord audit = await catalog.AuditRecords.CreateAsync(new ArchiveAuditRecord
+                        {
+                            TenantId = "ten_archive_audit",
+                            PrincipalId = "usr_archive_audit",
+                            Action = "Denied",
+                            TargetType = "ArchiveManifest",
+                            TargetId = "amf_test",
+                            Metadata = "{\"Result\":\"Denied\"}"
+                        }, token).ConfigureAwait(false);
+
+                        ArchiveServerRequestHistoryRecord requestHistory = await catalog.ServerRequestHistory.CreateAsync(new ArchiveServerRequestHistoryRecord
+                        {
+                            TenantId = "ten_archive_audit",
+                            PrincipalId = "usr_archive_audit",
+                            Method = "GET",
+                            Path = "/v1/archive/manifests",
+                            StatusCode = 403,
+                            DurationMs = 3.5m
+                        }, token).ConfigureAwait(false);
+
+                        long auditCount = await CountRowsByIdAsync(settings, ArchiveCatalogTables.AuditRecords, audit.Id, token).ConfigureAwait(false);
+                        Assert(auditCount == 1, "Archive audit record was not persisted.");
+
+                        ArchiveServerRequestHistoryRecord? readHistory = await catalog.ServerRequestHistory.ReadAsync("ten_archive_audit", requestHistory.Id, token).ConfigureAwait(false);
+                        Assert(readHistory != null && readHistory.Id == requestHistory.Id, "Archive server request history record was not persisted.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "active_archive_boundary_conflict_and_partial", "Active server archive boundary rejects archived ranges unless partial results are explicit", _ =>
+                    {
+                        ServerSettings settings = new ServerSettings();
+                        settings.Archive.Enabled = true;
+                        settings.Archive.ArchiveServerEndpoint = "http://archive.example";
+                        settings.Archive.DefaultActiveDataRetentionDays = 30;
+
+                        ActiveArchiveBoundaryService service = new ActiveArchiveBoundaryService(settings);
+                        RequestContext req = new RequestContext
+                        {
+                            TenantId = "ten_boundary",
+                            AllowPartial = false
+                        };
+
+                        DateTime boundaryUtc = service.GetBoundaryUtc(req);
+                        DateTime? fromUtc = boundaryUtc.AddDays(-2);
+                        ResponseContext? conflict = service.ApplyActiveRange(req, ref fromUtc, DateTime.UtcNow, "Entry");
+                        Assert(conflict != null && conflict.StatusCode == 409, "Boundary did not reject mixed active/archive range.");
+
+                        req.AllowPartial = true;
+                        DateTime? partialFromUtc = boundaryUtc.AddDays(-2);
+                        ResponseContext? partial = service.ApplyActiveRange(req, ref partialFromUtc, DateTime.UtcNow, "Entry");
+                        Assert(partial == null, "Boundary rejected explicit partial range.");
+                        Assert(partialFromUtc.HasValue && partialFromUtc.Value > boundaryUtc.AddSeconds(-5), "Boundary did not clamp partial active range.");
+                        return Task.CompletedTask;
+                    }),
+                    new TestCaseDescriptor(suiteId, "active_cleanup_retains_balance_anchor", "Active cleanup preserves a balance anchor and current balance after deletion", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("cleanup");
+                        string accountId = await ledger.CreateAccountAsync("archive-cleanup", 100m, null, null, tenantId, token).ConfigureAwait(false);
+                        await ledger.AddCreditAsync(accountId, 25m, "committed credit", null, true, null, null, tenantId, token).ConfigureAwait(false);
+                        await ledger.AddDebitAsync(accountId, 5m, "committed debit", null, true, null, null, tenantId, token).ConfigureAwait(false);
+
+                        Balance beforeCleanup = await ledger.GetBalanceAsync(accountId, false, token).ConfigureAwait(false);
+                        int rowsBeforeCleanup = await ledger.Driver.Entries.GetCountByAccountIdAsync(accountId, token).ConfigureAwait(false);
+                        DateTime cutoffUtc = DateTime.UtcNow.AddSeconds(1);
+
+                        RequestContext req = new RequestContext
+                        {
+                            TenantId = tenantId,
+                            Auth = AuthContext.NotRequired()
+                        };
+
+                        using ArchiveExportService service = new ArchiveExportService(new ServerSettings(), ledger, new LoggingModule());
+                        long rowsDeleted = await service.CleanupArchivedEntriesAsync(req, tenantId, accountId, cutoffUtc, token).ConfigureAwait(false);
+
+                        Balance afterCleanup = await ledger.GetBalanceAsync(accountId, false, token).ConfigureAwait(false);
+                        int rowsAfterCleanup = await ledger.Driver.Entries.GetCountByAccountIdAsync(accountId, token).ConfigureAwait(false);
+                        Entry anchor = await ledger.Driver.Entries.ReadLatestBalanceAsync(accountId, token).ConfigureAwait(false);
+                        string anchorDescription = anchor?.Description ?? String.Empty;
+
+                        Assert(rowsDeleted > 0, "Active cleanup did not delete committed rows.");
+                        Assert(rowsAfterCleanup < rowsBeforeCleanup, "Active cleanup did not reduce active entry rows.");
+                        Assert(afterCleanup.CommittedBalance == beforeCleanup.CommittedBalance, "Active cleanup changed the committed balance.");
+                        Assert(anchor != null && anchor.Type == EntryType.Balance, "Active cleanup did not leave a balance anchor.");
+                        Assert(anchorDescription.Contains("Archive balance anchor", StringComparison.Ordinal), "Retained balance entry was not marked as an archive anchor.");
+                        Assert(await ledger.VerifyBalanceChainAsync(accountId, token).ConfigureAwait(false), "Active balance chain failed verification after cleanup.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "account_archival_settings_crud", "Account archival settings persist overrides, state, and clamped values", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("accountarchivalsettings");
+                        string accountId = await ledger.CreateAccountAsync("archive-settings-" + UniqueSuffix(8), 0m, null, null, tenantId, token).ConfigureAwait(false);
+
+                        AccountArchivalSettings saved = await ledger.Driver.AccountArchivalSettings.UpsertAsync(new AccountArchivalSettings
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            Enabled = true,
+                            MaxRetentionDays = 0,
+                            IntervalSeconds = 0,
+                            MaxBatchRows = 100000,
+                            DeleteAfterCommit = false,
+                            StoragePoolId = "pool-a",
+                            RetryMaxAttempts = 0,
+                            RetryInitialDelaySeconds = -1,
+                            RetryMaxDelaySeconds = -1,
+                            LastArchivedThroughUtc = DateTime.UtcNow.AddDays(-3),
+                            FailureCount = -1
+                        }, token).ConfigureAwait(false);
+
+                        Assert(saved.MaxRetentionDays == 1, "MaxRetentionDays was not clamped.");
+                        Assert(saved.IntervalSeconds == 1, "IntervalSeconds was not clamped.");
+                        Assert(saved.MaxBatchRows == 50000, "MaxBatchRows was not clamped.");
+                        Assert(saved.RetryMaxAttempts == 1, "RetryMaxAttempts was not clamped.");
+                        Assert(saved.RetryInitialDelaySeconds == 0, "RetryInitialDelaySeconds was not clamped.");
+                        Assert(saved.RetryMaxDelaySeconds == 0, "RetryMaxDelaySeconds was not clamped.");
+                        Assert(saved.FailureCount == 0, "FailureCount was not clamped.");
+
+                        AccountArchivalSettings? read = await ledger.Driver.AccountArchivalSettings.ReadByAccountAsync(tenantId, accountId, token).ConfigureAwait(false);
+                        Assert(read != null && read.StoragePoolId == "pool-a" && read.LastArchivedThroughUtc.HasValue, "Account archival settings were not persisted.");
+
+                        read!.Enabled = false;
+                        read.StoragePoolId = "pool-b";
+                        AccountArchivalSettings updated = await ledger.Driver.AccountArchivalSettings.UpsertAsync(read, token).ConfigureAwait(false);
+                        Assert(updated.Id == saved.Id && updated.Enabled == false && updated.StoragePoolId == "pool-b", "Account archival settings update failed.");
+
+                        EnumerationResult<AccountArchivalSettings> enumerated = await ledger.Driver.AccountArchivalSettings.EnumerateAsync(new EnumerationQuery
+                        {
+                            TenantId = tenantId,
+                            AccountId = accountId,
+                            MaxResults = 10
+                        }, token).ConfigureAwait(false);
+                        Assert(enumerated.Objects.Count == 1 && enumerated.Objects[0].Id == saved.Id, "Account archival settings enumeration failed.");
+
+                        bool deleted = await ledger.Driver.AccountArchivalSettings.DeleteByAccountAsync(tenantId, accountId, token).ConfigureAwait(false);
+                        AccountArchivalSettings? afterDelete = await ledger.Driver.AccountArchivalSettings.ReadByAccountAsync(tenantId, accountId, token).ConfigureAwait(false);
+                        Assert(deleted && afterDelete == null, "Account archival settings delete failed.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "automatic_archive_account_override_exports_old_entries", "Account override enables automatic archival and avoids duplicate exports by watermark", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        using (TestArchiveServer archiveServer = new TestArchiveServer())
+                        {
+                            string tenantId = ScopedTenantId("autoarchive");
+                            string accountId = await ledger.CreateAccountAsync("auto-archive-" + UniqueSuffix(8), 0m, null, null, tenantId, token).ConfigureAwait(false);
+                            await CreateOldCommittedCreditAsync(ledger, tenantId, accountId, DateTime.UtcNow.AddDays(-10), token).ConfigureAwait(false);
+                            await UpsertAutomaticAccountOverrideAsync(ledger, tenantId, accountId, true, token).ConfigureAwait(false);
+
+                            ServerSettings settings = CreateAutomaticArchiveServerSettings(archiveServer.Endpoint, false);
+                            using (ArchiveExportService exportService = new ArchiveExportService(settings, ledger, new LoggingModule()))
+                            using (AutomaticArchiveService worker = new AutomaticArchiveService(settings, ledger, exportService, new LoggingModule()))
+                            {
+                                AutomaticArchiveRunResult result = await worker.RunOnceAsync(token).ConfigureAwait(false);
+                                Assert(result.EntryExportsSucceeded >= 1, "Automatic archive export did not succeed.");
+                                Assert(result.RowsExported > 0, "Automatic archive export did not export rows.");
+                                Assert(archiveServer.MigrationCreateAttempts >= 1, "Automatic archive export did not create a migration.");
+                                Assert(archiveServer.BatchCreateAttempts >= 1, "Automatic archive export did not create a batch.");
+                                Assert(archiveServer.UploadAttempts >= 1, "Automatic archive export did not upload a batch.");
+                                Assert(archiveServer.SealAttempts >= 1, "Automatic archive export did not seal the migration.");
+                                Assert(archiveServer.CommitAttempts >= 1, "Automatic archive export did not commit the migration.");
+                                Assert(archiveServer.UploadedBytes > 0, "Automatic archive export uploaded no bytes.");
+                                Assert(archiveServer.ValidatedJsonlRows == archiveServer.ExpectedBatchRows, "Automatic archive export uploaded invalid JSONL.Gzip rows.");
+
+                                AccountArchivalSettings? state = await ledger.Driver.AccountArchivalSettings.ReadByAccountAsync(tenantId, accountId, token).ConfigureAwait(false);
+                                Assert(state != null && state.LastSuccessUtc.HasValue && state.LastArchivedThroughUtc.HasValue, "Automatic archive state was not persisted.");
+
+                                int migrationsBeforeSecondRun = archiveServer.MigrationCreateAttempts;
+                                state!.LastAttemptUtc = DateTime.UtcNow.AddHours(-2);
+                                state.NextAttemptUtc = DateTime.UtcNow.AddSeconds(-1);
+                                await ledger.Driver.AccountArchivalSettings.UpsertAsync(state, token).ConfigureAwait(false);
+
+                                AutomaticArchiveRunResult second = await worker.RunOnceAsync(token).ConfigureAwait(false);
+                                Assert(second.EntryExportsAttempted >= 1, "Second automatic archive run did not evaluate the account.");
+                                Assert(archiveServer.MigrationCreateAttempts == migrationsBeforeSecondRun, "Automatic archive watermark allowed duplicate migration creation.");
+                            }
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "automatic_archive_retries_transient_archive_server_failure", "Automatic archival retries transient Archive Server failures", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        using (TestArchiveServer archiveServer = new TestArchiveServer(1))
+                        {
+                            string tenantId = ScopedTenantId("autoretry");
+                            string accountId = await ledger.CreateAccountAsync("auto-retry-" + UniqueSuffix(8), 0m, null, null, tenantId, token).ConfigureAwait(false);
+                            await CreateOldCommittedCreditAsync(ledger, tenantId, accountId, DateTime.UtcNow.AddDays(-10), token).ConfigureAwait(false);
+                            AccountArchivalSettings overrideSettings = await UpsertAutomaticAccountOverrideAsync(ledger, tenantId, accountId, true, token).ConfigureAwait(false);
+                            overrideSettings.RetryMaxAttempts = 2;
+                            overrideSettings.RetryInitialDelaySeconds = 0;
+                            overrideSettings.RetryMaxDelaySeconds = 0;
+                            await ledger.Driver.AccountArchivalSettings.UpsertAsync(overrideSettings, token).ConfigureAwait(false);
+
+                            ServerSettings settings = CreateAutomaticArchiveServerSettings(archiveServer.Endpoint, false);
+                            using (ArchiveExportService exportService = new ArchiveExportService(settings, ledger, new LoggingModule()))
+                            using (AutomaticArchiveService worker = new AutomaticArchiveService(settings, ledger, exportService, new LoggingModule()))
+                            {
+                                AutomaticArchiveRunResult result = await worker.RunOnceAsync(token).ConfigureAwait(false);
+                                Assert(result.EntryExportsSucceeded >= 1, "Automatic archive retry did not recover.");
+                                Assert(result.EntryExportsFailed == 0, "Automatic archive retry left a failed export.");
+                                Assert(archiveServer.MigrationCreateAttempts >= 2, "Automatic archive retry did not retry the failed migration create.");
+                            }
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "automatic_archive_disabled_account_override_skips", "Disabled account override prevents automatic archival", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        using (TestArchiveServer archiveServer = new TestArchiveServer())
+                        {
+                            string tenantId = ScopedTenantId("autodisabled");
+                            string accountId = await ledger.CreateAccountAsync("auto-disabled-" + UniqueSuffix(8), 0m, null, null, tenantId, token).ConfigureAwait(false);
+                            await CreateOldCommittedCreditAsync(ledger, tenantId, accountId, DateTime.UtcNow.AddDays(-10), token).ConfigureAwait(false);
+                            await UpsertAutomaticAccountOverrideAsync(ledger, tenantId, accountId, false, token).ConfigureAwait(false);
+
+                            ServerSettings settings = CreateAutomaticArchiveServerSettings(archiveServer.Endpoint, false);
+                            using (ArchiveExportService exportService = new ArchiveExportService(settings, ledger, new LoggingModule()))
+                            using (AutomaticArchiveService worker = new AutomaticArchiveService(settings, ledger, exportService, new LoggingModule()))
+                            {
+                                AutomaticArchiveRunResult result = await worker.RunOnceAsync(token).ConfigureAwait(false);
+                                Assert(result.EntryExportsAttempted == 0, "Disabled account override still attempted export.");
+                                Assert(archiveServer.MigrationCreateAttempts == 0, "Disabled account override created an archive migration.");
+                            }
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "filesystem_archive_store_commit_and_traversal", "Filesystem archive object store commits readable objects and rejects traversal", async token =>
+                    {
+                        string directory = Path.Combine(Path.GetTempPath(), "netledger-archive-store-" + UniqueSuffix(16));
+                        try
+                        {
+                            FileSystemArchiveObjectStore store = new FileSystemArchiveObjectStore(directory);
+                            byte[] bytes = Encoding.UTF8.GetBytes("archive payload");
+                            using MemoryStream writeStream = new MemoryStream(bytes);
+                            await store.WriteTemporaryAsync("_tmp/object.jsonl.gz", writeStream, token).ConfigureAwait(false);
+                            await store.CommitAsync("_tmp/object.jsonl.gz", "committed/object.jsonl.gz", token).ConfigureAwait(false);
+
+                            using Stream readStream = await store.ReadAsync("committed/object.jsonl.gz", token).ConfigureAwait(false);
+                            using MemoryStream readBuffer = new MemoryStream();
+                            await readStream.CopyToAsync(readBuffer, token).ConfigureAwait(false);
+                            string readText = Encoding.UTF8.GetString(readBuffer.ToArray());
+                            Assert(readText == "archive payload", "Committed archive object content was not readable.");
+
+                            ArchiveObjectMetadata metadata = await store.ReadMetadataAsync("committed/object.jsonl.gz", token).ConfigureAwait(false);
+                            Assert(metadata.Exists, "Committed archive object metadata did not report the object.");
+                            Assert(metadata.ByteCount == bytes.Length, "Committed archive object metadata byte count was incorrect.");
+                            Assert(metadata.IsReadOnly == true, "Committed archive object was not marked read-only.");
+
+                            using MemoryStream metadataWriteStream = new MemoryStream(bytes);
+                            await store.WriteTemporaryAsync("_tmp/object-with-metadata.jsonl.gz", metadataWriteStream, new Dictionary<string, string>
+                            {
+                                ["netledger-schema-version"] = "archive-object-v1"
+                            }, token).ConfigureAwait(false);
+                            await store.UpdateMetadataAsync("committed/object.jsonl.gz", new Dictionary<string, string>
+                            {
+                                ["netledger-manifest-id"] = "manifest-test"
+                            }, token).ConfigureAwait(false);
+
+                            bool rejectedTraversal = false;
+                            try
+                            {
+                                using MemoryStream traversalStream = new MemoryStream(bytes);
+                                await store.WriteTemporaryAsync("../escape.json", traversalStream, token).ConfigureAwait(false);
+                            }
+                            catch (InvalidOperationException)
+                            {
+                                rejectedTraversal = true;
+                            }
+
+                            Assert(rejectedTraversal, "Filesystem archive store did not reject path traversal.");
+                        }
+                        finally
+                        {
+                            if (Directory.Exists(directory))
+                            {
+                                foreach (string file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
+                                {
+                                    File.SetAttributes(file, File.GetAttributes(file) & ~FileAttributes.ReadOnly);
+                                }
+
+                                Directory.Delete(directory, true);
+                            }
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "s3_archive_store_commit_metadata_and_cleanup", "S3-compatible archive object store commits readable objects when configured", async token =>
+                    {
+                        ArchiveStoragePoolSettings? settings = CreateS3ArchiveStorageSettings();
+                        if (settings == null)
+                        {
+                            return;
+                        }
+
+                        using S3ArchiveObjectStore store = new S3ArchiveObjectStore(settings);
+                        byte[] bytes = Encoding.UTF8.GetBytes("less3 archive payload " + UniqueSuffix(8));
+                        string prefix = settings.Prefix.Trim('/').Trim();
+                        if (!String.IsNullOrWhiteSpace(prefix))
+                        {
+                            prefix += "/";
+                        }
+
+                        string objectRoot = prefix + "touchstone/" + UniqueSuffix(16);
+                        string temporaryPath = objectRoot + "/_tmp/object.txt";
+                        string committedPath = objectRoot + "/committed/object.txt";
+
+                        try
+                        {
+                            using MemoryStream writeStream = new MemoryStream(bytes);
+                            await store.WriteTemporaryAsync(temporaryPath, writeStream, new Dictionary<string, string>
+                            {
+                                ["netledger-schema-version"] = "archive-object-v1"
+                            }, token).ConfigureAwait(false);
+
+                            await store.CommitAsync(temporaryPath, committedPath, token).ConfigureAwait(false);
+
+                            using Stream readStream = await store.ReadAsync(committedPath, token).ConfigureAwait(false);
+                            using MemoryStream readBuffer = new MemoryStream();
+                            await readStream.CopyToAsync(readBuffer, token).ConfigureAwait(false);
+                            string readText = Encoding.UTF8.GetString(readBuffer.ToArray());
+                            Assert(readText == Encoding.UTF8.GetString(bytes), "Committed S3 archive object content was not readable.");
+
+                            ArchiveObjectMetadata metadata = await store.ReadMetadataAsync(committedPath, token).ConfigureAwait(false);
+                            Assert(metadata.Exists, "Committed S3 archive object metadata did not report the object.");
+                            Assert(metadata.ByteCount == bytes.Length, "Committed S3 archive object metadata byte count was incorrect.");
+                            Assert(metadata.Properties.ContainsKey("Provider"), "Committed S3 archive object metadata did not include provider context.");
+
+                            await store.UpdateMetadataAsync(committedPath, new Dictionary<string, string>
+                            {
+                                ["netledger-manifest-id"] = "manifest-test"
+                            }, token).ConfigureAwait(false);
+                            ArchiveObjectMetadata updatedMetadata = await store.ReadMetadataAsync(committedPath, token).ConfigureAwait(false);
+                            Assert(updatedMetadata.Properties.ContainsKey("netledger-manifest-id"), "Committed S3 archive object metadata update was not visible.");
+
+                            bool rejectedTraversal = false;
+                            try
+                            {
+                                using MemoryStream traversalStream = new MemoryStream(bytes);
+                                await store.WriteTemporaryAsync("../escape.json", traversalStream, token).ConfigureAwait(false);
+                            }
+                            catch (InvalidOperationException)
+                            {
+                                rejectedTraversal = true;
+                            }
+
+                            Assert(rejectedTraversal, "S3 archive store did not reject path traversal.");
+                        }
+                        finally
+                        {
+                            await store.DeleteTemporaryAsync(temporaryPath, token).ConfigureAwait(false);
+                            await store.DeleteTemporaryAsync(committedPath, token).ConfigureAwait(false);
+                        }
                     })
                 });
         }
@@ -481,6 +1207,39 @@ namespace Test.Shared
                         bool exists = await ledger.Driver.AccountUserMaps.ExistsAsync(tenantId, accountId, map.UserId, token).ConfigureAwait(false);
                         Assert(exists, "Account user map did not persist.");
                     }),
+                    new TestCaseDescriptor(suiteId, "account_user_map_enumeration_user_filter", "Account user map enumeration respects user filters", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("account_user_map_filter");
+                        string firstUserId = ScopedUserId("account_user_map_filter_a");
+                        string secondUserId = ScopedUserId("account_user_map_filter_b");
+                        string firstAccountId = await ledger.CreateAccountAsync("mapped-a", null, null, null, tenantId, token).ConfigureAwait(false);
+                        string secondAccountId = await ledger.CreateAccountAsync("mapped-b", null, null, null, tenantId, token).ConfigureAwait(false);
+
+                        AccountUserMap firstMap = await ledger.Driver.AccountUserMaps.CreateAsync(new AccountUserMap
+                        {
+                            TenantId = tenantId,
+                            AccountId = firstAccountId,
+                            UserId = firstUserId
+                        }, token).ConfigureAwait(false);
+
+                        await ledger.Driver.AccountUserMaps.CreateAsync(new AccountUserMap
+                        {
+                            TenantId = tenantId,
+                            AccountId = secondAccountId,
+                            UserId = secondUserId
+                        }, token).ConfigureAwait(false);
+
+                        EnumerationResult<AccountUserMap> result = await ledger.Driver.AccountUserMaps.EnumerateAsync(new EnumerationQuery
+                        {
+                            TenantId = tenantId,
+                            UserId = firstUserId,
+                            MaxResults = 10
+                        }, token).ConfigureAwait(false);
+
+                        Assert(result.Objects.Count == 1, "Account user map user filter returned the wrong number of rows.");
+                        Assert(result.Objects[0].Id == firstMap.Id, "Account user map user filter returned the wrong row.");
+                    }),
                     new TestCaseDescriptor(suiteId, "mapped_account_enumeration_filters", "Mapped account enumeration excludes unmapped accounts", async token =>
                     {
                         await using Ledger ledger = CreateLedger();
@@ -688,7 +1447,7 @@ namespace Test.Shared
             DatabaseSettings configured = GetConfiguredDatabaseSettings();
             DatabaseSettings settings = CloneDatabaseSettings(configured);
 
-            if (settings.Type == DatabaseTypeEnum.Sqlite)
+            if (settings.Type == DatabaseTypeEnum.Sqlite && String.IsNullOrWhiteSpace(settings.Filename))
             {
                 settings.Filename = CreateDatabaseFilename();
             }
@@ -703,22 +1462,7 @@ namespace Test.Shared
                 return CloneDatabaseSettings(_ConfiguredSettings);
             }
 
-            string? type = Environment.GetEnvironmentVariable("NETLEDGER_TEST_TYPE");
-            if (String.IsNullOrEmpty(type))
-            {
-                type = Environment.GetEnvironmentVariable("NETLEDGER_TEST_PROVIDER");
-            }
-
-            if (String.IsNullOrEmpty(type))
-            {
-                return new DatabaseSettings
-                {
-                    Type = DatabaseTypeEnum.Sqlite,
-                    Filename = CreateDatabaseFilename()
-                };
-            }
-
-            return CreateProviderSettings(ParseDatabaseType(type));
+            return NetLedgerTestConfiguration.FromEnvironment();
         }
 
         private static string UniqueSuffix(int length)
@@ -1852,31 +2596,10 @@ namespace Test.Shared
 
         private static DatabaseSettings CreateProviderSettings(DatabaseTypeEnum type)
         {
-            string prefix = "NETLEDGER_" + type.ToString().ToUpperInvariant() + "_";
-            if (type == DatabaseTypeEnum.Sqlite)
+            DatabaseSettings settings = NetLedgerTestConfiguration.CreateProviderSettings(type);
+            if (settings.Type == DatabaseTypeEnum.Sqlite && String.IsNullOrWhiteSpace(settings.Filename))
             {
-                return new DatabaseSettings
-                {
-                    Type = DatabaseTypeEnum.Sqlite,
-                    Filename = CreateDatabaseFilename()
-                };
-            }
-
-            DatabaseSettings settings = new DatabaseSettings
-            {
-                Type = type,
-                Hostname = Environment.GetEnvironmentVariable(prefix + "HOST") ?? "localhost",
-                DatabaseName = Environment.GetEnvironmentVariable(prefix + "DATABASE") ?? "netledger",
-                Username = Environment.GetEnvironmentVariable(prefix + "USER") ?? (type == DatabaseTypeEnum.SqlServer ? "sa" : "netledger"),
-                Password = Environment.GetEnvironmentVariable(prefix + "PASSWORD") ?? (type == DatabaseTypeEnum.SqlServer ? "NetLedger!Passw0rd" : "netledger"),
-                RequireEncryption = false,
-                ConnectionTimeoutSeconds = 60
-            };
-
-            string? port = Environment.GetEnvironmentVariable(prefix + "PORT");
-            if (!String.IsNullOrEmpty(port) && Int32.TryParse(port, out int parsedPort))
-            {
-                settings.Port = parsedPort;
+                settings.Filename = CreateDatabaseFilename();
             }
 
             return settings;
@@ -1884,24 +2607,263 @@ namespace Test.Shared
 
         private static DatabaseSettings CloneDatabaseSettings(DatabaseSettings settings)
         {
+            return NetLedgerTestConfiguration.CloneDatabaseSettings(settings);
+        }
+
+        private static ArchiveCatalogSettings CreateArchiveCatalogSettings()
+        {
+            return NetLedgerTestConfiguration.ToArchiveCatalogSettings(CreateDatabaseSettings());
+        }
+
+        private static ArchiveStoragePoolSettings? CreateS3ArchiveStorageSettings()
+        {
+            string? endpoint = Environment.GetEnvironmentVariable("NETLEDGER_ARCHIVE_TEST_S3_ENDPOINT");
+            string? bucket = Environment.GetEnvironmentVariable("NETLEDGER_ARCHIVE_TEST_S3_BUCKET");
+            if (String.IsNullOrWhiteSpace(endpoint) || String.IsNullOrWhiteSpace(bucket))
+            {
+                return null;
+            }
+
+            string? prefix = Environment.GetEnvironmentVariable("NETLEDGER_ARCHIVE_TEST_S3_PREFIX");
+            string? region = Environment.GetEnvironmentVariable("NETLEDGER_ARCHIVE_TEST_S3_REGION");
+            string? accessKey = Environment.GetEnvironmentVariable("NETLEDGER_ARCHIVE_TEST_S3_ACCESS_KEY");
+            string? secretKey = Environment.GetEnvironmentVariable("NETLEDGER_ARCHIVE_TEST_S3_SECRET_KEY");
+
+            return new ArchiveStoragePoolSettings
+            {
+                Id = "asp_touchstone_s3",
+                Name = "Touchstone S3 archive test",
+                Type = ArchiveStoragePoolType.S3,
+                Bucket = bucket,
+                Prefix = String.IsNullOrWhiteSpace(prefix) ? "netledger-archive-tests" : prefix,
+                Region = String.IsNullOrWhiteSpace(region) ? "us-west-1" : region,
+                Endpoint = endpoint,
+                AccessKey = accessKey,
+                SecretKey = secretKey,
+                Format = ArchiveFormat.JsonlGzip,
+                Compression = ArchiveCompression.Gzip
+            };
+        }
+
+        private static ServerSettings CreateAutomaticArchiveServerSettings(string archiveEndpoint, bool globalAutomaticEnabled)
+        {
+            ServerSettings settings = new ServerSettings();
+            settings.Archive.Enabled = true;
+            settings.Archive.ArchiveServerEndpoint = archiveEndpoint;
+            settings.Archive.DefaultActiveDataRetentionDays = 365;
+            settings.Archive.Automatic.Enabled = globalAutomaticEnabled;
+            settings.Archive.Automatic.MaxRetentionDays = 1;
+            settings.Archive.Automatic.IntervalSeconds = 3600;
+            settings.Archive.Automatic.InitialDelaySeconds = 0;
+            settings.Archive.Automatic.MaxAccountsPerRun = 10000;
+            settings.Archive.Automatic.MaxBatchRows = 10;
+            settings.Archive.Automatic.DeleteAfterCommit = false;
+            settings.Archive.Automatic.Retry.MaxAttempts = 1;
+            settings.Archive.Automatic.Retry.InitialDelaySeconds = 0;
+            settings.Archive.Automatic.Retry.MaxDelaySeconds = 0;
+            return settings;
+        }
+
+        private static async Task<AccountArchivalSettings> UpsertAutomaticAccountOverrideAsync(
+            Ledger ledger,
+            string tenantId,
+            string accountId,
+            bool enabled,
+            CancellationToken token)
+        {
+            return await ledger.Driver.AccountArchivalSettings.UpsertAsync(new AccountArchivalSettings
+            {
+                TenantId = tenantId,
+                AccountId = accountId,
+                Enabled = enabled,
+                MaxRetentionDays = 1,
+                IntervalSeconds = 3600,
+                MaxBatchRows = 10,
+                DeleteAfterCommit = false,
+                RetryMaxAttempts = 1,
+                RetryInitialDelaySeconds = 0,
+                RetryMaxDelaySeconds = 0,
+                NextAttemptUtc = DateTime.UtcNow.AddSeconds(-1)
+            }, token).ConfigureAwait(false);
+        }
+
+        private static async Task CreateOldCommittedCreditAsync(
+            Ledger ledger,
+            string tenantId,
+            string accountId,
+            DateTime createdUtc,
+            CancellationToken token)
+        {
+            DateTime timestamp = createdUtc.ToUniversalTime();
+            await ledger.Driver.Entries.CreateAsync(new Entry
+            {
+                TenantId = tenantId,
+                AccountId = accountId,
+                Type = EntryType.Credit,
+                Amount = 25m,
+                Description = "old committed credit",
+                IsCommitted = true,
+                CommittedById = "test-archive-commit",
+                CommittedUtc = timestamp,
+                CreatedUtc = timestamp,
+                LastUpdateUtc = timestamp
+            }, token).ConfigureAwait(false);
+        }
+
+        private static List<string> ActiveLedgerTableNames()
+        {
+            return new List<string>
+            {
+                "accounts",
+                "entries",
+                "apikeys",
+                "accountarchivalsettings",
+                "accountlocks",
+                "accountusermaps",
+                "tenants",
+                "users",
+                "authsessions",
+                "auditrecords",
+                "requesthistory",
+                "schemamigrations"
+            };
+        }
+
+        private static async Task<HashSet<string>> ReadSqlTableNamesAsync(DatabaseSettings settings, CancellationToken token)
+        {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
 
-            return new DatabaseSettings
+            string query;
+            switch (settings.Type)
             {
-                Type = settings.Type,
-                Filename = settings.Filename,
-                Hostname = settings.Hostname,
-                Port = settings.Port,
-                Username = settings.Username,
-                Password = settings.Password,
-                DatabaseName = settings.DatabaseName,
-                Instance = settings.Instance,
-                Schema = settings.Schema,
-                LogQueries = settings.LogQueries,
-                RequireEncryption = settings.RequireEncryption,
-                ConnectionTimeoutSeconds = settings.ConnectionTimeoutSeconds,
-                MaxPoolSize = settings.MaxPoolSize
-            };
+                case DatabaseTypeEnum.Mysql:
+                    query = "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE();";
+                    break;
+                case DatabaseTypeEnum.Postgresql:
+                    query = "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() AND table_type = 'BASE TABLE';";
+                    break;
+                case DatabaseTypeEnum.SqlServer:
+                    query = "SELECT name FROM sys.tables;";
+                    break;
+                case DatabaseTypeEnum.Sqlite:
+                default:
+                    query = "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';";
+                    break;
+            }
+
+            HashSet<string> tableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using (DbConnection connection = CreateDbConnection(settings))
+            {
+                await connection.OpenAsync(token).ConfigureAwait(false);
+                using (DbCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = query;
+                    command.CommandTimeout = settings.ConnectionTimeoutSeconds;
+                    using (DbDataReader reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false))
+                    {
+                        while (await reader.ReadAsync(token).ConfigureAwait(false))
+                        {
+                            if (!await reader.IsDBNullAsync(0, token).ConfigureAwait(false))
+                            {
+                                tableNames.Add(reader.GetString(0));
+                            }
+                        }
+                    }
+                }
+            }
+
+            return tableNames;
+        }
+
+        private static async Task<long> CountRowsByIdAsync(DatabaseSettings settings, string tableName, string id, CancellationToken token)
+        {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
+            if (String.IsNullOrWhiteSpace(tableName)) throw new ArgumentNullException(nameof(tableName));
+            if (String.IsNullOrWhiteSpace(id)) throw new ArgumentNullException(nameof(id));
+
+            using (DbConnection connection = CreateDbConnection(settings))
+            {
+                await connection.OpenAsync(token).ConfigureAwait(false);
+                using (DbCommand command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT COUNT(*) FROM " + QuoteIdentifier(settings.Type, tableName) + " WHERE " + QuoteIdentifier(settings.Type, "id") + " = " + QuoteValue(id) + ";";
+                    command.CommandTimeout = settings.ConnectionTimeoutSeconds;
+                    object? result = await command.ExecuteScalarAsync(token).ConfigureAwait(false);
+                    return Convert.ToInt64(result);
+                }
+            }
+        }
+
+        private static DbConnection CreateDbConnection(DatabaseSettings settings)
+        {
+            switch (settings.Type)
+            {
+                case DatabaseTypeEnum.Mysql:
+                    MySqlConnectionStringBuilder mysql = new MySqlConnectionStringBuilder
+                    {
+                        Server = settings.Hostname,
+                        Port = (uint)settings.GetEffectivePort(),
+                        Database = settings.DatabaseName,
+                        UserID = settings.Username ?? String.Empty,
+                        Password = settings.Password ?? String.Empty,
+                        SslMode = settings.RequireEncryption ? MySqlSslMode.Required : MySqlSslMode.Preferred,
+                        ConnectionTimeout = (uint)settings.ConnectionTimeoutSeconds,
+                        Pooling = true,
+                        MaximumPoolSize = (uint)settings.MaxPoolSize,
+                        MinimumPoolSize = 1
+                    };
+                    return new MySqlConnection(mysql.ConnectionString);
+
+                case DatabaseTypeEnum.Postgresql:
+                    NpgsqlConnectionStringBuilder postgres = new NpgsqlConnectionStringBuilder
+                    {
+                        Host = settings.Hostname,
+                        Port = settings.GetEffectivePort(),
+                        Database = settings.DatabaseName,
+                        Username = settings.Username ?? String.Empty,
+                        Password = settings.Password ?? String.Empty,
+                        SslMode = settings.RequireEncryption ? SslMode.Require : SslMode.Prefer,
+                        Timeout = settings.ConnectionTimeoutSeconds,
+                        Pooling = true,
+                        MaxPoolSize = settings.MaxPoolSize,
+                        SearchPath = settings.Schema
+                    };
+                    return new NpgsqlConnection(postgres.ConnectionString);
+
+                case DatabaseTypeEnum.SqlServer:
+                    SqlConnectionStringBuilder sqlServer = new SqlConnectionStringBuilder
+                    {
+                        DataSource = String.IsNullOrWhiteSpace(settings.Instance)
+                            ? settings.Hostname + "," + settings.GetEffectivePort()
+                            : settings.Hostname + "\\" + settings.Instance,
+                        InitialCatalog = settings.DatabaseName,
+                        UserID = settings.Username ?? String.Empty,
+                        Password = settings.Password ?? String.Empty,
+                        Encrypt = settings.RequireEncryption,
+                        TrustServerCertificate = !settings.RequireEncryption,
+                        ConnectTimeout = settings.ConnectionTimeoutSeconds,
+                        Pooling = true,
+                        MaxPoolSize = settings.MaxPoolSize
+                    };
+                    return new SqlConnection(sqlServer.ConnectionString);
+
+                case DatabaseTypeEnum.Sqlite:
+                default:
+                    SQLitePCL.Batteries_V2.Init();
+                    return new SqliteConnection("Data Source=" + settings.Filename + ";");
+            }
+        }
+
+        private static string QuoteIdentifier(DatabaseTypeEnum type, string value)
+        {
+            if (type == DatabaseTypeEnum.Mysql) return "`" + value + "`";
+            if (type == DatabaseTypeEnum.SqlServer) return "[" + value + "]";
+            return "\"" + value + "\"";
+        }
+
+        private static string QuoteValue(string value)
+        {
+            return "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
         }
 
         private static void AssertPrimaryTextColumn(DataTable columns, string columnName, string tableName)

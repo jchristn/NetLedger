@@ -34,6 +34,11 @@ namespace NetLedger.Sdk
         /// </summary>
         public DateTime StartTimeUtc { get; set; }
 
+        /// <summary>
+        /// Active archive integration information.
+        /// </summary>
+        public ActiveArchiveInfo? Archive { get; set; }
+
         #endregion
 
         #region Constructors-and-Factories

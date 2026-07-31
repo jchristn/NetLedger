@@ -5,7 +5,7 @@ import sys
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Callable
 
 # Add parent directory to path for development
@@ -35,9 +35,10 @@ class TestResult:
 class TestHarness:
     """Test harness for the NetLedger SDK."""
 
-    def __init__(self, endpoint: str, api_key: str):
+    def __init__(self, endpoint: str, api_key: str, archive_endpoint: Optional[str] = None):
         """Initialize the test harness."""
-        self.client = NetLedgerClient(endpoint, api_key)
+        self.client = NetLedgerClient(endpoint, api_key, tenant_id="default" if archive_endpoint else None)
+        self.archive_client = NetLedgerClient(archive_endpoint, api_key, tenant_id="default") if archive_endpoint else None
         self.results: List[TestResult] = []
         self.total_start_time: float = 0
         self.test_account_id: str = ""
@@ -61,6 +62,7 @@ class TestHarness:
             self._run_balance_tests()
             self._run_api_key_tests()
             self._run_request_history_tests()
+            self._run_archive_tests()
             self._run_cleanup_tests()
         except Exception as e:
             print(f"Fatal error: {e}")
@@ -545,7 +547,8 @@ class TestHarness:
             created_key_ids: List[str] = []
             for i in range(3):
                 key = self.client.api_key.create(f"PaginationTestKey_{i}", is_admin=False)
-                created_key_ids.append(key.id)
+                self._assert(key.credential and key.credential.id, "API key identifier is empty")
+                created_key_ids.append(key.credential.id)
 
             # Test enumeration
             result = self.client.api_key.enumerate(ApiKeyEnumerationQuery(max_results=2))
@@ -641,7 +644,7 @@ class TestHarness:
         self._run_test("Commit Specific Entries", commit_specific)
 
         def get_historical():
-            self.client.balance.get_as_of(self.test_account_id, datetime.utcnow())
+            self.client.balance.get_as_of(self.test_account_id, datetime.now(timezone.utc))
 
         self._run_test("Get Historical Balance", get_historical)
 
@@ -656,9 +659,10 @@ class TestHarness:
         def create_key():
             nonlocal created_key_id
             key = self.client.api_key.create("Test SDK Key", is_admin=False)
-            self._assert(key.id, "API key identifier is empty")
-            self._assert(key.api_key, "API key value should be returned on creation")
-            created_key_id = key.id
+            self._assert(key.credential and key.credential.id, "API key identifier is empty")
+            self._assert(key.credential.api_key, "API key value should be returned on creation")
+            self._assert(key.secret_key, "Secret key should be returned on creation")
+            created_key_id = key.credential.id
 
         self._run_test("Create API Key", create_key)
 
@@ -691,6 +695,77 @@ class TestHarness:
             self._assert(summary.total_count is not None, "Request history summary total count missing")
 
         self._run_test("Summarize Request History", summarize_history)
+
+        print()
+
+    def _run_archive_tests(self) -> None:
+        """Run live Archive Server tests when an archive endpoint was supplied."""
+        if self.archive_client is None:
+            return
+
+        self._print_section_header("ARCHIVE SERVER TESTS")
+
+        def health_check():
+            health = self.archive_client.archive.health()
+            self._assert(health.get("Healthy") is True, "Archive health returned false")
+
+        self._run_test("Archive Health Check", health_check)
+
+        def storage_pools():
+            pools = self.archive_client.archive.storage_pools({"maxResults": 10})
+            self._assert(len(pools) > 0, "Archive Server should report at least one storage pool")
+            pool = pools[0]
+            self._assert(bool(pool.get("Id")), "Archive storage pool ID missing")
+            health = self.archive_client.archive.storage_pool_health(pool["Id"])
+            self._assert(bool(health.get("StoragePoolId")), "Archive storage pool health ID missing")
+
+        self._run_test("Archive Storage Pools", storage_pools)
+
+        def metadata_lists():
+            migrations = self.archive_client.archive.migrations({"maxResults": 10})
+            if migrations and migrations[0].get("Id"):
+                migration = self.archive_client.archive.migration(migrations[0]["Id"])
+                self._assert(bool(migration.get("Id")), "Archive migration detail ID missing")
+                self.archive_client.archive.migration_batches(migration["Id"], {"maxResults": 10})
+
+            manifests = self.archive_client.archive.manifests({"maxResults": 10})
+            if manifests and manifests[0].get("Id"):
+                manifest = self.archive_client.archive.manifest(manifests[0]["Id"])
+                self._assert(bool(manifest.get("Id")), "Archive manifest detail ID missing")
+                self.archive_client.archive.manifest_checkpoints(manifest["Id"], {"maxResults": 10})
+                objects = self.archive_client.archive.manifest_objects(manifest["Id"], {"maxResults": 10})
+                if objects and objects[0].get("Id"):
+                    metadata = self.archive_client.archive.object_metadata(objects[0]["Id"])
+                    self._assert(bool(metadata.get("ObjectId")), "Archive object metadata ID missing")
+
+            self.archive_client.archive.ranges({"maxResults": 10})
+
+        self._run_test("Archive Metadata Lists", metadata_lists)
+
+        def archive_server_request_history_summary():
+            summary = self.archive_client.archive.archive_server_request_history_summary({
+                "maxResults": 100,
+                "bucketMinutes": 15
+            })
+            self._assert(summary.get("TotalCount", 0) >= 0, "Archive Server request history total count invalid")
+
+        self._run_test("Archive Server Request History Summary", archive_server_request_history_summary)
+
+        if self.test_account_id:
+            def active_export_no_rows():
+                response = self.client.archive.export_tenant_account_entries(
+                    "default",
+                    self.test_account_id,
+                    {
+                        "FromUtc": datetime.fromtimestamp(0, timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "ToUtc": (datetime.now(timezone.utc) - timedelta(days=2)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+                        "MaxBatchRows": 10,
+                        "DeleteAfterCommit": False
+                    }
+                )
+                self._assert(response.get("RowsExported", 0) == 0, "No-row export should not export current SDK harness rows")
+
+            self._run_test("Active Export No-Row Retention Range", active_export_no_rows)
 
         print()
 
@@ -782,17 +857,19 @@ class TestHarness:
 def main() -> None:
     """Main entry point."""
     if len(sys.argv) < 3:
-        print("Usage: python test_harness.py <endpoint> <api-key>")
+        print("Usage: python test_harness.py <endpoint> <api-key> [archive-endpoint]")
         print()
         print("Example: python test_harness.py http://localhost:8080 your-api-key-here")
+        print("Example: python test_harness.py http://localhost:8080 your-api-key-here http://localhost:8081")
         sys.exit(1)
 
     endpoint = sys.argv[1]
     api_key = sys.argv[2]
+    archive_endpoint = sys.argv[3] if len(sys.argv) > 3 else None
 
     print(f"API Key: {api_key[:min(8, len(api_key))]}...")
 
-    harness = TestHarness(endpoint, api_key)
+    harness = TestHarness(endpoint, api_key, archive_endpoint)
     exit_code = harness.run()
     sys.exit(exit_code)
 

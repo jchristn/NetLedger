@@ -324,7 +324,7 @@ namespace NetLedger.Database.Portable
 
         public async Task<EnumerationResult<AccountUserMap>> EnumerateAsync(EnumerationQuery query, CancellationToken token = default)
         {
-            string where = String.IsNullOrEmpty(query.TenantId) ? String.Empty : " WHERE " + _Sql.Column("tenantid") + " = '" + _Sql.Sanitize(query.TenantId) + "'";
+            string where = BuildWhereClause(query);
             return await _Sql.EnumerateAsync("accountusermaps", where, query, ToMap, _Sql.Column("createdutc") + " DESC", token).ConfigureAwait(false);
         }
 
@@ -344,6 +344,22 @@ namespace NetLedger.Database.Portable
                 UserId = _Sql.Get(row, "userid"),
                 CreatedUtc = _Sql.GetDate(row, "createdutc")
             };
+        }
+
+        private string BuildWhereClause(EnumerationQuery query)
+        {
+            List<string> conditions = new List<string>();
+            if (!String.IsNullOrEmpty(query.TenantId))
+            {
+                conditions.Add(_Sql.Column("tenantid") + " = '" + _Sql.Sanitize(query.TenantId) + "'");
+            }
+
+            if (!String.IsNullOrEmpty(query.UserId))
+            {
+                conditions.Add(_Sql.Column("userid") + " = '" + _Sql.Sanitize(query.UserId) + "'");
+            }
+
+            return conditions.Count == 0 ? String.Empty : " WHERE " + String.Join(" AND ", conditions);
         }
     }
 

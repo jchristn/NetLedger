@@ -41,8 +41,34 @@ services:
     networks:
       - netledger
 
+  less3:
+    image: jchristn77/less3:v3.0.0
+    container_name: netledger-less3
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./less3/system.json:/app/system.json
+      - ./less3/db:/app/db
+      - ./less3/logs:/app/logs
+      - ./less3/temp:/app/temp
+      - ./less3/disk:/app/disk
+    environment:
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - LESS3_PORT=8000
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '' http://localhost:8000 ; test $$? -ne 7"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - netledger
+
   server:
-    image: jchristn77/netledger:v3.0.0
+    image: jchristn77/netledger:v4.0.0
     container_name: netledger-server
     restart: unless-stopped
     ports:
@@ -64,18 +90,75 @@ services:
     networks:
       - netledger
 
+  archive-server:
+    image: jchristn77/netledger-archive:v4.0.0
+    container_name: netledger-archive-server
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./archive-server:/app/data
+    command: ["-f", "/app/data/netledger.json"]
+    environment:
+      - DOTNET_RUNNING_IN_CONTAINER=true
+      - NETLEDGER_ARCHIVE_STORAGE_TYPE=S3
+      - NETLEDGER_ARCHIVE_STORAGE_BUCKET=default
+      - NETLEDGER_ARCHIVE_STORAGE_PREFIX=netledger-archive
+      - NETLEDGER_ARCHIVE_STORAGE_REGION=us-west-1
+      - NETLEDGER_ARCHIVE_STORAGE_ENDPOINT=http://less3:8000
+      - NETLEDGER_ARCHIVE_STORAGE_ACCESS_KEY=default
+      - NETLEDGER_ARCHIVE_STORAGE_SECRET_KEY=default
+    depends_on:
+      server:
+        condition: service_healthy
+      less3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - netledger
+
+  less3-ui:
+    image: jchristn77/less3-ui:v3.0.0
+    container_name: netledger-less3-ui
+    restart: unless-stopped
+    environment:
+      TERM: xterm-256color
+      LESS3_SERVER_URL: http://localhost:8000
+      NEXT_PUBLIC_LESS3_SERVER_URL: http://localhost:8000
+    ports:
+      - "3001:3000"
+    depends_on:
+      less3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '' http://localhost:3000 ; test $$? -ne 7"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - netledger
+
   dashboard:
-    image: jchristn77/netledger-ui:v3.0.0
+    image: jchristn77/netledger-ui:v4.0.0
     container_name: netledger-dashboard
     restart: unless-stopped
     environment:
       NETLEDGER_SERVER_URL: http://localhost:8080
+      NETLEDGER_ARCHIVE_SERVER_URL: http://localhost:8081
     ports:
       - "3000:80"
     volumes:
       - ./dashboard:/app/data
     depends_on:
       server:
+        condition: service_healthy
+      archive-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80/health"]

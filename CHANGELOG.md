@@ -2,6 +2,46 @@
 
 ## Current Version
 
+### v4.0.0
+
+**MAJOR VERSION - ARCHIVE SUPPORT**
+
+NetLedger v4.0.0 introduces active archive configuration, typed CORS configuration, NetLedger Archive Server SQL catalog support, and filesystem and S3-compatible archive storage.
+
+It also adds active-to-archive export APIs, Docker Hub documentation, dashboard archive queries, archive metadata management surfaces, and SDK archive client methods.
+
+#### New Features
+
+- NetLedger Server has an `Archive` settings section with `Enabled`, `ArchiveServerEndpoint`, service credentials, `DefaultActiveDataRetentionDays`, automatic archival defaults, and per-tenant retention overrides.
+- Active data retention defaults to 365 days and clamps to 1 through `Int32.MaxValue` days.
+- Account-level automatic archival settings can override the global automatic policy while preserving worker state, retry metadata, and archived-through watermarks.
+- NetLedger Server has typed `Webserver.Cors` settings instead of hard-coded permissive preflight headers.
+- Docker and factory settings include explicit `Archive` and `Webserver.Cors` examples, plus a pre-wired Less3 S3-compatible archive provider using pinned `jchristn77/less3:v3.0.0` and `jchristn77/less3-ui:v3.0.0` images.
+- New `NetLedger.Archive` and `NetLedger.Archive.Server` projects define archive models, catalog interfaces, SQL catalog setup, and filesystem and S3-compatible storage abstractions.
+- Archive Server adds health/OpenAPI routes, metadata routes, migration lifecycle routes, and JSONL.Gzip cold reads.
+- Archive Server migration APIs now support idempotent migration creation, batch metadata creation, batch content upload, seal, commit to manifest/object/range metadata, and abort cleanup for filesystem and S3-compatible storage pools.
+- Archive Server validates uploaded JSONL.Gzip entry batches before accepting content, computes manifest hashes and row totals from object contents, and can reject incomplete cold coverage unless callers opt in to partial results.
+- Archive Server authenticates direct user/API access through NetLedger Server introspection, gates archive metadata actions by effective permissions, and records archive audit and Archive Server request-history rows in archive-only tables.
+- NetLedger Server enforces active retention boundaries for entry, request-history, and historical balance reads, returning `DataArchived` or `DataRangeSplit` conflicts instead of blending active and cold rows.
+- NetLedger Server exposes entry and request-history export routes that push active rows to Archive Server migration batches.
+- `DeleteAfterCommit=true` performs post-commit active cleanup with balance-anchor preservation for ledger entries and scoped deletion for request history.
+- Archive Server responses include `x-netledger-data-scope: archive`; NetLedger Server responses include `x-netledger-data-scope: active`.
+- Dashboard configuration supports `NETLEDGER_ARCHIVE_SERVER_URL`.
+- The dashboard adds an Archive page plus Active/Archive selectors for cold entry queries, cold request-history queries, archive manifests, coverage ranges, storage pools, object metadata, account verification, and metadata actions.
+- C#, JavaScript/TypeScript, and Python SDKs expose archive method groups for active export calls, request-history export calls, cold entry and balance reads, object metadata, migration lifecycle operations, and separately configured Archive Server clients.
+- The Postman collection is versioned as v4.0.0 and includes active archive export/settings requests plus Archive Server metadata, cold read, request-history, storage-pool, and migration lifecycle requests.
+- `ArchivalValidation` is a standalone console application that starts disposable NetLedger Server and NetLedger Archive Server processes, exports active entries, validates archive metadata, and verifies hot/cold positive and negative retrieval cases.
+- `ARCHIVAL.md` provides the user guide for archive setup, active versus cold queries, Less3-backed Docker deployment, reset behavior, and operational expectations.
+- `DOCKERHUB_README.md` documents v4 Docker images and the active/archive deployment model.
+- `archive/ARCHIVAL.md` defines the Archive Server implementation plan, archive catalog naming, storage pools, migration protocol, dashboard archive querying, archive metadata management, documentation requirements, and v4 release requirements.
+
+#### Validation
+
+- Server and Archive Server builds pass for `net8.0` and `net10.0`.
+- Touchstone shared suites include archive ID, SQLite catalog isolation, archive metadata CRUD, request-history range metadata, filesystem archive store metadata/read-only tests, archive audit/request-history inserts, and active archive-boundary behavior.
+- `ArchivalValidation` passes end-to-end against temporary active and archive servers using the C# SDK archive client.
+- Docker and factory `netledger.json` and Less3 `system.json` samples parse with the new settings.
+
 ### v3.0.0
 
 **MAJOR VERSION - BREAKING CHANGES**
@@ -55,11 +95,11 @@ This is a complete rewrite of NetLedger with significant architectural improveme
 #### Breaking Changes
 
 - **Async/Await Throughout**: All public methods are now async and must be awaited
-  - `CreateAccount()` → `CreateAccountAsync()`
-  - `AddCredit()` → `AddCreditAsync()`
-  - `AddDebit()` → `AddDebitAsync()`
-  - `GetBalance()` → `GetBalanceAsync()`
-  - `Commit()` → `CommitEntriesAsync()`
+  - `CreateAccount()` -> `CreateAccountAsync()`
+  - `AddCredit()` -> `AddCreditAsync()`
+  - `AddDebit()` -> `AddDebitAsync()`
+  - `GetBalance()` -> `GetBalanceAsync()`
+  - `Commit()` -> `CommitEntriesAsync()`
   - All other methods follow the same async pattern
 
 - **GUID Type Change**: Changed from `string` GUIDs to `System.Guid` type throughout
@@ -73,11 +113,11 @@ This is a complete rewrite of NetLedger with significant architectural improveme
   - New dependency: Timestamps (v1.0.11)
 
 - **Method Renames**: Several methods renamed for consistency
-  - `DeleteAccountByGuid()` → `DeleteAccountByGuidAsync()`
-  - `DeleteAccountByName()` → `DeleteAccountByNameAsync()`
-  - `GetAccountByGuid()` → `GetAccountByGuidAsync()`
-  - `GetAccountByName()` → `GetAccountByNameAsync()`
-  - `Commit()` → `CommitEntriesAsync()`
+  - `DeleteAccountByGuid()` -> `DeleteAccountByGuidAsync()`
+  - `DeleteAccountByName()` -> `DeleteAccountByNameAsync()`
+  - `GetAccountByGuid()` -> `GetAccountByGuidAsync()`
+  - `GetAccountByName()` -> `GetAccountByNameAsync()`
+  - `Commit()` -> `CommitEntriesAsync()`
 
 - **IAsyncDisposable**: Ledger now implements `IAsyncDisposable` instead of `IDisposable`
   - Use `await ledger.DisposeAsync()` instead of `ledger.Dispose()`

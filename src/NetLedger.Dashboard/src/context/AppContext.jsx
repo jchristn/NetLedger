@@ -1,31 +1,55 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { NetLedgerApi } from '../api/api'
 import { AppContext } from './AppContextInstance'
+import {
+  LOCALE_STORAGE_KEY,
+  applyDocumentLocale,
+  formatLocalizedDateTime,
+  formatLocalizedDuration,
+  formatLocalizedNumber,
+  resolveLocale,
+  setActiveLocale,
+  translate
+} from '../i18n'
 
 // Local storage keys
 const STORAGE_KEY_SERVER_URL = 'netledger_server_url'
+const STORAGE_KEY_ARCHIVE_SERVER_URL = 'netledger_archive_server_url'
 const STORAGE_KEY_SESSION_TOKEN = 'netledger_session_token'
 const STORAGE_KEY_LEGACY_API_KEY = 'netledger_api_key'
 const STORAGE_KEY_TENANT_ID = 'netledger_tenant_id'
 const STORAGE_KEY_THEME = 'netledger_theme'
 
+function getConfiguredArchiveServerUrl() {
+  const configuredUrl = window.NETLEDGER_CONFIG?.archiveServerUrl?.trim()
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, '')
+
+  const savedUrl = localStorage.getItem(STORAGE_KEY_ARCHIVE_SERVER_URL)?.trim()
+  return savedUrl ? savedUrl.replace(/\/+$/, '') : ''
+}
+
 export function AppProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const [serverUrl, setServerUrl] = useState('')
+  const [archiveServerUrl, setArchiveServerUrl] = useState('')
   const [sessionToken, setSessionToken] = useState('')
   const [tenantId, setTenantId] = useState('')
   const [api, setApi] = useState(null)
+  const [archiveApi, setArchiveApi] = useState(null)
+  const [dataSourceContext, setDataSourceContext] = useState('active')
   const [theme, setTheme] = useState(() => {
     // Load theme from localStorage on initial render
     return localStorage.getItem(STORAGE_KEY_THEME) || 'light'
   })
+  const [locale, setLocaleState] = useState(() => resolveLocale(localStorage.getItem(LOCALE_STORAGE_KEY) || 'en'))
   const [error, setError] = useState(null)
   const [serverInfo, setServerInfo] = useState(null)
   const [currentUser, setCurrentUser] = useState(null)
   const [currentTenant, setCurrentTenant] = useState(null)
   const [effectivePermissions, setEffectivePermissions] = useState(null)
   const hasAttemptedAutoLogin = useRef(false)
+  const localeRef = useRef(locale)
 
   const clearStoredCredentials = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_SERVER_URL)
@@ -37,13 +61,16 @@ export function AppProvider({ children }) {
   const clearAuthenticatedState = useCallback(() => {
     setIsAuthenticated(false)
     setServerUrl('')
+    setArchiveServerUrl('')
     setSessionToken('')
     setTenantId('')
     setApi(null)
+    setArchiveApi(null)
     setServerInfo(null)
     setCurrentUser(null)
     setCurrentTenant(null)
     setEffectivePermissions(null)
+    setDataSourceContext('active')
   }, [])
 
   const handleAuthenticationFailed = useCallback(() => {
@@ -54,15 +81,39 @@ export function AppProvider({ children }) {
 
   const createAuthenticatedClient = useCallback((url, token, tenant) => {
     return new NetLedgerApi(url, token, tenant, {
-      onAuthenticationFailed: handleAuthenticationFailed
+      onAuthenticationFailed: handleAuthenticationFailed,
+      localeProvider: () => localeRef.current
     })
   }, [handleAuthenticationFailed])
+
+  const configureArchiveClient = useCallback((url, token, tenant) => {
+    const normalizedUrl = url?.trim().replace(/\/+$/, '') || ''
+
+    setArchiveServerUrl(normalizedUrl)
+    if (normalizedUrl) {
+      localStorage.setItem(STORAGE_KEY_ARCHIVE_SERVER_URL, normalizedUrl)
+      setArchiveApi(createAuthenticatedClient(normalizedUrl, token, tenant))
+    } else {
+      localStorage.removeItem(STORAGE_KEY_ARCHIVE_SERVER_URL)
+      setArchiveApi(null)
+    }
+
+    return normalizedUrl
+  }, [createAuthenticatedClient])
 
   // Apply theme to document
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem(STORAGE_KEY_THEME, theme)
   }, [theme])
+
+  useEffect(() => {
+    localeRef.current = locale
+    setActiveLocale(locale).catch(() => {
+      localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+      applyDocumentLocale(locale)
+    })
+  }, [locale])
 
   // Auto-login from localStorage on mount
   useEffect(() => {
@@ -86,6 +137,7 @@ export function AppProvider({ children }) {
           setTenantId(savedTenantId)
           setApi(apiClient)
           setServerInfo(info)
+          configureArchiveClient(getConfiguredArchiveServerUrl(), savedSessionToken, savedTenantId)
           try {
             const permissions = await apiClient.getEffectivePermissions()
             setEffectivePermissions(permissions)
@@ -128,11 +180,13 @@ export function AppProvider({ children }) {
     } else {
       setIsInitializing(false)
     }
-  }, [clearAuthenticatedState, clearStoredCredentials, createAuthenticatedClient])
+  }, [clearAuthenticatedState, clearStoredCredentials, configureArchiveClient, createAuthenticatedClient])
 
   const discoverTenants = useCallback(async (url, email) => {
     const normalizedUrl = url.replace(/\/+$/, '')
-    const apiClient = new NetLedgerApi(normalizedUrl, '')
+    const apiClient = new NetLedgerApi(normalizedUrl, '', '', {
+      localeProvider: () => localeRef.current
+    })
     return await apiClient.discoverTenants(email)
   }, [])
 
@@ -140,7 +194,9 @@ export function AppProvider({ children }) {
     try {
       setError(null)
       const normalizedUrl = url.replace(/\/+$/, '')
-      const unauthenticatedClient = new NetLedgerApi(normalizedUrl, '')
+      const unauthenticatedClient = new NetLedgerApi(normalizedUrl, '', '', {
+        localeProvider: () => localeRef.current
+      })
       const loginResponse = await unauthenticatedClient.loginWithPassword(tenant, email, password)
       const session = loginResponse?.Session || loginResponse?.session
       const user = loginResponse?.User || loginResponse?.user || null
@@ -170,6 +226,7 @@ export function AppProvider({ children }) {
       setSessionToken(token)
       setTenantId(tenant)
       setApi(apiClient)
+      configureArchiveClient(getConfiguredArchiveServerUrl(), token, tenant)
       setServerInfo(info)
       setCurrentUser(user)
       setCurrentTenant(tenantInfo)
@@ -182,7 +239,7 @@ export function AppProvider({ children }) {
       setError(message)
       return { success: false, error: message }
     }
-  }, [createAuthenticatedClient])
+  }, [configureArchiveClient, createAuthenticatedClient])
 
   // Logout function
   const logout = useCallback(() => {
@@ -197,10 +254,23 @@ export function AppProvider({ children }) {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light')
   }, [])
 
+  const setLocale = useCallback((nextLocale) => {
+    setLocaleState(resolveLocale(nextLocale))
+  }, [])
+
+  const t = useCallback((key, params = {}) => translate(locale, key, params), [locale])
+  const formatNumber = useCallback((value) => formatLocalizedNumber(locale, value), [locale])
+  const formatDateTime = useCallback((value) => formatLocalizedDateTime(locale, value), [locale])
+  const formatDuration = useCallback((value) => formatLocalizedDuration(locale, value), [locale])
+
   // Clear error
   const clearError = useCallback(() => {
     setError(null)
   }, [])
+
+  const setArchiveEndpoint = useCallback((url) => {
+    return configureArchiveClient(url, sessionToken, tenantId)
+  }, [configureArchiveClient, sessionToken, tenantId])
 
   // Set error (for use by components)
   const setAppError = useCallback((message) => {
@@ -215,10 +285,14 @@ export function AppProvider({ children }) {
     isAuthenticated,
     isInitializing,
     serverUrl,
+    archiveServerUrl,
     sessionToken,
     tenantId,
     api,
+    archiveApi,
+    dataSourceContext,
     theme,
+    locale,
     error,
     serverInfo,
     currentUser,
@@ -226,8 +300,15 @@ export function AppProvider({ children }) {
     effectivePermissions,
     discoverTenants,
     loginWithPassword,
+    setArchiveEndpoint,
+    setDataSourceContext,
     logout,
     toggleTheme,
+    setLocale,
+    t,
+    formatNumber,
+    formatDateTime,
+    formatDuration,
     clearError,
     setError: setAppError
   }
