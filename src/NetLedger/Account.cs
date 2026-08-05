@@ -31,6 +31,16 @@ namespace NetLedger
         public string? Notes { get; set; } = null;
 
         /// <summary>
+        /// Optional unit of denomination for the balances, credits, and debits recorded in this account (for example, "USD" or "tokens").
+        /// A null value indicates that no unit is specified.
+        /// </summary>
+        public string? Units
+        {
+            get { return _Units; }
+            set { _Units = MetadataValidator.NormalizeUnits(value); }
+        }
+
+        /// <summary>
         /// Account labels.
         /// </summary>
         public List<string> Labels
@@ -67,6 +77,7 @@ namespace NetLedger
 
         #region Private-Members
 
+        private string? _Units = null;
         private List<string> _Labels = new List<string>();
         private Dictionary<string, string> _Tags = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 

@@ -20,13 +20,14 @@ class AccountMethods:
         """
         self._client = client
 
-    def create(self, name: str, notes: Optional[str] = None) -> Account:
+    def create(self, name: str, notes: Optional[str] = None, units: Optional[str] = None) -> Account:
         """
         Create a new account.
 
         Args:
             name: The account name.
             notes: Optional notes for the account.
+            units: Optional unit or currency label for the account.
 
         Returns:
             The created account.
@@ -42,8 +43,57 @@ class AccountMethods:
         body = {'name': name}
         if notes:
             body['notes'] = notes
+        if units:
+            body['units'] = units
 
         response = self._client.put('/v1/accounts', body)
+        if not response.data:
+            raise ValueError('No data returned from server')
+        return Account.from_dict(response.data)
+
+    def update(
+        self,
+        account_id: str,
+        name: str,
+        notes: Optional[str] = None,
+        units: Optional[str] = None,
+        labels: Optional[list] = None,
+        tags: Optional[dict] = None,
+        active: Optional[bool] = None,
+    ) -> Account:
+        """
+        Update an existing account.
+
+        Args:
+            account_id: The account identifier.
+            name: The account name.
+            notes: Optional notes for the account.
+            units: Optional unit or currency label for the account.
+            labels: Optional labels for the account.
+            tags: Optional tags for the account.
+            active: Optional active flag for the account.
+
+        Returns:
+            The updated account.
+
+        Raises:
+            NetLedgerValidationError: If the name is empty.
+            NetLedgerConnectionError: If unable to connect to the server.
+            NetLedgerApiError: If the server returns an error.
+        """
+        if not name or not name.strip():
+            raise NetLedgerValidationError('Account name cannot be empty', 'name')
+
+        body = {
+            'Name': name,
+            'Notes': notes,
+            'Units': units,
+            'Labels': labels,
+            'Tags': tags,
+            'Active': active,
+        }
+
+        response = self._client.put(f'/v1/accounts/{account_id}', body)
         if not response.data:
             raise ValueError('No data returned from server')
         return Account.from_dict(response.data)

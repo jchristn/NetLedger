@@ -161,6 +161,18 @@
             <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
             <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
         </member>
+        <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.UpdateAsync(NetLedger.Sdk.Account,System.Threading.CancellationToken)">
+            <summary>
+            Update an existing account.
+            </summary>
+            <param name="account">The account to update (Id must be provided).</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>The updated account.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when account is null.</exception>
+            <exception cref="T:System.ArgumentException">Thrown when account Id is null or empty.</exception>
+            <exception cref="T:NetLedger.Sdk.NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
+            <exception cref="T:NetLedger.Sdk.NetLedgerApiException">Thrown when the server returns an error.</exception>
+        </member>
         <member name="M:NetLedger.Sdk.Interfaces.IAccountMethods.GetAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Get an account by its Id.
@@ -904,6 +916,9 @@
         <member name="M:NetLedger.Sdk.Methods.AccountMethods.CreateAsync(NetLedger.Sdk.Account,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="M:NetLedger.Sdk.Methods.AccountMethods.UpdateAsync(NetLedger.Sdk.Account,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
         <member name="M:NetLedger.Sdk.Methods.AccountMethods.GetAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
@@ -1241,6 +1256,11 @@
         <member name="P:NetLedger.Sdk.Account.Notes">
             <summary>
             Optional notes associated with the account.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Sdk.Account.Units">
+            <summary>
+            Optional unit or currency label for the account (e.g. "USD" or "tokens").
             </summary>
         </member>
         <member name="P:NetLedger.Sdk.Account.Labels">

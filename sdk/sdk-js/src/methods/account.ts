@@ -16,13 +16,36 @@ export class AccountMethods {
      * Create a new account.
      * @param name Account name.
      * @param notes Optional notes.
+     * @param units Optional unit or currency label.
      * @returns The created account.
      */
-    async create(name: string, notes?: string, labels?: string[], tags?: Record<string, string>): Promise<Account> {
+    async create(name: string, notes?: string, units?: string, labels?: string[], tags?: Record<string, string>): Promise<Account> {
         if (!name || name.trim() === '') {
             throw new NetLedgerValidationError('Account name cannot be empty', 'name');
         }
-        const response = await this.client.put<Account>('/v1/accounts', { Name: name, Notes: notes, Labels: labels, Tags: tags });
+        const response = await this.client.put<Account>('/v1/accounts', { Name: name, Notes: notes, Units: units, Labels: labels, Tags: tags });
+        if (!response.Data) {
+            throw new Error('No data returned from server');
+        }
+        return response.Data;
+    }
+
+    /**
+     * Update an existing account.
+     * @param accountId The account identifier.
+     * @param name Account name.
+     * @param notes Optional notes.
+     * @param units Optional unit or currency label.
+     * @param labels Optional labels.
+     * @param tags Optional tags.
+     * @param active Optional active flag.
+     * @returns The updated account.
+     */
+    async update(accountId: string, name: string, notes?: string, units?: string, labels?: string[], tags?: Record<string, string>, active?: boolean): Promise<Account> {
+        if (!name || name.trim() === '') {
+            throw new NetLedgerValidationError('Account name cannot be empty', 'name');
+        }
+        const response = await this.client.put<Account>(`/v1/accounts/${accountId}`, { Name: name, Notes: notes, Units: units, Labels: labels, Tags: tags, Active: active });
         if (!response.Data) {
             throw new Error('No data returned from server');
         }

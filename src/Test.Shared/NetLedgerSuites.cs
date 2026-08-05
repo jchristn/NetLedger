@@ -1304,6 +1304,58 @@ namespace Test.Shared
                         Assert(assignments.Any(item => item.Id == assignment.Id), "RBAC assignment did not persist.");
                         Assert(role != null && role.IsBuiltIn, "Built-in Viewer role was not seeded.");
                         Assert(maps.Count > 0, "Built-in Viewer role has no permission maps.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "account_units_round_trip", "Account units persist, update, and clear", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("account_units");
+
+                        string accountId = await ledger.CreateAccountAsync(
+                            new Account("units-account") { TenantId = tenantId, Units = "USD" }, 100m, token).ConfigureAwait(false);
+
+                        Account? created = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        Assert(created != null && created.Units == "USD", "Account units did not persist on create.");
+
+                        Account? update = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        Assert(update != null, "Account not found for units update.");
+                        update!.Units = "tokens";
+                        await ledger.UpdateAccountAsync(update, token).ConfigureAwait(false);
+
+                        Account? updated = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        Assert(updated != null && updated.Units == "tokens", "Account units did not update.");
+
+                        Account? clear = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        clear!.Units = null;
+                        await ledger.UpdateAccountAsync(clear, token).ConfigureAwait(false);
+
+                        Account? cleared = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        Assert(cleared != null && cleared.Units == null, "Account units were not cleared.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "account_update_round_trip", "Account update persists mutable fields and preserves tenant", async token =>
+                    {
+                        await using Ledger ledger = CreateLedger();
+                        string tenantId = ScopedTenantId("account_update");
+
+                        string accountId = await ledger.CreateAccountAsync(
+                            new Account("update-account") { TenantId = tenantId, Notes = "before", Units = "USD" }, null, token).ConfigureAwait(false);
+
+                        Account? existing = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        Assert(existing != null, "Account not found for update.");
+                        existing!.Name = "renamed-account";
+                        existing.Notes = "after";
+                        existing.Units = "EUR";
+                        existing.Labels = new List<string> { "blue" };
+                        existing.Tags = new Dictionary<string, string> { { "team", "finance" } };
+                        await ledger.UpdateAccountAsync(existing, token).ConfigureAwait(false);
+
+                        Account? read = await ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                        Assert(read != null, "Updated account not found.");
+                        Assert(read!.Name == "renamed-account", "Account name did not update.");
+                        Assert(read.Notes == "after", "Account notes did not update.");
+                        Assert(read.Units == "EUR", "Account units did not update.");
+                        Assert(read.TenantId == tenantId, "Account tenant must be preserved on update.");
+                        Assert(read.Labels.Contains("blue"), "Account labels did not update.");
+                        Assert(read.Tags.ContainsKey("team"), "Account tags did not update.");
                     })
                 });
         }
@@ -1796,6 +1848,51 @@ namespace Test.Shared
                         debitReq.AccountId = scenario.TenantBAccountId;
                         SetJsonBody(debitReq, new AddEntriesRequest { Amount = 10m, Notes = "cross-tenant attempt" });
                         await AssertApiErrorAsync(scenario.EntryHandler.AddDebitsAsync(debitReq, token), ApiErrorEnum.Forbidden, "Tenant admin created a cross-tenant debit without a tenant selector.").ConfigureAwait(false);
+                    }),
+                    new TestCaseDescriptor(suiteId, "account_update_enforces_tenant_boundaries", "Account update is permitted only for authorized principals and never across tenants", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        // Authorization matrix for the Update operation.
+                        await AssertPermitAsync(scenario, scenario.SystemAdmin, scenario.TenantB.Id, "Account", "Update", scenario.TenantBAccountId, token).ConfigureAwait(false);
+                        await AssertPermitAsync(scenario, scenario.TenantAAdmin, scenario.TenantA.Id, "Account", "Update", scenario.TenantAUserAccountId, token).ConfigureAwait(false);
+                        await AssertDenyAsync(scenario, scenario.TenantAAdmin, scenario.TenantB.Id, "Account", "Update", scenario.TenantBAccountId, token).ConfigureAwait(false);
+                        await AssertDenyAsync(scenario, scenario.TenantAUser, scenario.TenantA.Id, "Account", "Update", scenario.TenantAUserAccountId, token).ConfigureAwait(false);
+                        await AssertDenyAsync(scenario, scenario.TenantAUser, scenario.TenantA.Id, "Account", "Update", scenario.TenantAUnmappedAccountId, token).ConfigureAwait(false);
+                        await AssertDenyAsync(scenario, scenario.TenantAUser, scenario.TenantB.Id, "Account", "Update", scenario.TenantBAccountId, token).ConfigureAwait(false);
+
+                        // System admin can update a cross-tenant account and the change persists.
+                        RequestContext systemUpdate = CreateRequest(scenario.SystemAdmin, scenario.TenantB.Id);
+                        systemUpdate.AccountId = scenario.TenantBAccountId;
+                        SetJsonBody(systemUpdate, new UpdateAccountRequest { Name = "tenant-b-renamed", Units = "USD" });
+                        await AssertApiSuccessAsync(scenario.AccountHandler.UpdateAsync(systemUpdate, token), "System admin could not update a cross-tenant account.").ConfigureAwait(false);
+                        Account? afterSystemUpdate = await scenario.Ledger.GetAccountByIdAsync(scenario.TenantBAccountId, token).ConfigureAwait(false);
+                        Assert(afterSystemUpdate != null && afterSystemUpdate.Units == "USD" && afterSystemUpdate.Name == "tenant-b-renamed", "System admin account update did not persist.");
+                        Assert(afterSystemUpdate!.TenantId == scenario.TenantB.Id, "Account update must not move the account to another tenant.");
+
+                        // Tenant admin can update an account in their own tenant.
+                        RequestContext tenantAdminUpdate = CreateRequest(scenario.TenantAAdmin, scenario.TenantA.Id);
+                        tenantAdminUpdate.AccountId = scenario.TenantAUserAccountId;
+                        SetJsonBody(tenantAdminUpdate, new UpdateAccountRequest { Name = "tenant-a-renamed", Units = "tokens" });
+                        await AssertApiSuccessAsync(scenario.AccountHandler.UpdateAsync(tenantAdminUpdate, token), "Tenant admin could not update an own-tenant account.").ConfigureAwait(false);
+
+                        // Tenant admin cannot update a cross-tenant account.
+                        RequestContext crossTenantUpdate = CreateRequest(scenario.TenantAAdmin, scenario.TenantB.Id);
+                        crossTenantUpdate.AccountId = scenario.TenantBAccountId;
+                        SetJsonBody(crossTenantUpdate, new UpdateAccountRequest { Name = "should-fail", Units = "USD" });
+                        await AssertApiErrorAsync(scenario.AccountHandler.UpdateAsync(crossTenantUpdate, token), ApiErrorEnum.Forbidden, "Tenant admin updated a cross-tenant account.").ConfigureAwait(false);
+
+                        // Regular mapped user cannot update; Update is not an allowed regular-user operation.
+                        RequestContext mappedUserUpdate = CreateRequest(scenario.TenantAUser, scenario.TenantA.Id);
+                        mappedUserUpdate.AccountId = scenario.TenantAUserAccountId;
+                        SetJsonBody(mappedUserUpdate, new UpdateAccountRequest { Name = "should-fail", Units = "USD" });
+                        await AssertApiErrorAsync(scenario.AccountHandler.UpdateAsync(mappedUserUpdate, token), ApiErrorEnum.Forbidden, "Regular mapped user updated an account.").ConfigureAwait(false);
+
+                        // Unauthenticated update is rejected before any resource mutation.
+                        RequestContext anonUpdate = CreateUnauthenticatedRequest(scenario.TenantA.Id);
+                        anonUpdate.AccountId = scenario.TenantAUserAccountId;
+                        SetJsonBody(anonUpdate, new UpdateAccountRequest { Name = "should-fail" });
+                        await AssertApiErrorAsync(scenario.AccountHandler.UpdateAsync(anonUpdate, token), ApiErrorEnum.Unauthorized, "Unauthenticated account update was not rejected.").ConfigureAwait(false);
                     }),
                     new TestCaseDescriptor(suiteId, "regular_user_api_handlers_expose_only_mapped_account_surface", "Regular-user API calls are limited to self and mapped account resources", async token =>
                     {

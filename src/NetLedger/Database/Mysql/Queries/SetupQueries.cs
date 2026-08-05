@@ -68,6 +68,7 @@ namespace NetLedger.Database.Mysql.Queries
                     `owneruserid` VARCHAR(64) NULL,
                     `name` VARCHAR(256) NOT NULL,
                     `notes` TEXT NULL,
+                    `units` VARCHAR(64) NULL,
                     `labels` TEXT NOT NULL,
                     `tags` TEXT NOT NULL,
                     `active` TINYINT(1) NOT NULL DEFAULT 1,

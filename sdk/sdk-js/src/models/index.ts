@@ -36,6 +36,8 @@ export interface Account {
     Name: string;
     /** Optional notes. */
     Notes?: string;
+    /** Optional unit or currency label (e.g. "USD" or "tokens"). */
+    Units?: string | null;
     /** Account labels. */
     Labels: string[];
     /** Account tags. */

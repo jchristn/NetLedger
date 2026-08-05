@@ -229,6 +229,7 @@ namespace NetLedger.Database.Mysql
             await ExecuteQueriesAsync(tableQueries).ConfigureAwait(false);
 
             await PrettyIdPrimaryKeyMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
+            await AccountUnitsMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
 
             string[] indexQueries = SetupQueries.CreateIndices();
             await CreateIndicesAsync(indexQueries).ConfigureAwait(false);

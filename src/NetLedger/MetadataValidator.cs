@@ -46,6 +46,11 @@ namespace NetLedger
         /// </summary>
         public const int MaxTagValueLength = 1024;
 
+        /// <summary>
+        /// Maximum length of an account units label.
+        /// </summary>
+        public const int MaxUnitsLength = 64;
+
         #endregion
 
         #region Public-Methods
@@ -108,6 +113,25 @@ namespace NetLedger
                 throw new ArgumentException("Tags cannot contain more than " + MaxTags + " values.", nameof(tags));
 
             return normalized;
+        }
+
+        /// <summary>
+        /// Normalize and validate an account units label. Trims surrounding whitespace, treats empty input as no unit, and enforces the maximum length. Casing is preserved so labels such as "USD" or "tokens" are stored as entered.
+        /// </summary>
+        /// <param name="units">Units label, or null.</param>
+        /// <returns>Normalized units label, or null when no unit is specified.</returns>
+        /// <exception cref="ArgumentException">Thrown when the units label exceeds the maximum length.</exception>
+        public static string? NormalizeUnits(string? units)
+        {
+            if (units == null) return null;
+
+            string trimmed = units.Trim();
+            if (trimmed.Length == 0) return null;
+
+            if (trimmed.Length > MaxUnitsLength)
+                throw new ArgumentException("Units length must be " + MaxUnitsLength + " characters or less.", nameof(units));
+
+            return trimmed;
         }
 
         #endregion

@@ -1,6 +1,7 @@
 namespace NetLedger.Server.API.Agnostic
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Server.Authentication;
@@ -170,12 +171,16 @@ namespace NetLedger.Server.API.Agnostic
                 return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account name is required");
             }
 
+            Account newAccount = new Account(createReq.Name);
+            newAccount.TenantId = req.TenantId ?? String.Empty;
+            newAccount.Notes = createReq.Notes;
+            newAccount.Units = createReq.Units;
+            newAccount.Labels = createReq.Labels ?? new List<string>();
+            newAccount.Tags = createReq.Tags ?? new Dictionary<string, string>();
+
             string accountId = await _Ledger.CreateAccountAsync(
-                createReq.Name,
+                newAccount,
                 createReq.InitialBalance,
-                createReq.Labels,
-                createReq.Tags,
-                req.TenantId,
                 token).ConfigureAwait(false);
 
             Account? account = await _Ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
@@ -183,6 +188,46 @@ namespace NetLedger.Server.API.Agnostic
             ResponseContext resp = new ResponseContext(req, account);
             resp.StatusCode = 201;
             return resp;
+        }
+
+        /// <summary>
+        /// Update an existing account.
+        /// </summary>
+        /// <param name="req">Request context.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Response context with the updated account.</returns>
+        internal async Task<ResponseContext> UpdateAsync(RequestContext req, CancellationToken token = default)
+        {
+            if (String.IsNullOrEmpty(req.AccountId))
+            {
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account identifier is required");
+            }
+
+            ResponseContext? authz = await AuthorizeAsync(req, "Account", "Update", req.AccountId, token).ConfigureAwait(false);
+            if (authz != null) return authz;
+
+            Account? existing = await _Ledger.GetAccountByIdAsync(req.AccountId, token).ConfigureAwait(false);
+            if (existing == null)
+            {
+                return ResponseContext.FromError(req, ApiErrorEnum.NotFound, null, "Account not found");
+            }
+
+            UpdateAccountRequest? updateReq = req.DeserializeBody<UpdateAccountRequest>();
+            if (updateReq == null || String.IsNullOrEmpty(updateReq.Name))
+            {
+                return ResponseContext.FromError(req, ApiErrorEnum.BadRequest, null, "Account name is required");
+            }
+
+            existing.Name = updateReq.Name;
+            existing.Notes = updateReq.Notes;
+            existing.Units = updateReq.Units;
+            existing.Labels = updateReq.Labels ?? new List<string>();
+            existing.Tags = updateReq.Tags ?? new Dictionary<string, string>();
+            if (updateReq.Active.HasValue) existing.Active = updateReq.Active.Value;
+
+            Account updated = await _Ledger.UpdateAccountAsync(existing, token).ConfigureAwait(false);
+
+            return new ResponseContext(req, updated);
         }
 
         /// <summary>

@@ -284,7 +284,7 @@ export class NetLedgerApi {
   /**
    * Create a new account
    */
-  async createAccount(name, initialBalance = null, notes = null, labels = [], tags = {}, tenantId = null) {
+  async createAccount(name, initialBalance = null, notes = null, labels = [], tags = {}, units = null, tenantId = null) {
     const body = { Name: name }
     if (initialBalance !== null) {
       body.InitialBalance = initialBalance
@@ -292,9 +292,30 @@ export class NetLedgerApi {
     if (notes !== null) {
       body.Notes = notes
     }
+    if (units !== null && units !== '') {
+      body.Units = units
+    }
     body.Labels = labels
     body.Tags = tags
     const path = tenantId ? `/v1/tenants/${tenantId}/accounts` : '/v1/accounts'
+    return this.put(path, body)
+  }
+
+  /**
+   * Update an existing account. Replaces the editable fields (name, notes, units, labels, tags).
+   */
+  async updateAccount(accountId, { name, notes = null, units = null, labels = [], tags = {}, active } = {}, tenantId = null) {
+    const body = {
+      Name: name,
+      Notes: notes,
+      Units: units !== null && units !== '' ? units : null,
+      Labels: labels,
+      Tags: tags
+    }
+    if (active !== undefined) {
+      body.Active = active
+    }
+    const path = tenantId ? `/v1/tenants/${tenantId}/accounts/${accountId}` : `/v1/accounts/${accountId}`
     return this.put(path, body)
   }
 
@@ -803,24 +824,44 @@ export function normalizeBalances(balancesDict) {
 /**
  * Format a decimal number as currency
  */
-export function formatCurrency(amount, showSign = false) {
-  if (amount === null || amount === undefined) {
-    return '$0.00'
+export function formatCurrency(amount, units = null, showSign = false) {
+  const parsed = amount === null || amount === undefined ? 0 : parseFloat(amount)
+  const num = Number.isFinite(parsed) ? parsed : 0
+  const unit = typeof units === 'string' ? units.trim() : ''
+
+  let formatted = null
+
+  // A three-letter unit is treated as an ISO 4217 currency code so it gets the correct
+  // symbol and default fraction digits (e.g. USD -> $, JPY -> 0 decimals).
+  if (unit.length === 3) {
+    try {
+      formatted = Math.abs(num).toLocaleString('en-US', {
+        style: 'currency',
+        currency: unit.toUpperCase()
+      })
+    } catch {
+      formatted = null
+    }
   }
 
-  const num = parseFloat(amount)
-  const formatted = Math.abs(num).toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-
-  if (showSign && num !== 0) {
-    return num > 0 ? `+${formatted}` : `-${formatted}`
+  if (formatted === null) {
+    const number = Math.abs(num).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })
+    // No unit -> a plain amount with no currency symbol; a non-currency unit -> suffix label.
+    formatted = unit ? `${number} ${unit}` : number
   }
 
-  return num < 0 ? `-${formatted}` : formatted
+  if (num < 0) {
+    return `-${formatted}`
+  }
+
+  if (showSign && num > 0) {
+    return `+${formatted}`
+  }
+
+  return formatted
 }
 
 /**

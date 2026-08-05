@@ -31,6 +31,11 @@ namespace NetLedger.Sdk
         public string? Notes { get; set; }
 
         /// <summary>
+        /// Optional unit or currency label for the account (e.g. "USD" or "tokens").
+        /// </summary>
+        public string? Units { get; set; }
+
+        /// <summary>
         /// Account labels.
         /// </summary>
         public List<string> Labels { get; set; } = new List<string>();

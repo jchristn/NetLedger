@@ -553,6 +553,8 @@ PUT /v1/accounts
 {
   "Name": "Checking Account",
   "InitialBalance": 0,
+  "Notes": "Primary operating account",
+  "Units": "USD",
   "Labels": ["operating", "blue"],
   "Tags": {
     "department": "finance",
@@ -565,6 +567,8 @@ PUT /v1/accounts
 |-------|------|----------|-------------|
 | `Name` | string | Yes | Account name |
 | `InitialBalance` | decimal | No | Initial committed balance (default: 0) |
+| `Notes` | string | No | Optional account notes. |
+| `Units` | string | No | Unit/currency label for the account, e.g. USD or tokens. Max 64 chars. |
 | `Labels` | string[] | No | Account labels. Empty values are ignored and duplicate labels are normalized. |
 | `Tags` | object | No | Account tags as string key/value pairs. Tags are normalized by key. |
 
@@ -574,7 +578,66 @@ PUT /v1/accounts
 {
   "Id": "acct_operating_001",
   "Name": "Checking Account",
-  "Notes": null,
+  "Notes": "Primary operating account",
+  "Units": "USD",
+  "Labels": ["operating", "blue"],
+  "Tags": {
+    "department": "finance",
+    "color": "blue"
+  },
+  "CreatedUtc": "2025-12-23T00:00:00Z"
+}
+```
+
+---
+
+#### Update Account
+
+Update an existing ledger account. Replaces the editable fields of the account. The account identifier, owning tenant, and creation timestamp cannot be changed.
+
+```
+PUT /v1/accounts/{accountId}
+```
+
+**URL Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `accountId` | string | Account identifier |
+
+**Request Body**:
+
+```json
+{
+  "Name": "Checking Account",
+  "Notes": "Primary operating account",
+  "Units": "USD",
+  "Labels": ["operating", "blue"],
+  "Tags": {
+    "department": "finance",
+    "color": "blue"
+  },
+  "Active": true
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `Name` | string | Yes | Account name |
+| `Notes` | string | No | Optional account notes. Null clears the value. |
+| `Units` | string | No | Unit/currency label for the account, e.g. USD or tokens. Max 64 chars. Null clears the value. |
+| `Labels` | string[] | No | Account labels. Omitting clears existing labels. Empty values are ignored and duplicate labels are normalized. |
+| `Tags` | object | No | Account tags as string key/value pairs. Omitting clears existing tags. Tags are normalized by key. |
+| `Active` | bool | No | Account active state. Null leaves the current value unchanged. |
+
+**Response**: `200 OK`
+
+```json
+{
+  "Id": "acct_operating_001",
+  "Name": "Checking Account",
+  "Notes": "Primary operating account",
+  "Units": "USD",
   "Labels": ["operating", "blue"],
   "Tags": {
     "department": "finance",

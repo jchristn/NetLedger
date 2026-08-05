@@ -15,8 +15,10 @@ namespace NetLedger.Archive.Server.API.Routes
             Func<HttpContextBase, Exception, Task> exceptionHandler)
         {
             webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, prefix + "/accounts", mutationNotAllowedAsync, exceptionHandler);
+            webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, prefix + "/accounts/{accountId}", mutationNotAllowedAsync, exceptionHandler);
             webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, prefix + "/accounts/{accountId}", mutationNotAllowedAsync, exceptionHandler);
             webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, prefix + "/tenants/{tenantId}/accounts", mutationNotAllowedAsync, exceptionHandler);
+            webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, prefix + "/tenants/{tenantId}/accounts/{accountId}", mutationNotAllowedAsync, exceptionHandler);
             webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, prefix + "/tenants/{tenantId}/accounts/{accountId}", mutationNotAllowedAsync, exceptionHandler);
             webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, prefix + "/accounts/{accountId}/credits", mutationNotAllowedAsync, exceptionHandler);
             webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, prefix + "/accounts/{accountId}/debits", mutationNotAllowedAsync, exceptionHandler);

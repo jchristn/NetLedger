@@ -65,6 +65,7 @@ namespace NetLedger.Database.Postgresql.Queries
                     owneruserid VARCHAR(64) NULL,
                     name VARCHAR(256) NOT NULL,
                     notes TEXT NULL,
+                    units VARCHAR(64) NULL,
                     labels TEXT NOT NULL DEFAULT '[]',
                     tags TEXT NOT NULL DEFAULT '{}',
                     active BOOLEAN NOT NULL DEFAULT TRUE,

@@ -126,6 +126,19 @@ namespace NetLedger.Server.API.REST
         }
 
         /// <summary>
+        /// Handle update account (PUT /v1/accounts/{accountId}).
+        /// </summary>
+        /// <param name="ctx">HTTP context.</param>
+        /// <returns>Task.</returns>
+        internal async Task UpdateAsync(HttpContextBase ctx)
+        {
+            RequestContext req = await RequestContext.FromHttpContextAsync(ctx).ConfigureAwait(false);
+            req.Auth = await _AuthService.AuthenticateAsync(ctx).ConfigureAwait(false);
+            ResponseContext resp = await _AccountHandler.UpdateAsync(req).ConfigureAwait(false);
+            await SendResponseAsync(ctx, req, resp).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Handle delete account (DELETE /v1/accounts/{accountId}).
         /// </summary>
         /// <param name="ctx">HTTP context.</param>

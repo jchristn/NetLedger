@@ -69,6 +69,7 @@ namespace NetLedger.Database.SqlServer.Queries
                     [owneruserid] NVARCHAR(64) NULL,
                     [name] NVARCHAR(256) NOT NULL,
                     [notes] NVARCHAR(MAX) NULL,
+                    [units] NVARCHAR(64) NULL,
                     [labels] NVARCHAR(MAX) NOT NULL DEFAULT '[]',
                     [tags] NVARCHAR(MAX) NOT NULL DEFAULT '{}',
                     [active] BIT NOT NULL DEFAULT 1,

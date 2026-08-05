@@ -29,6 +29,12 @@
             Notes for the account.
             </summary>
         </member>
+        <member name="P:NetLedger.Account.Units">
+            <summary>
+            Optional unit of denomination for the balances, credits, and debits recorded in this account (for example, "USD" or "tokens").
+            A null value indicates that no unit is specified.
+            </summary>
+        </member>
         <member name="P:NetLedger.Account.Labels">
             <summary>
             Account labels.
@@ -3051,6 +3057,11 @@
             Event fired when an account is created.
             </summary>
         </member>
+        <member name="E:NetLedger.Ledger.AccountUpdated">
+            <summary>
+            Event fired when an account is updated.
+            </summary>
+        </member>
         <member name="E:NetLedger.Ledger.AccountDeleted">
             <summary>
             Event fired when an account is deleted.
@@ -3108,6 +3119,26 @@
             <param name="token">Cancellation token.</param>
             <returns>string of the newly-created account.</returns>
             <exception cref="T:System.ArgumentNullException">Thrown when name is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.CreateAccountAsync(NetLedger.Account,System.Nullable{System.Decimal},System.Threading.CancellationToken)">
+            <summary>
+            Creates an account from a fully-formed account object. Use this overload to specify fields such as <see cref="P:NetLedger.Account.Units"/>, labels, and tags in a single call.
+            </summary>
+            <param name="account">Account to create. The <see cref="P:NetLedger.Account.Name"/> is required; an identifier is generated when one is not supplied.</param>
+            <param name="initialBalance">Initial committed balance of the account.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>Identifier of the newly-created account.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when account is null or its name is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Ledger.UpdateAccountAsync(NetLedger.Account,System.Threading.CancellationToken)">
+            <summary>
+            Update the mutable fields of an existing account (name, notes, units, labels, tags, and active flag). The account identifier, owning tenant, and creation timestamp are preserved from the stored record.
+            </summary>
+            <param name="account">Account carrying the identifier of the record to update and the desired field values.</param>
+            <param name="token">Cancellation token.</param>
+            <returns>The updated account.</returns>
+            <exception cref="T:System.ArgumentNullException">Thrown when account is null or its identifier is null or empty.</exception>
+            <exception cref="T:System.Collections.Generic.KeyNotFoundException">Thrown when no account exists with the supplied identifier.</exception>
         </member>
         <member name="M:NetLedger.Ledger.DeleteAccountByNameAsync(System.String,System.Threading.CancellationToken)">
             <summary>
@@ -3475,6 +3506,11 @@
             Maximum tag value length.
             </summary>
         </member>
+        <member name="F:NetLedger.MetadataValidator.MaxUnitsLength">
+            <summary>
+            Maximum length of an account units label.
+            </summary>
+        </member>
         <member name="M:NetLedger.MetadataValidator.NormalizeLabels(System.Collections.Generic.IEnumerable{System.String})">
             <summary>
             Normalize and validate labels.
@@ -3490,6 +3526,14 @@
             <param name="tags">Tags.</param>
             <returns>Normalized tags.</returns>
             <exception cref="T:System.ArgumentException">Thrown when tags exceed supported limits.</exception>
+        </member>
+        <member name="M:NetLedger.MetadataValidator.NormalizeUnits(System.String)">
+            <summary>
+            Normalize and validate an account units label. Trims surrounding whitespace, treats empty input as no unit, and enforces the maximum length. Casing is preserved so labels such as "USD" or "tokens" are stored as entered.
+            </summary>
+            <param name="units">Units label, or null.</param>
+            <returns>Normalized units label, or null when no unit is specified.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when the units label exceeds the maximum length.</exception>
         </member>
         <member name="T:NetLedger.NetLedgerId">
             <summary>

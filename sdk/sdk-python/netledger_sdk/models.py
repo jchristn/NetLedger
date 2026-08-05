@@ -28,6 +28,7 @@ class Account:
     name: str
     tenant_id: str = ""
     notes: Optional[str] = None
+    units: Optional[str] = None
     labels: List[str] = field(default_factory=list)
     tags: Dict[str, str] = field(default_factory=dict)
     created_utc: Optional[str] = None
@@ -42,6 +43,7 @@ class Account:
             name=data.get("Name", ""),
             tenant_id=data.get("TenantId", ""),
             notes=data.get("Notes"),
+            units=data.get("Units"),
             labels=data.get("Labels") or [],
             tags=data.get("Tags") or {},
             created_utc=data.get("CreatedUtc"),

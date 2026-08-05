@@ -33,6 +33,18 @@ namespace NetLedger.Sdk.Interfaces
         Task<Account> CreateAsync(Account account, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Update an existing account.
+        /// </summary>
+        /// <param name="account">The account to update (Id must be provided).</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The updated account.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when account is null.</exception>
+        /// <exception cref="ArgumentException">Thrown when account Id is null or empty.</exception>
+        /// <exception cref="NetLedgerConnectionException">Thrown when unable to connect to the server.</exception>
+        /// <exception cref="NetLedgerApiException">Thrown when the server returns an error.</exception>
+        Task<Account> UpdateAsync(Account account, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Get an account by its Id.
         /// </summary>
         /// <param name="accountId">The Id of the account.</param>

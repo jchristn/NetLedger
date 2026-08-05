@@ -29,13 +29,13 @@ namespace NetLedger.Database.Portable
             string query = _DatabaseType switch
             {
                 DatabaseTypeEnum.Mysql =>
-                    "INSERT INTO `accounts` (`id`, `tenantid`, `name`, `notes`, `labels`, `tags`, `active`, `createdutc`, `lastupdateutc`) VALUES (" +
+                    "INSERT INTO `accounts` (`id`, `tenantid`, `name`, `notes`, `units`, `labels`, `tags`, `active`, `createdutc`, `lastupdateutc`) VALUES (" +
                     Values(account) + ");",
                 DatabaseTypeEnum.SqlServer =>
-                    "INSERT INTO [accounts] ([id], [tenantid], [name], [notes], [labels], [tags], [active], [createdutc], [lastupdateutc]) VALUES (" +
+                    "INSERT INTO [accounts] ([id], [tenantid], [name], [notes], [units], [labels], [tags], [active], [createdutc], [lastupdateutc]) VALUES (" +
                     Values(account) + ");",
                 _ =>
-                    "INSERT INTO accounts (id, tenantid, name, notes, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
+                    "INSERT INTO accounts (id, tenantid, name, notes, units, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
                     Values(account) + ");"
             };
 
@@ -164,6 +164,7 @@ namespace NetLedger.Database.Portable
                 Column("name") + " = '" + Sanitize(account.Name) + "', " +
                 Column("tenantid") + " = '" + Sanitize(account.TenantId) + "', " +
                 Column("notes") + " = " + Nullable(account.Notes) + ", " +
+                Column("units") + " = " + Nullable(account.Units) + ", " +
                 Column("labels") + " = '" + Sanitize(MetadataSerializer.SerializeLabels(account.Labels)) + "', " +
                 Column("tags") + " = '" + Sanitize(MetadataSerializer.SerializeTags(account.Tags)) + "', " +
                 Column("active") + " = " + Bool(account.Active) + ", " +
@@ -202,6 +203,7 @@ namespace NetLedger.Database.Portable
                 "'" + Sanitize(account.TenantId) + "', " +
                 "'" + Sanitize(account.Name) + "', " +
                 Nullable(account.Notes) + ", " +
+                Nullable(account.Units) + ", " +
                 "'" + Sanitize(MetadataSerializer.SerializeLabels(account.Labels)) + "', " +
                 "'" + Sanitize(MetadataSerializer.SerializeTags(account.Tags)) + "', " +
                 Bool(account.Active) + ", " +
@@ -232,6 +234,7 @@ namespace NetLedger.Database.Portable
                 TenantId = GetString(row, "tenantid"),
                 Name = GetString(row, "name"),
                 Notes = GetNullableString(row, "notes"),
+                Units = GetNullableString(row, "units"),
                 Labels = MetadataSerializer.DeserializeLabels(GetString(row, "labels")),
                 Tags = MetadataSerializer.DeserializeTags(GetString(row, "tags")),
                 Active = ToBool(GetString(row, "active")),

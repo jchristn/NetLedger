@@ -121,7 +121,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"Name\": \"{{accountName}}\",\n    \"InitialBalance\": 1000.00\n}"
+              "raw": "{\n    \"Name\": \"{{accountName}}\",\n    \"InitialBalance\": 1000.00,\n    \"Notes\": \"Primary operating account\",\n    \"Units\": \"USD\"\n}"
             },
             "url": {
               "raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts",
@@ -403,6 +403,56 @@
               ]
             },
             "description": "Retrieve account details by name."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Account",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has account data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('Id');",
+                  "    pm.expect(jsonData).to.have.property('Name');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"Name\": \"{{accountName}}\",\n    \"Notes\": \"Primary operating account\",\n    \"Units\": \"USD\",\n    \"Labels\": [\"operating\", \"blue\"],\n    \"Tags\": {\n        \"department\": \"finance\",\n        \"color\": \"blue\"\n    },\n    \"Active\": true\n}"
+            },
+            "url": {
+              "raw": "{{protocol}}://{{hostname}}:{{port}}/v1/accounts/{{accountId}}",
+              "protocol": "{{protocol}}",
+              "host": [
+                "{{hostname}}"
+              ],
+              "port": "{{port}}",
+              "path": [
+                "v1",
+                "accounts",
+                "{{accountId}}"
+              ]
+            },
+            "description": "Update an existing account. Replaces the editable fields (Name, Notes, Units, Labels, Tags, Active). The account identifier, owning tenant, and creation timestamp cannot be changed."
           },
           "response": []
         },

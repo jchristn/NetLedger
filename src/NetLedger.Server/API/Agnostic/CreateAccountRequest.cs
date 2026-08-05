@@ -15,6 +15,16 @@ namespace NetLedger.Server.API.Agnostic
         public decimal? InitialBalance { get; set; }
 
         /// <summary>
+        /// Optional unit of denomination for this account (for example, "USD" or "tokens"). Null indicates no unit.
+        /// </summary>
+        public string? Units { get; set; }
+
+        /// <summary>
+        /// Optional account notes.
+        /// </summary>
+        public string? Notes { get; set; }
+
+        /// <summary>
         /// Optional account labels.
         /// </summary>
         public List<string>? Labels { get; set; }

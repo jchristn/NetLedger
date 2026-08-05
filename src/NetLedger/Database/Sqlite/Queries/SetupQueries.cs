@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     owneruserid TEXT,
     name TEXT NOT NULL,
     notes TEXT,
+    units TEXT,
     labels TEXT NOT NULL DEFAULT '[]',
     tags TEXT NOT NULL DEFAULT '{}',
     active INTEGER NOT NULL DEFAULT 1,

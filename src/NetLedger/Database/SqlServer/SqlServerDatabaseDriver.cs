@@ -238,6 +238,7 @@ namespace NetLedger.Database.SqlServer
             await ExecuteQueriesAsync(tableQueries).ConfigureAwait(false);
 
             await PrettyIdPrimaryKeyMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
+            await AccountUnitsMigration.ApplyAsync(this, CancellationToken.None).ConfigureAwait(false);
 
             string[] indexQueries = SetupQueries.CreateIndices();
             await ExecuteQueriesAsync(indexQueries).ConfigureAwait(false);

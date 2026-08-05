@@ -537,12 +537,19 @@ When running NetLedger Server (via Docker or directly), a full REST API is avail
 # Health check
 curl http://localhost:8080/
 
-# Create an account with label/tag metadata
+# Create an account with a unit and label/tag metadata
 curl -X PUT http://localhost:8080/v1/accounts \
   -H "Authorization: Bearer netledgeradmin" \
   -H "x-tenant-id: default" \
   -H "Content-Type: application/json" \
-  -d '{"Name":"My Account","InitialBalance":100.00,"Labels":["operating","blue"],"Tags":{"department":"finance","color":"blue"}}'
+  -d '{"Name":"My Account","InitialBalance":100.00,"Units":"USD","Labels":["operating","blue"],"Tags":{"department":"finance","color":"blue"}}'
+
+# Update an account (replaces editable fields; Units is a per-account unit label such as USD or tokens)
+curl -X PUT http://localhost:8080/v1/accounts/{accountId} \
+  -H "Authorization: Bearer netledgeradmin" \
+  -H "x-tenant-id: default" \
+  -H "Content-Type: application/json" \
+  -d '{"Name":"My Account","Units":"tokens","Labels":["operating"],"Tags":{"department":"finance"}}'
 
 # Add a credit with label/tag metadata
 curl -X PUT http://localhost:8080/v1/accounts/{accountId}/credits \

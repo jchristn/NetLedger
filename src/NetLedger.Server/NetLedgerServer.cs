@@ -681,12 +681,14 @@ namespace NetLedger.Server
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/accounts", _RestAccountHandler.CreateAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.HEAD, "/v1/accounts/{accountId}", _RestAccountHandler.ExistsAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/{accountId}", _RestAccountHandler.ReadAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/accounts/{accountId}", _RestAccountHandler.UpdateAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/accounts/{accountId}", _RestAccountHandler.DeleteAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/accounts/byname/{accountName}", _RestAccountHandler.ReadByNameAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts", _RestAccountHandler.EnumerateAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts", _RestAccountHandler.CreateAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.HEAD, "/v1/tenants/{tenantId}/accounts/{accountId}", _RestAccountHandler.ExistsAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/{accountId}", _RestAccountHandler.ReadAsync, ExceptionHandler);
+            _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.PUT, "/v1/tenants/{tenantId}/accounts/{accountId}", _RestAccountHandler.UpdateAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.DELETE, "/v1/tenants/{tenantId}/accounts/{accountId}", _RestAccountHandler.DeleteAsync, ExceptionHandler);
             _Webserver.Routes.PostAuthentication.Parameter.Add(HttpMethod.GET, "/v1/tenants/{tenantId}/accounts/byname/{accountName}", _RestAccountHandler.ReadByNameAsync, ExceptionHandler);
 
@@ -883,6 +885,7 @@ namespace NetLedger.Server
             AddRoute(routes, "GET", "/v1/accounts", "List accounts", "Accounts");
             AddRoute(routes, "PUT", "/v1/accounts", "Create account", "Accounts");
             AddRoute(routes, "GET", "/v1/accounts/{accountId}", "Read account", "Accounts");
+            AddRoute(routes, "PUT", "/v1/accounts/{accountId}", "Update account", "Accounts");
             AddRoute(routes, "DELETE", "/v1/accounts/{accountId}", "Delete account", "Accounts");
             AddRoute(routes, "GET", "/v1/accounts/byname/{accountName}", "Read account by name", "Accounts");
             AddRoute(routes, "GET", "/v1/accounts/{accountId}/entries", "List entries", "Entries");

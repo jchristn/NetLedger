@@ -59,6 +59,24 @@ namespace NetLedger.Sdk.Methods
         }
 
         /// <inheritdoc />
+        public async Task<Account> UpdateAsync(Account account, CancellationToken cancellationToken = default)
+        {
+            if (account == null)
+                throw new ArgumentNullException(nameof(account));
+
+            if (string.IsNullOrEmpty(account.Id))
+                throw new ArgumentException("Account Id cannot be null or empty.", nameof(account));
+
+            ApiResponse<Account> response = await _Client.SendAsync<Account>(
+                HttpMethod.Put,
+                $"/v1/accounts/{account.Id}",
+                account,
+                cancellationToken).ConfigureAwait(false);
+
+            return response.Data ?? throw new NetLedgerApiException(response.StatusCode, "No data returned from server.");
+        }
+
+        /// <inheritdoc />
         public async Task<Account> GetAsync(string accountId, CancellationToken cancellationToken = default)
         {
             ApiResponse<Account> response = await _Client.SendAsync<Account>(

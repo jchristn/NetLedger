@@ -7,7 +7,7 @@ import ActionMenu from '../components/ActionMenu'
 import Modal, { ConfirmModal, RecordModal, ViewMetadataModal } from '../components/Modal'
 import CopyButton from '../components/CopyButton'
 import { MetadataLabelsEditor, MetadataTagsEditor } from '../components/MetadataEditor'
-import { labelsToPayload, tagsToPayload } from '../components/metadataEditorUtils'
+import { labelsToPayload, tagsToPayload, normalizeLabelRows, normalizeTagRows } from '../components/metadataEditorUtils'
 import { formatDate, formatCurrency, normalizeEnumerationResult, normalizeBalances } from '../api/api'
 import { getRoleFlags, getTenantId, valueOf } from '../utils/roles'
 import './Accounts.css'
@@ -16,6 +16,7 @@ const createEmptyFormData = (tenantId = '', userId = '') => ({
   name: '',
   initialBalance: '',
   notes: '',
+  units: '',
   labels: [''],
   tags: [{ key: '', value: '' }],
   tenantId,
@@ -52,6 +53,7 @@ export default function Accounts() {
 
   // Form state
   const [formData, setFormData] = useState(createEmptyFormData())
+  const [editFormData, setEditFormData] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
 
   const getObjectId = (obj) => valueOf(obj, 'Id') || valueOf(obj, 'id') || valueOf(obj, 'ID') || ''
@@ -239,6 +241,7 @@ export default function Accounts() {
         formData.notes.trim() || null,
         parseLabels(formData.labels),
         parseTags(formData.tags),
+        formData.units.trim() || null,
         formData.tenantId
       )
 
@@ -292,7 +295,57 @@ export default function Accounts() {
 
   const openEditModal = (account) => {
     setSelectedAccount(account)
+    setEditFormData({
+      name: valueOf(account, 'Name') || '',
+      notes: valueOf(account, 'Notes') || '',
+      units: valueOf(account, 'Units') || '',
+      labels: normalizeLabelRows(account.labels || account.Labels),
+      tags: normalizeTagRows(account.tags || account.Tags),
+      active: valueOf(account, 'Active') ?? true
+    })
     setShowEditModal(true)
+  }
+
+  const closeEditModal = () => {
+    setShowEditModal(false)
+    setSelectedAccount(null)
+    setEditFormData(null)
+  }
+
+  const handleUpdate = async (e) => {
+    e.preventDefault()
+
+    if (!editFormData || !editFormData.name.trim()) {
+      setError('Account name is required')
+      return
+    }
+
+    try {
+      setFormLoading(true)
+
+      const accountId = getAccountId(selectedAccount)
+      const accountTenantId = isSystemAdmin ? (valueOf(selectedAccount, 'TenantId') || null) : null
+
+      await api.updateAccount(
+        accountId,
+        {
+          name: editFormData.name.trim(),
+          notes: editFormData.notes.trim() || null,
+          units: editFormData.units.trim() || null,
+          labels: parseLabels(editFormData.labels),
+          tags: parseTags(editFormData.tags),
+          active: editFormData.active
+        },
+        accountTenantId
+      )
+
+      closeEditModal()
+      loadAccounts()
+    } catch (err) {
+      setError(err.message || 'Failed to update account')
+    } finally {
+      setFormLoading(false)
+    }
   }
 
   const openViewModal = (account) => {
@@ -359,6 +412,18 @@ export default function Accounts() {
       filterValue: (row) => getRowId(row)
     },
     {
+      key: 'units',
+      label: 'Units',
+      sortable: true,
+      filterable: true,
+      render: (row) => {
+        const units = row.units || row.Units
+        return units ? units : <span className="text-muted">Amount</span>
+      },
+      filterValue: (row) => row.units || row.Units || '',
+      sortValue: (row) => row.units || row.Units || ''
+    },
+    {
       key: 'labels',
       label: 'Labels',
       filterable: true,
@@ -379,7 +444,7 @@ export default function Accounts() {
         const amount = balance?.committedBalance ?? balance?.CommittedBalance ?? 0
         return (
           <span className={`amount ${amount >= 0 ? 'amount-positive' : 'amount-negative'}`}>
-            {formatCurrency(amount)}
+            {formatCurrency(amount, row.units || row.Units)}
           </span>
         )
       },
@@ -400,7 +465,7 @@ export default function Accounts() {
         const amount = balance?.pendingBalance ?? balance?.PendingBalance ?? 0
         return (
           <span className={`amount ${amount >= 0 ? 'amount-positive' : 'amount-negative'}`}>
-            {formatCurrency(amount)}
+            {formatCurrency(amount, row.units || row.Units)}
           </span>
         )
       },
@@ -679,6 +744,20 @@ export default function Accounts() {
           </div>
 
           <div className="form-group">
+            <label htmlFor="accountUnits">Units</label>
+            <input
+              type="text"
+              id="accountUnits"
+              value={formData.units}
+              onChange={(e) => setFormData({ ...formData, units: e.target.value })}
+              placeholder="e.g. USD, tokens, points"
+              maxLength={64}
+              disabled={formLoading}
+            />
+            <span className="form-hint">Optional unit of denomination for balances in this account. Leave blank to display a plain amount.</span>
+          </div>
+
+          <div className="form-group">
             <label htmlFor="accountNotes">Notes</label>
             <textarea
               id="accountNotes"
@@ -727,16 +806,101 @@ export default function Accounts() {
         isLoading={formLoading}
       />
 
-      <RecordModal
+      {/* Edit Modal */}
+      <Modal
         isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false)
-          setSelectedAccount(null)
-        }}
+        onClose={closeEditModal}
         title={`Edit ${selectedAccount?.name || selectedAccount?.Name || 'Account'}`}
-        data={selectedAccount}
-        mode="edit"
-      />
+        size="medium"
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={closeEditModal}
+              disabled={formLoading}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleUpdate}
+              disabled={formLoading}
+            >
+              {formLoading ? (
+                <>
+                  <span className="spinner spinner-sm"></span>
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </button>
+          </>
+        }
+      >
+        {editFormData && (
+          <form onSubmit={handleUpdate}>
+            <div className="form-group">
+              <label htmlFor="editAccountName">Account Name *</label>
+              <input
+                type="text"
+                id="editAccountName"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                placeholder="Enter account name"
+                disabled={formLoading}
+                autoFocus
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="editAccountUnits">Units</label>
+              <input
+                type="text"
+                id="editAccountUnits"
+                value={editFormData.units}
+                onChange={(e) => setEditFormData({ ...editFormData, units: e.target.value })}
+                placeholder="e.g. USD, tokens, points"
+                maxLength={64}
+                disabled={formLoading}
+              />
+              <span className="form-hint">Optional unit of denomination for balances in this account. Leave blank to display a plain amount.</span>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="editAccountNotes">Notes</label>
+              <textarea
+                id="editAccountNotes"
+                value={editFormData.notes}
+                onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                placeholder="Optional notes about this account"
+                rows={3}
+                disabled={formLoading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Labels</label>
+              <MetadataLabelsEditor
+                idPrefix="editAccountLabels"
+                value={editFormData.labels}
+                onChange={(labels) => setEditFormData({ ...editFormData, labels })}
+                disabled={formLoading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Tags</label>
+              <MetadataTagsEditor
+                idPrefix="editAccountTags"
+                value={editFormData.tags}
+                onChange={(tags) => setEditFormData({ ...editFormData, tags })}
+                disabled={formLoading}
+              />
+            </div>
+          </form>
+        )}
+      </Modal>
 
       <RecordModal
         isOpen={showViewModal}

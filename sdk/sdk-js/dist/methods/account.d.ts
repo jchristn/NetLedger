@@ -10,9 +10,22 @@ export declare class AccountMethods {
      * Create a new account.
      * @param name Account name.
      * @param notes Optional notes.
+     * @param units Optional unit or currency label.
      * @returns The created account.
      */
-    create(name: string, notes?: string, labels?: string[], tags?: Record<string, string>): Promise<Account>;
+    create(name: string, notes?: string, units?: string, labels?: string[], tags?: Record<string, string>): Promise<Account>;
+    /**
+     * Update an existing account.
+     * @param accountId The account identifier.
+     * @param name Account name.
+     * @param notes Optional notes.
+     * @param units Optional unit or currency label.
+     * @param labels Optional labels.
+     * @param tags Optional tags.
+     * @param active Optional active flag.
+     * @returns The updated account.
+     */
+    update(accountId: string, name: string, notes?: string, units?: string, labels?: string[], tags?: Record<string, string>, active?: boolean): Promise<Account>;
     /**
      * Get an account by identifier.
      * @param accountId The account identifier.

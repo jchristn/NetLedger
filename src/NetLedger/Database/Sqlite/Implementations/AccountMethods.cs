@@ -47,11 +47,12 @@ namespace NetLedger.Database.Sqlite.Implementations
             if (account.LastUpdateUtc == default) account.LastUpdateUtc = account.CreatedUtc;
 
             string query =
-                "INSERT INTO accounts (id, tenantid, name, notes, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
+                "INSERT INTO accounts (id, tenantid, name, notes, units, labels, tags, active, createdutc, lastupdateutc) VALUES (" +
                 "'" + account.Id.ToString() + "', " +
                 "'" + Sanitize(account.TenantId) + "', " +
                 "'" + Sanitize(account.Name) + "', " +
                 (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + ", " +
+                (account.Units != null ? "'" + Sanitize(account.Units) + "'" : "NULL") + ", " +
                 "'" + Sanitize(labels) + "', " +
                 "'" + Sanitize(tags) + "', " +
                 (account.Active ? "1" : "0") + ", " +
@@ -278,6 +279,7 @@ namespace NetLedger.Database.Sqlite.Implementations
                 "name = '" + Sanitize(account.Name) + "', " +
                 "tenantid = '" + Sanitize(account.TenantId) + "', " +
                 "notes = " + (account.Notes != null ? "'" + Sanitize(account.Notes) + "'" : "NULL") + ", " +
+                "units = " + (account.Units != null ? "'" + Sanitize(account.Units) + "'" : "NULL") + ", " +
                 "labels = '" + Sanitize(MetadataSerializer.SerializeLabels(account.Labels)) + "', " +
                 "tags = '" + Sanitize(MetadataSerializer.SerializeTags(account.Tags)) + "', " +
                 "active = " + (account.Active ? "1" : "0") + ", " +
@@ -357,6 +359,7 @@ namespace NetLedger.Database.Sqlite.Implementations
             account.TenantId = GetString(row, "tenantid");
             account.Name = row["name"]?.ToString() ?? String.Empty;
             account.Notes = row["notes"]?.ToString();
+            account.Units = GetString(row, "units");
             account.Labels = MetadataSerializer.DeserializeLabels(GetString(row, "labels"));
             account.Tags = MetadataSerializer.DeserializeTags(GetString(row, "tags"));
             account.Active = GetString(row, "active") != "0";

@@ -21,6 +21,11 @@ namespace NetLedger
         public event EventHandler<AccountEventArgs> AccountCreated;
 
         /// <summary>
+        /// Event fired when an account is updated.
+        /// </summary>
+        public event EventHandler<AccountEventArgs> AccountUpdated;
+
+        /// <summary>
         /// Event fired when an account is deleted.
         /// </summary>
         public event EventHandler<AccountEventArgs> AccountDeleted;
@@ -123,19 +128,39 @@ namespace NetLedger
             a.TenantId = tenantId ?? String.Empty;
             a.Labels = labels ?? new List<string>();
             a.Tags = tags ?? new Dictionary<string, string>();
-            a = await _Driver.Accounts.CreateAsync(a, token).ConfigureAwait(false);
-            string accountId = a.Id;
+            return await CreateAccountAsync(a, initialBalance, token).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Creates an account from a fully-formed account object. Use this overload to specify fields such as <see cref="Account.Units"/>, labels, and tags in a single call.
+        /// </summary>
+        /// <param name="account">Account to create. The <see cref="Account.Name"/> is required; an identifier is generated when one is not supplied.</param>
+        /// <param name="initialBalance">Initial committed balance of the account.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>Identifier of the newly-created account.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when account is null or its name is null or empty.</exception>
+        public async Task<string> CreateAccountAsync(
+            Account account,
+            decimal? initialBalance = null,
+            CancellationToken token = default)
+        {
+            if (account == null) throw new ArgumentNullException(nameof(account));
+            if (String.IsNullOrEmpty(account.Name)) throw new ArgumentNullException(nameof(account), "Account name is required.");
+
+            account.TenantId = account.TenantId ?? String.Empty;
+            account = await _Driver.Accounts.CreateAsync(account, token).ConfigureAwait(false);
+            string accountId = account.Id;
 
             try
             {
-                IDisposable lockReleaser = await _AccountLocks.LockAsync(a.Id, token).ConfigureAwait(false);
-                await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(a.Id, token).ConfigureAwait(false);
+                IDisposable lockReleaser = await _AccountLocks.LockAsync(account.Id, token).ConfigureAwait(false);
+                await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(account.Id, token).ConfigureAwait(false);
                 using (lockReleaser)
                 {
                     Entry balance = new Entry();
                     balance.Id = NetLedgerId.Generate(IdentifierPrefixes.Entry);
-                    balance.TenantId = a.TenantId;
-                    balance.AccountId = a.Id;
+                    balance.TenantId = account.TenantId;
+                    balance.AccountId = account.Id;
                     balance.Type = EntryType.Balance;
                     balance.Amount = initialBalance ?? 0m;
                     balance.Description = "Initial balance";
@@ -147,10 +172,47 @@ namespace NetLedger
             }
             finally
             {
-                Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(a)));
+                Account created = account;
+                Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(created)));
             }
 
             return accountId;
+        }
+
+        /// <summary>
+        /// Update the mutable fields of an existing account (name, notes, units, labels, tags, and active flag). The account identifier, owning tenant, and creation timestamp are preserved from the stored record.
+        /// </summary>
+        /// <param name="account">Account carrying the identifier of the record to update and the desired field values.</param>
+        /// <param name="token">Cancellation token.</param>
+        /// <returns>The updated account.</returns>
+        /// <exception cref="ArgumentNullException">Thrown when account is null or its identifier is null or empty.</exception>
+        /// <exception cref="KeyNotFoundException">Thrown when no account exists with the supplied identifier.</exception>
+        public async Task<Account> UpdateAccountAsync(Account account, CancellationToken token = default)
+        {
+            if (account == null) throw new ArgumentNullException(nameof(account));
+            if (String.IsNullOrEmpty(account.Id)) throw new ArgumentNullException(nameof(account), "Account identifier is required.");
+
+            Account existing = await _Driver.Accounts.ReadByIdAsync(account.Id, token).ConfigureAwait(false);
+            if (existing == null) throw new KeyNotFoundException("Account '" + account.Id + "' was not found.");
+
+            // Preserve immutable fields; only mutable fields are persisted.
+            account.TenantId = existing.TenantId;
+            account.CreatedUtc = existing.CreatedUtc;
+            account.LastUpdateUtc = DateTime.Now.ToUniversalTime();
+
+            Account updated;
+            IDisposable lockReleaser = await _AccountLocks.LockAsync(account.Id, token).ConfigureAwait(false);
+            await using (IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(account.Id, token).ConfigureAwait(false))
+            {
+                using (lockReleaser)
+                {
+                    updated = await _Driver.Accounts.UpdateAsync(account, token).ConfigureAwait(false);
+                }
+            }
+
+            Account result = updated;
+            Task.Run(() => AccountUpdated?.Invoke(this, new AccountEventArgs(result)));
+            return updated;
         }
 
         /// <summary>
