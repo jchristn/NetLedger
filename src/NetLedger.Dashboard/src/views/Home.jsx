@@ -229,11 +229,9 @@ function buildLinearYAxisLabels(values, maxLabels = 5) {
   return labels
 }
 
-function formatAxisCurrency(value) {
+function formatAxisValue(value) {
   const absolute = Math.abs(value)
   const formatter = new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
     notation: absolute >= 1000 ? 'compact' : 'standard',
     maximumFractionDigits: absolute >= 1000 ? 1 : 0
   })
@@ -853,7 +851,7 @@ function ValueRecordedChart({ buckets, range }) {
           return (
             <g key={label}>
               <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} className={`chart-grid-line ${label === 0 ? 'chart-axis' : ''}`} />
-              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{formatAxisCurrency(label)}</text>
+              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{formatAxisValue(label)}</text>
             </g>
           )
         })}
@@ -1006,7 +1004,7 @@ function AmountsChart({ buckets, range }) {
           return (
             <g key={label}>
               <line x1={padding.left} y1={y} x2={padding.left + innerWidth} y2={y} className={`chart-grid-line ${label === 0 ? 'chart-axis' : ''}`} />
-              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{formatAxisCurrency(label)}</text>
+              <text x={padding.left - 9} y={y + 4} className="chart-y-label">{formatAxisValue(label)}</text>
             </g>
           )
         })}
