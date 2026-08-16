@@ -799,23 +799,26 @@ namespace NetLedger.Sdk.Test
             await RunTest("Archive Metadata Lists", async () =>
             {
                 List<ArchiveMigrationInfo> migrations = await _ArchiveClient.Archive.MigrationsAsync(new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
-                if (migrations.Count > 0 && !String.IsNullOrWhiteSpace(migrations[0].Id))
+                string? migrationId = migrations.Count > 0 ? migrations[0].Id : null;
+                if (!String.IsNullOrWhiteSpace(migrationId))
                 {
-                    ArchiveMigrationInfo migration = await _ArchiveClient.Archive.MigrationAsync(migrations[0].Id).ConfigureAwait(false);
+                    ArchiveMigrationInfo migration = await _ArchiveClient.Archive.MigrationAsync(migrationId).ConfigureAwait(false);
                     if (String.IsNullOrWhiteSpace(migration.Id)) throw new Exception("Archive migration detail ID missing");
                     await _ArchiveClient.Archive.MigrationBatchesAsync(migration.Id, new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
                 }
 
                 List<ArchiveManifestInfo> manifests = await _ArchiveClient.Archive.ManifestsAsync(new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
-                if (manifests.Count > 0 && !String.IsNullOrWhiteSpace(manifests[0].Id))
+                string? manifestId = manifests.Count > 0 ? manifests[0].Id : null;
+                if (!String.IsNullOrWhiteSpace(manifestId))
                 {
-                    ArchiveManifestInfo manifest = await _ArchiveClient.Archive.ManifestAsync(manifests[0].Id).ConfigureAwait(false);
+                    ArchiveManifestInfo manifest = await _ArchiveClient.Archive.ManifestAsync(manifestId).ConfigureAwait(false);
                     if (String.IsNullOrWhiteSpace(manifest.Id)) throw new Exception("Archive manifest detail ID missing");
                     await _ArchiveClient.Archive.ManifestCheckpointsAsync(manifest.Id, new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
                     List<ArchiveObjectInfo> objects = await _ArchiveClient.Archive.ManifestObjectsAsync(manifest.Id, new ArchiveQuery { MaxResults = 10 }).ConfigureAwait(false);
-                    if (objects.Count > 0 && !String.IsNullOrWhiteSpace(objects[0].Id))
+                    string? objectId = objects.Count > 0 ? objects[0].Id : null;
+                    if (!String.IsNullOrWhiteSpace(objectId))
                     {
-                        ArchiveObjectMetadataInfo metadata = await _ArchiveClient.Archive.ObjectMetadataAsync(objects[0].Id).ConfigureAwait(false);
+                        ArchiveObjectMetadataInfo metadata = await _ArchiveClient.Archive.ObjectMetadataAsync(objectId).ConfigureAwait(false);
                         if (String.IsNullOrWhiteSpace(metadata.ObjectId)) throw new Exception("Archive object metadata ID missing");
                     }
                 }

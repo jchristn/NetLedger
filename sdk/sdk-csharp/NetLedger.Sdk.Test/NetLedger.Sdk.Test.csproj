@@ -9,6 +9,8 @@
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <DocumentationFile>NetLedger.Sdk.xml</DocumentationFile>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <ItemGroup>
