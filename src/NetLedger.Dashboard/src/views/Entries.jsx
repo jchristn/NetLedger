@@ -57,6 +57,10 @@ const toNullableNumber = (value) => {
 
 const toApiDate = (value) => value ? new Date(value).toISOString() : null
 
+const parseLabels = (value) => labelsToPayload(value)
+
+const parseTags = (value) => tagsToPayload(value)
+
 const formatTags = (tags) => {
   if (!tags || typeof tags !== 'object') return ''
   return Object.entries(tags)
@@ -416,14 +420,6 @@ export default function Entries() {
   }
 
   const totalPages = Math.ceil(totalRecords / pageSize)
-
-  const parseLabels = (value) => {
-    return labelsToPayload(value)
-  }
-
-  const parseTags = (value) => {
-    return tagsToPayload(value)
-  }
 
   const applyEntryFilters = () => {
     setAppliedFilters(filterDraft)

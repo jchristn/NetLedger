@@ -26,8 +26,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="SyslogLogging" Version="2.1.0" />
-		<PackageReference Include="Watson" Version="7.0.15" />
+		<PackageReference Include="SyslogLogging" Version="2.2.1" />
+		<PackageReference Include="Watson" Version="7.1.0" />
 	</ItemGroup>
 
 </Project>

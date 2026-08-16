@@ -1154,6 +1154,53 @@ namespace Test.Shared
                         Assert(read.UserId == credential.UserId, "Credential user ID did not persist.");
                         Assert(read.SecretKeySha256 == credential.SecretKeySha256, "Credential secret verifier did not persist.");
                         Assert(read.SecretKeyLast4 == "cret", "Credential secret last-four did not persist.");
+                    }),
+                    new TestCaseDescriptor(suiteId, "credential_raw_secret_returned_only_at_creation", "Raw credential secrets are returned only at creation and never on read, enumeration, or serialization", async token =>
+                    {
+                        await using SecurityScenario scenario = await CreateSecurityScenarioAsync(token).ConfigureAwait(false);
+
+                        string credentialName = "secret-lifecycle-" + UniqueSuffix(24);
+                        ResponseContext createResponse = await CreateCredentialAsync(
+                            scenario,
+                            scenario.SystemAdmin,
+                            null,
+                            credentialName,
+                            scenario.TenantA.Id,
+                            scenario.TenantAUser.Id,
+                            false,
+                            token).ConfigureAwait(false);
+
+                        Assert(createResponse.Success, "System admin could not create a credential. Status=" + createResponse.StatusCode);
+                        Assert(createResponse.StatusCode == 201, "Credential creation did not return 201. Status=" + createResponse.StatusCode);
+
+                        CreateCredentialResponse? payload = createResponse.Data as CreateCredentialResponse;
+                        Assert(payload != null, "Credential creation did not return a credential payload.");
+                        Assert(payload!.Credential != null, "Credential creation did not return the credential record.");
+                        Assert(!String.IsNullOrEmpty(payload.SecretKey), "Credential creation did not return the raw secret at creation time.");
+
+                        string rawSecret = payload.SecretKey!;
+                        ApiKey createdCredential = payload.Credential!;
+
+                        // Positive: the once-returned raw secret is authentic and verifies against the stored verifier material.
+                        Assert(Credential.HashSecret(rawSecret) == createdCredential.SecretKeySha256, "Returned raw secret does not match the stored verifier hash.");
+                        Assert(createdCredential.SecretKeyLast4 == rawSecret.Substring(rawSecret.Length - 4), "Returned raw secret last-four does not match the stored last-four.");
+
+                        // Negative: the raw secret is never persisted, so a subsequent read can never surface it again.
+                        ApiKey? persisted = await scenario.AuthService.GetApiKeyByIdAsync(createdCredential.Id, token).ConfigureAwait(false);
+                        Assert(persisted != null, "Created credential could not be read back.");
+                        Assert(persisted!.RawSecretKey == null, "Persisted credential exposed the raw secret after creation.");
+                        Assert(persisted.SecretKeyLast4 == createdCredential.SecretKeyLast4, "Persisted credential lost its secret last-four.");
+
+                        // Negative: credential enumeration never re-exposes the raw secret.
+                        EnumerationResult<ApiKey> enumeration = await EnumerateCredentialsAsync(scenario, scenario.SystemAdmin, null, token).ConfigureAwait(false);
+                        ApiKey? enumerated = enumeration.Objects.FirstOrDefault(item => item.Id == createdCredential.Id);
+                        Assert(enumerated != null, "Created credential was not present in the enumeration.");
+                        Assert(enumerated!.RawSecretKey == null, "Credential enumeration exposed the raw secret.");
+
+                        // Negative: serializing a persisted credential leaks neither the raw secret nor the verifier hash.
+                        string persistedJson = JsonSerializer.Serialize(persisted);
+                        Assert(!persistedJson.Contains(rawSecret, StringComparison.Ordinal), "Serialized credential leaked the raw secret.");
+                        Assert(!persistedJson.Contains(createdCredential.SecretKeySha256, StringComparison.Ordinal), "Serialized credential leaked the secret verifier hash.");
                     })
                 });
         }

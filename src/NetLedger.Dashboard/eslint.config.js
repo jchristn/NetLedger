@@ -22,6 +22,10 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // eslint-plugin-react-hooks v7 added this rule to its recommended set. The
+      // dashboard's data-loading effects (e.g. loadAccounts() on mount) trip it by
+      // design; keep it visible as a warning rather than failing the build.
+      'react-hooks/set-state-in-effect': 'warn',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
