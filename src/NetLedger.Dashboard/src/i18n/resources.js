@@ -201,6 +201,7 @@ const ENGLISH = {
     connectedTo: 'Connected to',
     dark: 'dark',
     disconnect: 'Disconnect',
+    discord: 'Join the NetLedger Discord',
     github: 'Open NetLedger on GitHub',
     light: 'light',
     switchTheme: 'Switch to {mode} mode'
