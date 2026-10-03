@@ -33,7 +33,7 @@ namespace Test.Shared
     /// <summary>
     /// Shared Touchstone suites for NetLedger.
     /// </summary>
-    public static class NetLedgerSuites
+    public static partial class NetLedgerSuites
     {
         #region Private-Members
 
@@ -59,6 +59,7 @@ namespace Test.Shared
                     IdentitySuite(),
                     RequestHistorySuite(),
                     SecurityBoundarySuite(),
+                    TelemetrySuite(),
                     ProviderMatrixSuite()
                 };
             }

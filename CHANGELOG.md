@@ -2,6 +2,39 @@
 
 ## Current Version
 
+### v4.1.0
+
+**OBSERVABILITY**
+
+NetLedger v4.1.0 adds production-grade observability: metrics and traces across the library and both servers, Loki logs for background work, and a provisioned Prometheus, Tempo, Loki, and Grafana stack. See `TELEMETRY.md`. The `NetLedger` and `NetLedger.Archive` NuGet packages are 4.1.0. Docker images keep the `v4.0.0` tag.
+
+#### New Features
+
+- A `NetLedger` `Meter` and `ActivitySource` (`NetLedger.Telemetry.NetLedgerTelemetry`) with every name in one constants class (`NetLedger.Telemetry.TelemetryNames`). The library emits through System.Diagnostics only and takes no exporter dependency.
+- `TelemetryScope` measures a unit of work (span, duration histogram, outcome counter with `error.type`). It is best-effort and inert when nothing listens.
+- Every public `Ledger` operation, entry creation, commit (with commit size), cancellation, balance-chain verification, process and database account-lock wait, and every SQL round trip on SQLite, PostgreSQL, MySQL, SQL Server, and the archive catalog is instrumented. SQL text is never recorded.
+- `InstrumentedArchiveObjectStore` (returned by `ArchiveObjectStoreFactory`) instruments S3 and filesystem object storage with client spans, latency, outcomes, and bytes.
+- NetLedger Server instruments authentication, logins, authorization decisions, background request-history writes (joined to the request trace), the archive export pipeline with a per-stage histogram, counter, and span for each stage, and the automatic archival worker (root span per run, per-account spans, run and account outcomes, retries, last-run and last-success gauges).
+- Outbound Archive Server and NetLedger introspection calls have client spans and integration metrics, and inject W3C `traceparent`.
+- NetLedger Archive Server instruments migration lifecycle events, upload, commit, verify, and query workflow stages, uploaded bytes, query rows, verification results, introspection cache hits and size, and archive authorization decisions.
+- Both servers host one Radiant (v0.1.2) telemetry host subscribed to `NetLedger` and `Watson`. They export OTLP, an in-process Prometheus endpoint (`9464` server, `9465` archive server), optional Loki logs, and .NET runtime metrics, and report build info, uptime, and safe configuration gauges. Watson `Settings.Telemetry` is explicitly enabled.
+- New `Telemetry` settings section and `NETLEDGER_TELEMETRY_*` environment overrides on both servers, with 127.0.0.1 defaults.
+- `docker/compose.yaml` adds pinned Prometheus, Tempo, Loki, and Grafana services with healthchecks and `service_healthy` ordering. Grafana runs on host port 3002 and is provisioned with Prometheus, Tempo, and Loki datasources (trace to log correlation) and eight dashboards in a NetLedger folder (`Assets/grafana/`).
+- The dashboard home page adds an External Services card (system administrators) with URLs and default credentials for Grafana, Prometheus, Tempo, Loki, and Less3, configurable through `NETLEDGER_GRAFANA_URL` and related environment variables.
+- `build-server.sh`, `build-archive.sh`, `build-dashboard.sh`, and `build-all.sh` mirror the existing `.bat` image build scripts.
+- Server, Archive Server, and dashboard compose healthchecks follow the 127.0.0.1, 5 second interval, 2 retry convention.
+- Prometheus scrapes the classic text format with legacy metric names (`scrape_protocols`, `metric_name_validation_scheme`) so Prometheus 3 accepts the OpenTelemetry exporter output.
+
+#### Bug Fixes
+
+- NetLedger Server awaited `Webserver.StartAsync()`, which runs the accept loop for the server lifetime. The automatic archival worker therefore never started and the shutdown path never ran. The server now uses `Webserver.Start()`, matching the Archive Server.
+- Both servers now handle `SIGTERM` (for example `docker stop`) through the normal shutdown path, so cleanup runs and buffered telemetry is flushed.
+
+#### Validation
+
+- New `telemetry` Touchstone suite (11 tests) proves emission with in-memory BCL listeners, covering the name contract, the no-listener path, ledger and database metrics and spans, failures, the archive export pipeline with W3C propagation, export failure paths, auth and authz decisions, request-history writes, object storage and catalog SQL, Archive Server recorders, and build info and config gauges.
+- All shared suites pass on `net8.0` and `net10.0` through the console, xUnit, and NUnit runners, and the server REST suite passes against a live server.
+
 ### v4.0.0
 
 **MAJOR VERSION - ARCHIVE SUPPORT**

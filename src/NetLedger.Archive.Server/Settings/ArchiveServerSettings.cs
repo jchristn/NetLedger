@@ -42,5 +42,10 @@ namespace NetLedger.Archive.Server.Settings
         /// Request history settings.
         /// </summary>
         public RequestHistorySettings RequestHistory { get; set; } = new RequestHistorySettings();
+
+        /// <summary>
+        /// Telemetry export settings (OTLP, Prometheus, Loki, and Watson HTTP telemetry).
+        /// </summary>
+        public TelemetrySettings Telemetry { get; set; } = new TelemetrySettings();
     }
 }

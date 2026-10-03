@@ -11,6 +11,7 @@ namespace NetLedger.Archive.Catalog.Sql
     using MySqlConnector;
     using NetLedger.Archive.Settings;
     using NetLedger.Database;
+    using NetLedger.Telemetry;
     using Npgsql;
 
     /// <summary>
@@ -48,6 +49,25 @@ namespace NetLedger.Archive.Catalog.Sql
             if (_Disposed) throw new ObjectDisposedException(nameof(ArchiveSqlExecutor));
             if (String.IsNullOrWhiteSpace(query)) throw new ArgumentNullException(nameof(query));
 
+            using (TelemetryScope telemetry = NetLedgerTelemetry.StartDbOperation(
+                TelemetryNames.ComponentArchiveCatalog,
+                NetLedgerTelemetry.GetDbSystemName(_Settings.Type),
+                NetLedgerTelemetry.GetDbOperationName(query)))
+            {
+                try
+                {
+                    return await ExecuteCoreAsync(query, isWrite, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteCoreAsync(string query, bool isWrite, CancellationToken token)
+        {
             token.ThrowIfCancellationRequested();
 
             using (DbConnection connection = CreateConnection())

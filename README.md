@@ -27,6 +27,21 @@ Current release: v4.0.0.
 
 </details>
 
+## v4.1.0
+
+NetLedger v4.1.0 adds production-grade observability. The `NetLedger` and `NetLedger.Archive` packages emit metrics and traces through a `NetLedger` `Meter` and `ActivitySource` (System.Diagnostics only, no exporter dependency, near-zero cost when nobody listens). NetLedger Server and NetLedger Archive Server export those signals, plus Watson's built-in HTTP telemetry and .NET runtime metrics, through [Radiant](https://www.nuget.org/packages/Radiant) to OTLP, an in-process Prometheus endpoint, and Loki. The Docker stack adds Prometheus, Tempo, Loki, and Grafana with eight provisioned dashboards. See [TELEMETRY.md](TELEMETRY.md).
+
+What is new in v4.1.0:
+
+- Ledger operations, entries, commits, balance-chain verification, account-lock wait (process and database), and every SQL round trip on all four providers have latency histograms, outcome counters with `error.type`, and nested spans.
+- The archive export pipeline records a job span, a `stage:<name>` span, and a per-stage histogram and counter for `queued`, `validate`, `enumerate`, `create_migration`, `upload_batch`, `seal`, `commit`, and `cleanup`, plus rows, bytes, and a last-success timestamp.
+- The automatic archival worker records a root span per run, a span per account, run and account outcome counters, retries, and last-run and last-success gauges.
+- Every outbound call (Archive Server, NetLedger introspection, S3, filesystem) has a client span, latency histogram, and outcome counter. W3C `traceparent` propagates from NetLedger Server to Archive Server, so an export is one trace across both services.
+- Authentication, authorization decisions, logins, background request-history writes, Archive Server migration lifecycle events and workflow stages, the introspection cache, build info, uptime, and safe configuration values are all instrumented.
+- Both servers have a `Telemetry` settings section with `NETLEDGER_TELEMETRY_*` environment overrides and 127.0.0.1 defaults, and confirm Watson `Settings.Telemetry` is enabled.
+- `docker/compose.yaml` brings up Prometheus, Tempo, Loki, and Grafana (http://localhost:3002, `admin` / `admin` locally) with dashboards for Overview, HTTP, Ledger, Database, Archival Pipeline, Integrations & Storage, Auth & Request History, and Runtime.
+- The dashboard home page has an External Services card for system administrators with Grafana, Prometheus, Tempo, Loki, and Less3 URLs and default credentials.
+
 ## v4.0.0
 
 NetLedger v4.0.0 is the archive-readiness release. It introduces active server archive configuration, typed CORS configuration, NetLedger Archive Server,
@@ -236,6 +251,10 @@ This starts:
 - **NetLedger Dashboard** on `http://localhost:3000` - Web-based management UI
 - **Less3** on `http://localhost:8000` - preferred S3-compatible archive object store
 - **Less3 UI** on `http://localhost:3001` - Less3 object-store dashboard
+- **Grafana** on `http://localhost:3002` (`admin` / `admin` locally) - NetLedger dashboards in the **NetLedger** folder
+- **Prometheus** on `http://localhost:9090`, **Tempo** on `http://localhost:3200`, and **Loki** on `http://localhost:3100` - metrics, traces, and logs
+
+See [TELEMETRY.md](TELEMETRY.md) for the metric and span catalog, configuration keys, dashboard map, and recommended alerts.
 
 Fresh deployments create tenant `default` with `admin@netledger` / `password`.
 
@@ -243,7 +262,7 @@ The default Docker deployment is pre-wired for S3-compatible archival through Le
 
 Less3 persists its SQLite catalog, object files, temporary uploads, and logs under `docker/less3/`.
 
-The single `compose.yaml` starts Less3, Less3 UI, NetLedger Server, NetLedger Archive Server, and NetLedger Dashboard together.
+The single `compose.yaml` starts Less3, Less3 UI, NetLedger Server, NetLedger Archive Server, NetLedger Dashboard, and the Prometheus, Tempo, Loki, and Grafana observability stack together.
 
 Production deployments should replace the sample `default/default` object-store credential with secret-manager injection, TLS, and a least-privilege bucket or prefix policy.
 
@@ -1120,6 +1139,22 @@ await TransferAsync(ledger, checking, savings, 200.00m, "Monthly savings");
 - **PrettyId** (v2.0.1) - K-sortable public string IDs
 - **Timestamps** (v1.0.12) - Timestamp utilities
 
+The NetLedger library emits telemetry through `System.Diagnostics` only. NetLedger Server and NetLedger Archive Server additionally use **Watson** (v7.1.1) and **Radiant** (v0.1.2) for HTTP hosting and telemetry export.
+
+## Observability
+
+NetLedger emits metrics and traces on a `NetLedger` `Meter` and `ActivitySource`. A library host subscribes to those names. The servers subscribe automatically and export OTLP, Prometheus, and Loki. See [TELEMETRY.md](TELEMETRY.md).
+
+```csharp
+RadiantSettings settings = new RadiantSettings("my-ledger-app");
+settings.Sources.AddMeter("NetLedger");
+settings.Sources.AddActivitySource("NetLedger");
+using (RadiantHost host = RadiantHost.Start(settings))
+{
+    await using Ledger ledger = new Ledger("./ledger.db");
+}
+```
+
 ## License
 
 MIT License - See [LICENSE.md](LICENSE.md) for details
@@ -1136,7 +1171,10 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## Version History
 
-### v4.0.0 (Current)
+### v4.1.0 (Current)
+- Built-in observability: `NetLedger` Meter and ActivitySource across the library and both servers, Radiant-based OTLP, Prometheus, and Loki export, Watson HTTP telemetry, a provisioned Prometheus, Tempo, Loki, and Grafana stack with eight dashboards, and a dashboard External Services card. See [TELEMETRY.md](TELEMETRY.md).
+
+### v4.0.0
 - Active archive integration settings, retention policy configuration, typed CORS settings, Archive Server SQL catalog support, and filesystem and S3-compatible archive storage.
   Migration lifecycle routes, archive verification, and optional post-commit active cleanup.
   JSONL.Gzip cold entry and request-history reads, SDK archive clients, the `ArchivalValidation` live smoke-test app, dashboard archive-query requirements, and Docker Hub documentation.

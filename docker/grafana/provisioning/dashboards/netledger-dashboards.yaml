@@ -1,0 +1,13 @@
+# Loads the NetLedger dashboards (Assets/grafana) into the NetLedger folder.
+apiVersion: 1
+
+providers:
+  - name: 'NetLedger'
+    orgId: 1
+    folder: 'NetLedger'
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/netledger

@@ -7,12 +7,14 @@ namespace NetLedger.Server
     using NetLedger.Server.Models;
     using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
+    using NetLedger.Telemetry;
     using SyslogLogging;
     using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
     using System.IO;
     using System.Reflection;
+    using System.Runtime.InteropServices;
     using System.Runtime.Loader;
     using System.Text;
     using System.Text.Json;
@@ -38,6 +40,7 @@ namespace NetLedger.Server
         private static RequestHistoryService _RequestHistoryService = null!;
         private static ArchiveExportService _ArchiveExportService = null!;
         private static AutomaticArchiveService _AutomaticArchiveService = null!;
+        private static TelemetryService _TelemetryService = null!;
         private static Webserver _Webserver = null!;
 
         private static ServiceHandler _ServiceHandler = null!;
@@ -77,6 +80,13 @@ namespace NetLedger.Server
                 _Logging.Info(_Header + "received unload signal");
                 waitHandle.Set();
             };
+
+            // SIGTERM (docker stop) otherwise terminates the process before cleanup runs, losing buffered telemetry.
+            using PosixSignalRegistration sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
+            {
+                context.Cancel = true;
+                waitHandle.Set();
+            });
 
             Console.CancelKeyPress += (sender, eventArgs) =>
             {
@@ -228,6 +238,38 @@ namespace NetLedger.Server
             ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_RETRY_INITIAL_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.InitialDelaySeconds = value);
             ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTOMATIC_RETRY_MAX_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.MaxDelaySeconds = value);
             ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_AUTO_RETRY_MAX_DELAY_SECONDS", value => _Settings.Archive.Automatic.Retry.MaxDelaySeconds = value);
+
+            if (_Settings.Telemetry == null)
+            {
+                _Settings.Telemetry = new TelemetrySettings();
+            }
+
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_ENABLED", value => _Settings.Telemetry.Enabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_SERVICE_NAME", value => _Settings.Telemetry.ServiceName = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_OTLP_ENABLED", value => _Settings.Telemetry.OtlpEnabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_OTLP_ENDPOINT", value => _Settings.Telemetry.OtlpEndpoint = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_OTLP_PROTOCOL", value => _Settings.Telemetry.OtlpProtocol = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_ENABLED", value => _Settings.Telemetry.PrometheusEnabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_HOSTNAME", value => _Settings.Telemetry.PrometheusHostname = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_PORT", value => _Settings.Telemetry.PrometheusPort = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_PATH", value => _Settings.Telemetry.PrometheusPath = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_LOKI_ENABLED", value => _Settings.Telemetry.LokiEnabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_LOKI_ENDPOINT", value => _Settings.Telemetry.LokiEndpoint = value);
+            ApplyDoubleEnvironmentOverride("NETLEDGER_TELEMETRY_TRACE_SAMPLING_RATIO", value => _Settings.Telemetry.TraceSamplingRatio = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_RUNTIME_METRICS", value => _Settings.Telemetry.IncludeRuntimeMetrics = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_WATSON_ENABLED", value => _Settings.Telemetry.WatsonTelemetryEnabled = value);
+        }
+
+        private static void ApplyDoubleEnvironmentOverride(string name, Action<double> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value)) return;
+            if (!Double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed))
+            {
+                throw new InvalidOperationException("Environment variable " + name + " must be a number.");
+            }
+
+            setter(parsed);
         }
 
         private static void ApplyDatabaseEnvironmentOverrides(DatabaseSettings settings, string prefix)
@@ -308,6 +350,14 @@ namespace NetLedger.Server
             _Logging = new LoggingModule();
             _Logging.Settings.EnableConsole = _Settings.Logging.EnableConsole;  
 
+            // Initialize telemetry before any instrumented component starts
+            _TelemetryService = new TelemetryService(_Settings.Telemetry, _Logging);
+            ServerTelemetry.Logger = _TelemetryService.Logger;
+            NetLedgerTelemetry.RegisterService(
+                TelemetryNames.ComponentServer,
+                Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown",
+                BuildTelemetryConfigSnapshot);
+
             // Initialize ledger
             _Ledger = new Ledger(_Settings.Database);
             LogDatabaseConfiguration();
@@ -343,6 +393,11 @@ namespace NetLedger.Server
                 _Settings.Webserver.Port,
                 _Settings.Webserver.Ssl);
 
+            wsSettings.Telemetry.Enable = _Settings.Telemetry.Enabled && _Settings.Telemetry.WatsonTelemetryEnabled;
+            wsSettings.Telemetry.EnableMetrics = true;
+            wsSettings.Telemetry.EnableTraces = true;
+            wsSettings.Telemetry.PropagateContext = true;
+
             _Webserver = new Webserver(wsSettings, DefaultRoute);
             _Webserver.Events.ExceptionEncountered += WebserverException;
             _Webserver.Routes.Preflight = PreflightHandler;
@@ -356,7 +411,9 @@ namespace NetLedger.Server
             _Logging.Info(_Header + "webserver starting on " +
                 (_Settings.Webserver.Ssl ? "https" : "http") + "://" +
                 _Settings.Webserver.Hostname + ":" + _Settings.Webserver.Port);
-            await _Webserver.StartAsync().ConfigureAwait(false);
+            // Start() returns once the listener is accepting; StartAsync() runs the accept loop for the server lifetime,
+            // which previously kept the automatic archival worker and the shutdown path from ever starting.
+            _Webserver.Start();
             _AutomaticArchiveService.Start();
         }
 
@@ -1038,6 +1095,13 @@ namespace NetLedger.Server
                     break;
             }
 
+            NetLedgerTelemetry.RecordError(TelemetryNames.ComponentServer, e);
+            if (statusCode >= 500)
+            {
+                NetLedgerTelemetry.RecordException(System.Diagnostics.Activity.Current, e);
+                ServerTelemetry.LogWarning(e, "Unhandled route exception: {ErrorType}", NetLedgerTelemetry.GetErrorType(e));
+            }
+
             ctx.Response.StatusCode = statusCode;
             await ctx.Response.Send(JsonSerializer.Serialize(
                 new NetLedger.Server.Models.ApiErrorResponse(errorCode, null, e.Message),
@@ -1120,6 +1184,33 @@ namespace NetLedger.Server
                 await _Ledger.DisposeAsync().ConfigureAwait(false);
                 _Logging.Debug(_Header + "ledger disposed");
             }
+
+            NetLedgerTelemetry.UnregisterService(TelemetryNames.ComponentServer);
+            if (_TelemetryService != null)
+            {
+                ServerTelemetry.Logger = null;
+                _TelemetryService.Dispose();
+                _Logging.Debug(_Header + "telemetry service disposed");
+            }
+        }
+
+        private static IReadOnlyDictionary<string, double> BuildTelemetryConfigSnapshot()
+        {
+            Dictionary<string, double> values = new Dictionary<string, double>(StringComparer.Ordinal);
+            values["authentication.enabled"] = _Settings.Authentication.Enabled ? 1 : 0;
+            values["request_history.enabled"] = _Settings.RequestHistory.Enabled ? 1 : 0;
+            values["request_history.retention_days"] = _Settings.RequestHistory.RetentionDays;
+            values["database.max_pool_size"] = _Settings.Database.MaxPoolSize;
+            values["database.connection_timeout_seconds"] = _Settings.Database.ConnectionTimeoutSeconds;
+            values["archive.enabled"] = _Settings.Archive.Enabled ? 1 : 0;
+            values["archive.automatic.enabled"] = _Settings.Archive.Automatic.Enabled ? 1 : 0;
+            values["archive.automatic.interval_seconds"] = _Settings.Archive.Automatic.IntervalSeconds;
+            values["archive.automatic.max_accounts_per_run"] = _Settings.Archive.Automatic.MaxAccountsPerRun;
+            values["archive.automatic.max_batch_rows"] = _Settings.Archive.Automatic.MaxBatchRows;
+            values["archive.automatic.max_retention_days"] = _Settings.Archive.Automatic.MaxRetentionDays;
+            values["archive.automatic.retry_max_attempts"] = _Settings.Archive.Automatic.Retry.MaxAttempts;
+            values["telemetry.trace_sampling_ratio"] = _Settings.Telemetry.TraceSamplingRatio;
+            return values;
         }
     }
 }

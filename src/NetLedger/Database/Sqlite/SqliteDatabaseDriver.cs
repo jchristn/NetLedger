@@ -12,6 +12,7 @@ namespace NetLedger.Database.Sqlite
     using Microsoft.Data.Sqlite;
     using NetLedger.Database.Sqlite.Implementations;
     using NetLedger.Database.Sqlite.Queries;
+    using NetLedger.Telemetry;
 
     /// <summary>
     /// SQLite database driver implementation.
@@ -73,6 +74,25 @@ namespace NetLedger.Database.Sqlite
 
         /// <inheritdoc />
         public override async Task<DataTable> ExecuteQueryAsync(
+            string query,
+            bool isTransaction = false,
+            CancellationToken token = default)
+        {
+            using (TelemetryScope telemetry = StartDbTelemetry(query))
+            {
+                try
+                {
+                    return await ExecuteQueryCoreAsync(query, isTransaction, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteQueryCoreAsync(
             string query,
             bool isTransaction = false,
             CancellationToken token = default)
@@ -165,6 +185,25 @@ namespace NetLedger.Database.Sqlite
             bool isTransaction = false,
             CancellationToken token = default)
         {
+            using (TelemetryScope telemetry = StartDbBatchTelemetry())
+            {
+                try
+                {
+                    return await ExecuteQueriesCoreAsync(queries, isTransaction, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteQueriesCoreAsync(
+            IEnumerable<string> queries,
+            bool isTransaction = false,
+            CancellationToken token = default)
+        {
             if (queries == null) throw new ArgumentNullException(nameof(queries));
 
             List<string> queryList = queries.ToList();
@@ -173,7 +212,7 @@ namespace NetLedger.Database.Sqlite
             // For single query, delegate to ExecuteQueryAsync
             if (queryList.Count == 1)
             {
-                return await ExecuteQueryAsync(queryList[0], isTransaction, token).ConfigureAwait(false);
+                return await ExecuteQueryCoreAsync(queryList[0], isTransaction, token).ConfigureAwait(false);
             }
 
             token.ThrowIfCancellationRequested();

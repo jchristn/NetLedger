@@ -150,6 +150,20 @@ If an object is missing, corrupted, quarantined, or legally held, keep the affec
 
 ## Monitoring And Capacity
 
+Both server images export telemetry out of the box: Watson HTTP metrics and per-request spans, NetLedger ledger, database, auth, archive export pipeline, automatic archival worker, integration, and Archive Server workflow metrics and spans, and .NET runtime metrics. Each server serves Prometheus metrics in-process (`9464` for `jchristn77/netledger`, `9465` for `jchristn77/netledger-archive`), pushes traces over OTLP, and can push logs to Loki. Configure them with `NETLEDGER_TELEMETRY_*` environment variables. Set `NETLEDGER_TELEMETRY_PROMETHEUS_HOSTNAME` to the container's DNS name, which is the host Prometheus scrapes. Wildcards are not supported by the scrape listener.
+
+```bash
+docker run -d -p 8080:8080 \
+  -e NETLEDGER_TELEMETRY_OTLP_ENDPOINT=http://tempo:4317 \
+  --hostname netledger-server \
+  -e NETLEDGER_TELEMETRY_PROMETHEUS_HOSTNAME=netledger-server \
+  -e NETLEDGER_TELEMETRY_LOKI_ENABLED=true \
+  -e NETLEDGER_TELEMETRY_LOKI_ENDPOINT=http://loki:3100/otlp \
+  jchristn77/netledger:v4.0.0
+```
+
+The repository's `docker/compose.yaml` runs Prometheus, Tempo, Loki, and Grafana (http://localhost:3002) with eight provisioned dashboards. See [TELEMETRY.md](https://github.com/jchristn/NetLedger/blob/main/TELEMETRY.md) for the metric and span catalog and recommended alerts.
+
 Monitor failed or stuck migrations, batch upload failures, seal/commit conflicts, catalog health, storage-pool health, object metadata read failures, object hash mismatches, auth failures, active retention backlog, and cleanup backlog. For millions of rows, keep batch sizes bounded and use filesystem or S3-compatible object storage with reliable backup. v4 accepts JSONL.Gzip archive objects only; plan Parquet plus sidecar indexes as a post-v4 high-scale read path before making billion-row analytical filtering claims.
 
 ## Upgrade Notes
@@ -179,6 +193,7 @@ The repository includes one Docker Compose file under `docker/compose.yaml`. For
 - `jchristn77/netledger-archive:v4.0.0`
 - `jchristn77/less3:v3.0.0`
 - `jchristn77/less3-ui:v3.0.0`
+- `prom/prometheus:v3.5.4`, `grafana/tempo:2.6.1`, `grafana/loki:3.5.5`, `grafana/grafana-oss:13.0.2` (observability stack)
 
 Use PostgreSQL, MySQL, SQL Server, or SQLite for the active database according to the server configuration. Archive Server may use its own catalog database or a shared physical database with non-overlapping archive table names.
 
@@ -190,6 +205,7 @@ Use PostgreSQL, MySQL, SQL Server, or SQLite for the active database according t
 - Do not expose direct database access to users.
 - Treat object-store paths as operational details, not as user-facing contracts.
 - Pin image versions rather than relying on `latest`.
+- Change Grafana's `admin` / `admin` local default with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` before sharing the stack, and keep Prometheus, Tempo, Loki, and the metrics ports (`9464`, `9465`) off public interfaces.
 
 ## Documentation
 
@@ -197,6 +213,7 @@ See the repository documentation for the full API, SDK, Postman, dashboard, and 
 
 - `README.md`
 - `ARCHIVAL.md`
+- `TELEMETRY.md`
 - `REST_API.md`
 - `archive/ARCHIVAL.md`
 - `NetLedger.postman_collection.json`

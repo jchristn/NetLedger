@@ -39,6 +39,11 @@ namespace NetLedger.Server.Settings
         public ArchiveSettings Archive { get; set; } = new ArchiveSettings();
 
         /// <summary>
+        /// Telemetry export settings (OTLP, Prometheus, Loki, and Watson HTTP telemetry).
+        /// </summary>
+        public TelemetrySettings Telemetry { get; set; } = new TelemetrySettings();
+
+        /// <summary>
         /// Instantiate.
         /// </summary>
         public ServerSettings()

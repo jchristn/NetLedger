@@ -8,6 +8,7 @@ namespace NetLedger.Database.Postgresql
     using System.Threading.Tasks;
     using NetLedger.Database.Postgresql.Queries;
     using NetLedger.Database.Portable;
+    using NetLedger.Telemetry;
     using Npgsql;
 
     /// <summary>
@@ -81,6 +82,22 @@ namespace NetLedger.Database.Postgresql
         /// <inheritdoc />
         public override async Task<DataTable> ExecuteQueryAsync(string query, bool isTransaction = false, CancellationToken token = default)
         {
+            using (TelemetryScope telemetry = StartDbTelemetry(query))
+            {
+                try
+                {
+                    return await ExecuteQueryCoreAsync(query, isTransaction, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteQueryCoreAsync(string query, bool isTransaction = false, CancellationToken token = default)
+        {
             if (_Disposed) throw new ObjectDisposedException(nameof(PostgresqlDatabaseDriver));
             if (String.IsNullOrEmpty(query)) throw new ArgumentNullException(nameof(query));
 
@@ -142,6 +159,22 @@ namespace NetLedger.Database.Postgresql
 
         /// <inheritdoc />
         public override async Task<DataTable> ExecuteQueriesAsync(IEnumerable<string> queries, bool isTransaction = false, CancellationToken token = default)
+        {
+            using (TelemetryScope telemetry = StartDbBatchTelemetry())
+            {
+                try
+                {
+                    return await ExecuteQueriesCoreAsync(queries, isTransaction, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteQueriesCoreAsync(IEnumerable<string> queries, bool isTransaction = false, CancellationToken token = default)
         {
             if (_Disposed) throw new ObjectDisposedException(nameof(PostgresqlDatabaseDriver));
             if (queries == null || !queries.Any()) return new DataTable();

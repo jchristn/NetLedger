@@ -2,21 +2,33 @@ namespace NetLedger.Server.Services
 {
     using System;
     using System.Collections.Specialized;
+    using System.Diagnostics;
     using System.Globalization;
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Server.Authentication;
     using NetLedger.Server.Models;
     using NetLedger.Server.Settings;
+    using NetLedger.Telemetry;
     using SyslogLogging;
 
     internal sealed class AutomaticArchiveService : IDisposable
     {
+        internal const string AutomaticExportUrl = "/v1/archive/automatic/entries";
+
         private readonly string _Header = "[AutomaticArchiveService] ";
         private readonly ServerSettings _Settings;
         private readonly Ledger _Ledger;
         private readonly ArchiveExportService _ArchiveExportService;
         private readonly LoggingModule _Logging;
+        private const string AccountResultExported = "exported";
+        private const string AccountResultNoRows = "no_rows";
+        private const string AccountResultFailed = "failed";
+        private const string AccountResultError = "error";
+        private const string AccountResultSkippedDisabled = "skipped_disabled";
+        private const string AccountResultSkippedBackoff = "skipped_backoff";
+        private const string AccountResultSkippedInterval = "skipped_interval";
+        private const string AccountResultSkippedNoRange = "skipped_no_range";
         private readonly SemaphoreSlim _RunLock = new SemaphoreSlim(1, 1);
         private CancellationTokenSource? _TokenSource = null;
         private Task? _WorkerTask = null;
@@ -95,14 +107,46 @@ namespace NetLedger.Server.Services
             {
                 result.AccountsSkipped++;
                 result.CompletedUtc = DateTime.UtcNow;
+                ServerTelemetry.RecordAutomaticRunSkipped();
                 return result;
             }
 
             try
             {
-                await ProcessAccountsAsync(result, token).ConfigureAwait(false);
-                result.CompletedUtc = DateTime.UtcNow;
-                return result;
+                using (TelemetryScope run = ServerTelemetry.StartAutomaticRun())
+                {
+                    bool success = false;
+                    try
+                    {
+                        await ProcessAccountsAsync(result, token).ConfigureAwait(false);
+                        result.CompletedUtc = DateTime.UtcNow;
+                        run.SetTag("netledger.archive.accounts_scanned", result.AccountsScanned);
+                        run.SetTag("netledger.archive.exports_succeeded", result.EntryExportsSucceeded);
+                        run.SetTag("netledger.archive.exports_failed", result.EntryExportsFailed);
+                        run.SetTag(TelemetryNames.AttributeRowCount, result.RowsExported);
+                        run.SetTag(TelemetryNames.AttributeByteCount, result.BytesUploaded);
+                        if (result.EntryExportsFailed > 0 && result.EntryExportsSucceeded > 0)
+                        {
+                            run.SetOutcome(TelemetryNames.OutcomePartial);
+                        }
+                        else if (result.EntryExportsFailed > 0)
+                        {
+                            run.Fail("export_failures", "Every attempted automatic archive export failed.");
+                        }
+
+                        success = result.EntryExportsFailed == 0;
+                        return result;
+                    }
+                    catch (Exception e)
+                    {
+                        run.Fail(e);
+                        throw;
+                    }
+                    finally
+                    {
+                        ServerTelemetry.CompleteAutomaticRun(success);
+                    }
+                }
             }
             finally
             {
@@ -137,6 +181,12 @@ namespace NetLedger.Server.Services
                     AutomaticArchiveRunResult result = await RunOnceAsync(token).ConfigureAwait(false);
                     if (result.EntryExportsAttempted > 0 || result.Errors.Count > 0)
                     {
+                        ServerTelemetry.LogInformation(
+                            "Automatic archival run completed: accounts {Accounts}, exports {Exports}, failures {Failures}, rows {Rows}",
+                            result.AccountsScanned,
+                            result.EntryExportsSucceeded,
+                            result.EntryExportsFailed,
+                            result.RowsExported);
                         _Logging.Info(_Header + "run completed accounts=" +
                             result.AccountsScanned.ToString(CultureInfo.InvariantCulture) +
                             " exports=" + result.EntryExportsSucceeded.ToString(CultureInfo.InvariantCulture) +
@@ -151,6 +201,8 @@ namespace NetLedger.Server.Services
                 catch (Exception e)
                 {
                     _Logging.Warn(_Header + "run failed: " + e.Message);
+                    NetLedgerTelemetry.RecordError(TelemetryNames.ComponentAutomaticArchive, e);
+                    ServerTelemetry.LogWarning(e, "Automatic archival run failed: {ErrorType}", NetLedgerTelemetry.GetErrorType(e));
                 }
 
                 automatic = GetAutomaticSettings();
@@ -203,6 +255,28 @@ namespace NetLedger.Server.Services
 
         private async Task ProcessAccountAsync(Account account, AutomaticArchiveRunResult result, CancellationToken token)
         {
+            using (TelemetryScope telemetry = ServerTelemetry.StartAutomaticAccount(account.TenantId, account.Id))
+            {
+                string accountResult;
+                try
+                {
+                    accountResult = await ProcessAccountCoreAsync(account, result, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    ServerTelemetry.RecordAutomaticAccount(e is OperationCanceledException ? TelemetryNames.OutcomeCanceled : AccountResultError);
+                    throw;
+                }
+
+                telemetry.SetTag(TelemetryNames.LabelResult, accountResult);
+                if (accountResult == AccountResultFailed) telemetry.Fail("export_failed", "Automatic archive export failed.");
+                ServerTelemetry.RecordAutomaticAccount(accountResult);
+            }
+        }
+
+        private async Task<string> ProcessAccountCoreAsync(Account account, AutomaticArchiveRunResult result, CancellationToken token)
+        {
             AccountArchivalSettings? existing = await _Ledger.Driver.AccountArchivalSettings
                 .ReadByAccountAsync(account.TenantId, account.Id, token)
                 .ConfigureAwait(false);
@@ -216,20 +290,20 @@ namespace NetLedger.Server.Services
             if (!policy.Enabled)
             {
                 result.AccountsSkipped++;
-                return;
+                return AccountResultSkippedDisabled;
             }
 
             DateTime now = DateTime.UtcNow;
             if (state.NextAttemptUtc.HasValue && state.NextAttemptUtc.Value.ToUniversalTime() > now)
             {
                 result.AccountsSkipped++;
-                return;
+                return AccountResultSkippedBackoff;
             }
 
             if (state.LastAttemptUtc.HasValue && state.LastAttemptUtc.Value.ToUniversalTime().AddSeconds(policy.IntervalSeconds) > now)
             {
                 result.AccountsSkipped++;
-                return;
+                return AccountResultSkippedInterval;
             }
 
             DateTime toUtc = now.AddDays(-policy.MaxRetentionDays);
@@ -242,7 +316,7 @@ namespace NetLedger.Server.Services
                 state.NextAttemptUtc = now.AddSeconds(policy.IntervalSeconds);
                 await _Ledger.Driver.AccountArchivalSettings.UpsertAsync(state, token).ConfigureAwait(false);
                 result.AccountsSkipped++;
-                return;
+                return AccountResultSkippedNoRange;
             }
 
             state.LastAttemptUtc = now;
@@ -280,6 +354,7 @@ namespace NetLedger.Server.Services
                 state.LastError = null;
                 state.NextAttemptUtc = state.LastSuccessUtc.Value.AddSeconds(policy.IntervalSeconds);
                 await _Ledger.Driver.AccountArchivalSettings.UpsertAsync(state, token).ConfigureAwait(false);
+                return response.RowsExported > 0 ? AccountResultExported : AccountResultNoRows;
             }
             catch (Exception e)
             {
@@ -287,12 +362,15 @@ namespace NetLedger.Server.Services
                 string error = "Account " + account.Id + " archival failed: " + e.Message;
                 result.Errors.Add(error);
                 _Logging.Warn(_Header + error);
+                NetLedgerTelemetry.RecordError(TelemetryNames.ComponentAutomaticArchive, e);
+                ServerTelemetry.LogWarning(e, "Automatic archival failed for account {AccountId} in tenant {TenantId}", account.Id, account.TenantId);
 
                 state.LastFailureUtc = DateTime.UtcNow;
                 state.FailureCount++;
                 state.LastError = Truncate(e.Message, 2048);
                 state.NextAttemptUtc = state.LastFailureUtc.Value.AddSeconds(CalculateFailureDelaySeconds(policy, state.FailureCount));
                 await _Ledger.Driver.AccountArchivalSettings.UpsertAsync(state, token).ConfigureAwait(false);
+                return AccountResultFailed;
             }
         }
 
@@ -305,6 +383,8 @@ namespace NetLedger.Server.Services
             Exception? lastException = null;
             for (int attempt = 1; attempt <= policy.RetryMaxAttempts; attempt++)
             {
+                if (attempt > 1) ServerTelemetry.RecordAutomaticRetry();
+                Activity.Current?.SetTag(TelemetryNames.AttributeAttempt, attempt);
                 try
                 {
                     RequestContext req = new RequestContext
@@ -312,7 +392,7 @@ namespace NetLedger.Server.Services
                         TenantId = account.TenantId,
                         AccountId = account.Id,
                         Auth = AuthContext.NotRequired(),
-                        Url = "/v1/archive/automatic/entries",
+                        Url = AutomaticExportUrl,
                         SourceIp = "background"
                     };
 

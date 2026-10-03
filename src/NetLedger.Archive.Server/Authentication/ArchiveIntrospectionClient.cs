@@ -9,7 +9,9 @@ namespace NetLedger.Archive.Server.Authentication
     using System.Text.Json;
     using System.Threading;
     using System.Threading.Tasks;
+    using NetLedger.Archive.Server.Services;
     using NetLedger.Archive.Server.Settings;
+    using NetLedger.Telemetry;
     using SyslogLogging;
     using WatsonWebserver.Core;
 
@@ -37,6 +39,7 @@ namespace NetLedger.Archive.Server.Authentication
             {
                 Timeout = TimeSpan.FromSeconds(10)
             };
+            ArchiveServerTelemetry.SetCacheSizeProvider(() => _Cache.Count);
         }
 
         /// <summary>
@@ -48,6 +51,29 @@ namespace NetLedger.Archive.Server.Authentication
         public async Task<ArchiveAuthContext> AuthenticateAsync(HttpContextBase ctx, CancellationToken token = default)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+
+            using (TelemetryScope telemetry = ArchiveServerTelemetry.StartAuthentication(ResolveMethod()))
+            {
+                try
+                {
+                    ArchiveAuthContext auth = await AuthenticateCoreAsync(ctx, telemetry, token).ConfigureAwait(false);
+                    telemetry.AddLabel(TelemetryNames.LabelResult, auth.IsNotRequired ? "notrequired" : auth.IsAuthenticated ? "success" : "failed");
+                    telemetry.SetTag(TelemetryNames.AttributeTenantId, auth.TenantId);
+                    telemetry.SetTag(TelemetryNames.AttributePrincipalId, auth.PrincipalId);
+                    if (!auth.IsAuthenticated) telemetry.SetOutcome(TelemetryNames.OutcomeRejected);
+                    return auth;
+                }
+                catch (Exception e)
+                {
+                    telemetry.AddLabel(TelemetryNames.LabelResult, "error");
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<ArchiveAuthContext> AuthenticateCoreAsync(HttpContextBase ctx, TelemetryScope telemetry, CancellationToken token)
+        {
 
             if (!_Settings.Enabled || String.Equals(_Settings.Mode, "None", StringComparison.OrdinalIgnoreCase))
             {
@@ -64,7 +90,15 @@ namespace NetLedger.Archive.Server.Authentication
                 _Cache.TryGetValue(cacheKey, out ArchiveIntrospectionCacheEntry? cached) &&
                 cached.ExpiresUtc > DateTime.UtcNow)
             {
+                ArchiveServerTelemetry.RecordCacheLookup(true);
+                telemetry.SetTag("netledger.auth.cache", "hit");
                 return cached.Context;
+            }
+
+            if (!String.IsNullOrEmpty(cacheKey))
+            {
+                ArchiveServerTelemetry.RecordCacheLookup(false);
+                telemetry.SetTag("netledger.auth.cache", "miss");
             }
 
             ArchiveAuthContext auth = await IntrospectAsync(ctx, token).ConfigureAwait(false);
@@ -93,21 +127,33 @@ namespace NetLedger.Archive.Server.Authentication
         private async Task<ArchiveAuthContext> IntrospectAsync(HttpContextBase ctx, CancellationToken token)
         {
             Uri endpoint = BuildEndpoint();
+            using (TelemetryScope telemetry = NetLedgerTelemetry.StartIntegration(TelemetryNames.ServiceNetLedgerServer, "introspect"))
             using (HttpRequestMessage request = new HttpRequestMessage(System.Net.Http.HttpMethod.Get, endpoint))
             {
+                telemetry.SetTag(TelemetryNames.AttributeHttpMethod, "GET");
                 CopyHeader(ctx.Request.Headers, request, "authorization");
                 CopyHeader(ctx.Request.Headers, request, "x-token");
                 CopyHeader(ctx.Request.Headers, request, "x-access-key");
                 CopyHeader(ctx.Request.Headers, request, "x-secret-key");
                 CopyHeader(ctx.Request.Headers, request, "x-tenant-id");
+                NetLedgerTelemetry.InjectTraceContext(telemetry.Activity, request, (carrier, name, value) =>
+                {
+                    HttpRequestMessage message = (HttpRequestMessage)carrier;
+                    message.Headers.Remove(name);
+                    message.Headers.TryAddWithoutValidation(name, value);
+                });
 
                 try
                 {
                     using (HttpResponseMessage response = await _HttpClient.SendAsync(request, token).ConfigureAwait(false))
                     {
+                        int statusCode = (int)response.StatusCode;
+                        telemetry.SetTag(TelemetryNames.AttributeHttpStatusCode, statusCode);
                         string body = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
                         if (!response.IsSuccessStatusCode)
                         {
+                            if (statusCode >= 500) telemetry.Fail("http_" + statusCode.ToString(), "NetLedger introspection returned HTTP " + statusCode.ToString());
+                            else telemetry.SetOutcome(TelemetryNames.OutcomeRejected);
                             _Logging.Warn("[ArchiveIntrospectionClient] NetLedger introspection failed with HTTP " + ((int)response.StatusCode).ToString() + ".");
                             return ArchiveAuthContext.Failed("Authentication failed.");
                         }
@@ -131,16 +177,26 @@ namespace NetLedger.Archive.Server.Authentication
                         };
                     }
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException e)
                 {
+                    telemetry.Fail(e);
                     throw;
                 }
                 catch (Exception e)
                 {
+                    telemetry.Fail(e);
+                    NetLedgerTelemetry.RecordError(TelemetryNames.ComponentArchiveServer, e);
+                    ArchiveServerTelemetry.LogWarning(e, "NetLedger introspection failed: {ErrorType}", NetLedgerTelemetry.GetErrorType(e));
                     _Logging.Warn("[ArchiveIntrospectionClient] NetLedger introspection error: " + e.Message);
                     return ArchiveAuthContext.Failed("Authentication introspection failed.");
                 }
             }
+        }
+
+        private string ResolveMethod()
+        {
+            if (!_Settings.Enabled || String.Equals(_Settings.Mode, "None", StringComparison.OrdinalIgnoreCase)) return "disabled";
+            return "introspection";
         }
 
         private Uri BuildEndpoint()

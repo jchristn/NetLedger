@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-		<Version>4.0.0</Version>
+		<Version>4.1.0</Version>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<Authors>Joel Christner</Authors>
 		<Company>Joel Christner</Company>
@@ -14,7 +14,7 @@
 		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
 		<RepositoryType>github</RepositoryType>
 		<PackageTags>ledger finance credit debit balance commit pending bank banking finance account accounting expense expenses cash flow profit loss income archive retention cold-storage</PackageTags>
-		<PackageReleaseNotes>Major version 4.0.0: archive integration settings, NetLedger Archive Server support, active data retention policy, CORS configuration, and dashboard archive querying.</PackageReleaseNotes>
+		<PackageReleaseNotes>v4.1.0: built-in OpenTelemetry-compatible observability. A "NetLedger" Meter and ActivitySource (System.Diagnostics only, no exporter dependency) emit ledger operation, entry, commit, balance-chain, account-lock, and per-provider database metrics and spans. See TELEMETRY.md.</PackageReleaseNotes>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<DocumentationFile>NetLedger.xml</DocumentationFile>

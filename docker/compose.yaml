@@ -78,15 +78,29 @@ services:
     command: ["-f", "/app/data/netledger.json"]
     environment:
       - DOTNET_RUNNING_IN_CONTAINER=true
+      - NETLEDGER_TELEMETRY_ENABLED=true
+      - NETLEDGER_TELEMETRY_SERVICE_NAME=netledger-server
+      - NETLEDGER_TELEMETRY_OTLP_ENDPOINT=http://tempo:4317
+      - NETLEDGER_TELEMETRY_OTLP_PROTOCOL=grpc
+      - NETLEDGER_TELEMETRY_PROMETHEUS_ENABLED=true
+      # The scrape listener binds the interface this hostname resolves to; use the compose service name Prometheus scrapes.
+      - NETLEDGER_TELEMETRY_PROMETHEUS_HOSTNAME=server
+      - NETLEDGER_TELEMETRY_PROMETHEUS_PORT=9464
+      - NETLEDGER_TELEMETRY_LOKI_ENABLED=true
+      - NETLEDGER_TELEMETRY_LOKI_ENDPOINT=http://loki:3100/otlp
     depends_on:
       postgres-init:
         condition: service_completed_successfully
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 20s
     networks:
       - netledger
 
@@ -108,17 +122,30 @@ services:
       - NETLEDGER_ARCHIVE_STORAGE_ENDPOINT=http://less3:8000
       - NETLEDGER_ARCHIVE_STORAGE_ACCESS_KEY=default
       - NETLEDGER_ARCHIVE_STORAGE_SECRET_KEY=default
+      - NETLEDGER_TELEMETRY_ENABLED=true
+      - NETLEDGER_TELEMETRY_SERVICE_NAME=netledger-archive-server
+      - NETLEDGER_TELEMETRY_OTLP_ENDPOINT=http://tempo:4317
+      - NETLEDGER_TELEMETRY_OTLP_PROTOCOL=grpc
+      - NETLEDGER_TELEMETRY_PROMETHEUS_ENABLED=true
+      - NETLEDGER_TELEMETRY_PROMETHEUS_HOSTNAME=archive-server
+      - NETLEDGER_TELEMETRY_PROMETHEUS_PORT=9465
+      - NETLEDGER_TELEMETRY_LOKI_ENABLED=true
+      - NETLEDGER_TELEMETRY_LOKI_ENDPOINT=http://loki:3100/otlp
     depends_on:
       server:
         condition: service_healthy
       less3:
         condition: service_healthy
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/v1/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 20s
     networks:
       - netledger
 
@@ -161,11 +188,116 @@ services:
       archive-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:80/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
       start_period: 5s
+    networks:
+      - netledger
+
+  # ------------------------------------------------------------------
+  # Observability: Prometheus + Tempo + Loki + Grafana
+  # Services export traces (OTLP gRPC to Tempo) and logs (OTLP HTTP to Loki);
+  # Prometheus scrapes each service's in-process metrics endpoint on this network.
+  # ------------------------------------------------------------------
+  tempo:
+    # Pinned: later Tempo builds reject the standard ingester/compactor sections used here.
+    image: grafana/tempo:2.6.1
+    container_name: netledger-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - netledger-tempo-data:/var/tempo
+    healthcheck:
+      # The tempo image ships wget, not curl. /ready returns 200 once the ingester is ready.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3200/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 40s
+    networks:
+      - netledger
+
+  loki:
+    image: grafana/loki:3.5.5
+    container_name: netledger-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki.yaml:/etc/loki/loki.yaml:ro
+      - netledger-loki-data:/loki
+    healthcheck:
+      # The loki image ships busybox wget, not curl.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3100/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
+    networks:
+      - netledger
+
+  prometheus:
+    image: prom/prometheus:v3.5.4
+    container_name: netledger-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - netledger-prometheus-data:/prometheus
+    healthcheck:
+      # The prometheus image ships wget, not curl.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 20s
+    networks:
+      - netledger
+
+  grafana:
+    image: grafana/grafana-oss:13.0.2
+    container_name: netledger-grafana
+    restart: unless-stopped
+    ports:
+      # 3000 and 3001 are taken by the NetLedger dashboard and Less3 UI.
+      - "3002:3000"
+    environment:
+      # Local development defaults. Override GRAFANA_ADMIN_USER and GRAFANA_ADMIN_PASSWORD for any shared deployment.
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: "/var/lib/grafana/dashboards/netledger/netledger-overview.json"
+    volumes:
+      - netledger-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../Assets/grafana:/var/lib/grafana/dashboards/netledger:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 2
+      start_period: 30s
     networks:
       - netledger
 
@@ -175,3 +307,7 @@ networks:
 
 volumes:
   netledger-postgres-data:
+  netledger-tempo-data:
+  netledger-loki-data:
+  netledger-prometheus-data:
+  netledger-grafana-data:

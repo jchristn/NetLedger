@@ -33,6 +33,7 @@ namespace Test.Shared
         private long _ValidatedJsonlRows = 0;
         private DateTime? _LastMigrationFromUtc = null;
         private DateTime? _LastMigrationToUtc = null;
+        private string? _LastTraceParent = null;
         private bool _Disposed = false;
 
         internal TestArchiveServer(int failuresBeforeSuccessfulMigrationCreate = 0)
@@ -96,6 +97,17 @@ namespace Test.Shared
                 lock (_Sync)
                 {
                     return _LastMigrationFromUtc;
+                }
+            }
+        }
+
+        internal string? LastTraceParent
+        {
+            get
+            {
+                lock (_Sync)
+                {
+                    return _LastTraceParent;
                 }
             }
         }
@@ -195,6 +207,17 @@ namespace Test.Shared
                     {
                         await WriteTextAsync(stream, 400, "Bad Request", "Invalid request line.", token).ConfigureAwait(false);
                         return;
+                    }
+
+                    foreach (string headerLine in headerLines)
+                    {
+                        if (headerLine.StartsWith("traceparent:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            lock (_Sync)
+                            {
+                                _LastTraceParent = headerLine.Substring("traceparent:".Length).Trim();
+                            }
+                        }
                     }
 
                     string method = requestLine[0];

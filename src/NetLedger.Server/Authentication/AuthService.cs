@@ -9,7 +9,9 @@ namespace NetLedger.Server.Authentication
     using System.Threading.Tasks;
     using NetLedger;
     using NetLedger.Database;
+    using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
+    using NetLedger.Telemetry;
     using SyslogLogging;
     using WatsonWebserver.Core;
 
@@ -61,6 +63,30 @@ namespace NetLedger.Server.Authentication
         public async Task<AuthContext> AuthenticateAsync(HttpContextBase ctx, CancellationToken token = default)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
+
+            using (TelemetryScope telemetry = ServerTelemetry.StartAuthentication(ResolveAuthenticationMethod(ctx)))
+            {
+                try
+                {
+                    AuthContext auth = await AuthenticateCoreAsync(ctx, token).ConfigureAwait(false);
+                    telemetry.AddLabel(TelemetryNames.LabelResult, auth.Result.ToString().ToLowerInvariant());
+                    telemetry.SetTag(TelemetryNames.AttributeTenantId, auth.TenantId);
+                    telemetry.SetTag(TelemetryNames.AttributePrincipalId, auth.PrincipalId);
+                    if (!auth.IsAuthenticated) telemetry.SetOutcome(TelemetryNames.OutcomeRejected);
+                    return auth;
+                }
+                catch (Exception e)
+                {
+                    telemetry.AddLabel(TelemetryNames.LabelResult, "error");
+                    telemetry.Fail(e);
+                    NetLedgerTelemetry.RecordError(TelemetryNames.ComponentServer, e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<AuthContext> AuthenticateCoreAsync(HttpContextBase ctx, CancellationToken token)
+        {
 
             // If authentication is disabled, allow all requests
             if (!_Settings.Authentication.Enabled)
@@ -161,6 +187,31 @@ namespace NetLedger.Server.Authentication
             if (String.IsNullOrEmpty(email)) throw new ArgumentNullException(nameof(email));
             if (String.IsNullOrEmpty(password)) throw new ArgumentNullException(nameof(password));
 
+            using (TelemetryScope telemetry = ServerTelemetry.StartLogin())
+            {
+                telemetry.SetTag(TelemetryNames.AttributeTenantId, tenantId);
+                try
+                {
+                    AuthSession session = await LoginCoreAsync(tenantId, email, password, token).ConfigureAwait(false);
+                    telemetry.SetTag(TelemetryNames.AttributePrincipalId, session.UserId);
+                    return session;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    telemetry.SetOutcome(TelemetryNames.OutcomeRejected);
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<AuthSession> LoginCoreAsync(string tenantId, string email, string password, CancellationToken token)
+        {
+
             Tenant? tenant = await _Driver.Tenants.ReadAsync(tenantId, token).ConfigureAwait(false);
             if (tenant == null || !tenant.Active) throw new UnauthorizedAccessException("Tenant not found or inactive.");
 
@@ -211,6 +262,15 @@ namespace NetLedger.Server.Authentication
             byte[] expectedBytes = Encoding.UTF8.GetBytes(expected);
             byte[] actualBytes = Encoding.UTF8.GetBytes(actual);
             return CryptographicOperations.FixedTimeEquals(expectedBytes, actualBytes);
+        }
+
+        private string ResolveAuthenticationMethod(HttpContextBase ctx)
+        {
+            if (!_Settings.Authentication.Enabled) return "disabled";
+            if (!String.IsNullOrEmpty(ctx.Request.Headers.Get(Constants.AuthorizationHeader))) return "bearer";
+            if (!String.IsNullOrEmpty(ctx.Request.Headers.Get("x-token"))) return "x_token";
+            if (!String.IsNullOrEmpty(ctx.Request.Headers.Get("x-access-key"))) return "access_key";
+            return "none";
         }
 
         private async Task<AuthContext> AuthenticateTokenAsync(string tokenValue, HttpContextBase ctx, CancellationToken token)

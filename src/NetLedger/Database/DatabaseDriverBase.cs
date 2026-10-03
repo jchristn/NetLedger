@@ -7,6 +7,7 @@ namespace NetLedger.Database
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Database.Interfaces;
+    using NetLedger.Telemetry;
 
     /// <summary>
     /// Abstract base class for database drivers.
@@ -170,20 +171,36 @@ namespace NetLedger.Database
             TimeSpan timeout = TimeSpan.FromSeconds(Math.Max(5, Settings.ConnectionTimeoutSeconds));
             TimeSpan delay = TimeSpan.FromMilliseconds(25);
 
-            while (true)
+            using (TelemetryScope wait = LedgerTelemetry.StartLockWait(LedgerTelemetry.LockDatabase, accountId))
             {
-                token.ThrowIfCancellationRequested();
-                await DeleteExpiredAccountLocksAsync(token).ConfigureAwait(false);
-
+                int attempts = 0;
                 try
                 {
-                    await ExecuteQueryAsync(BuildInsertAccountLockQuery(accountId, ownerId), true, token).ConfigureAwait(false);
-                    return new DatabaseAccountLock(this, accountId, ownerId);
+                    while (true)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        await DeleteExpiredAccountLocksAsync(token).ConfigureAwait(false);
+                        attempts++;
+
+                        try
+                        {
+                            await ExecuteQueryAsync(BuildInsertAccountLockQuery(accountId, ownerId), true, token).ConfigureAwait(false);
+                            wait.SetTag(TelemetryNames.AttributeAttempt, attempts);
+                            return new DatabaseAccountLock(this, accountId, ownerId);
+                        }
+                        catch when (sw.Elapsed < timeout)
+                        {
+                            await Task.Delay(delay, token).ConfigureAwait(false);
+                            if (delay < TimeSpan.FromMilliseconds(250)) delay += TimeSpan.FromMilliseconds(25);
+                        }
+                    }
                 }
-                catch when (sw.Elapsed < timeout)
+                catch (Exception e)
                 {
-                    await Task.Delay(delay, token).ConfigureAwait(false);
-                    if (delay < TimeSpan.FromMilliseconds(250)) delay += TimeSpan.FromMilliseconds(25);
+                    wait.SetTag(TelemetryNames.AttributeAttempt, attempts);
+                    wait.Fail(e);
+                    if (!(e is OperationCanceledException)) wait.SetOutcome(TelemetryNames.OutcomeTimeout);
+                    throw;
                 }
             }
         }
@@ -229,6 +246,32 @@ namespace NetLedger.Database
                 }
                 _Disposed = true;
             }
+        }
+
+        /// <summary>
+        /// Start telemetry for one database round trip on the active ledger database. Providers wrap every
+        /// ExecuteQueryAsync and ExecuteQueriesAsync call with this scope. The query text is not recorded.
+        /// </summary>
+        /// <param name="query">SQL text used only to derive the bounded operation verb.</param>
+        /// <returns>Telemetry scope. Never null.</returns>
+        protected TelemetryScope StartDbTelemetry(string? query)
+        {
+            return NetLedgerTelemetry.StartDbOperation(
+                TelemetryNames.ComponentActiveDatabase,
+                NetLedgerTelemetry.GetDbSystemName(Settings.Type),
+                NetLedgerTelemetry.GetDbOperationName(query));
+        }
+
+        /// <summary>
+        /// Start telemetry for a multi-statement database batch on the active ledger database.
+        /// </summary>
+        /// <returns>Telemetry scope. Never null.</returns>
+        protected TelemetryScope StartDbBatchTelemetry()
+        {
+            return NetLedgerTelemetry.StartDbOperation(
+                TelemetryNames.ComponentActiveDatabase,
+                NetLedgerTelemetry.GetDbSystemName(Settings.Type),
+                "BATCH");
         }
 
         /// <summary>

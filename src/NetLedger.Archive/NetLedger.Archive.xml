@@ -2017,14 +2017,14 @@
             Create an object store for a storage pool.
             </summary>
             <param name="pool">Storage pool.</param>
-            <returns>Object store.</returns>
+            <returns>Object store wrapped with <see cref="T:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore"/> telemetry.</returns>
         </member>
         <member name="M:NetLedger.Archive.Storage.ArchiveObjectStoreFactory.Create(NetLedger.Archive.Settings.ArchiveStoragePoolSettings)">
             <summary>
             Create an object store for a storage pool settings object.
             </summary>
             <param name="settings">Storage pool settings.</param>
-            <returns>Object store.</returns>
+            <returns>Object store wrapped with <see cref="T:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore"/> telemetry.</returns>
         </member>
         <member name="T:NetLedger.Archive.Storage.FileSystemArchiveObjectStore">
             <summary>
@@ -2123,6 +2123,58 @@
             <param name="relativePath">Relative object path.</param>
             <param name="token">Cancellation token.</param>
             <returns>Task.</returns>
+        </member>
+        <member name="T:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore">
+            <summary>
+            Decorates an archive object store with telemetry: one client span per call named "service operation"
+            (for example "s3 commit"), the netledger.integration.* duration and outcome metrics, and byte counters.
+            Object paths are recorded on spans only. <see cref="T:NetLedger.Archive.Storage.ArchiveObjectStoreFactory"/> returns stores wrapped by
+            this decorator. Thread safety: as thread-safe as the inner store.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.Inner">
+            <summary>
+            The wrapped object store. Never null.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.Service">
+            <summary>
+            Bounded storage service label, for example "s3" or "filesystem".
+            </summary>
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.#ctor(NetLedger.Archive.Storage.IArchiveObjectStore,System.String)">
+            <summary>
+            Wrap an object store with telemetry.
+            </summary>
+            <param name="inner">Inner object store.</param>
+            <param name="service">Bounded storage service label, for example "s3" or "filesystem".</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when inner or service is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.WriteTemporaryAsync(System.String,System.IO.Stream,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.WriteTemporaryAsync(System.String,System.IO.Stream,System.Collections.Generic.Dictionary{System.String,System.String},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.CommitAsync(System.String,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.ReadAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.ReadMetadataAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.UpdateMetadataAsync(System.String,System.Collections.Generic.Dictionary{System.String,System.String},System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.DeleteTemporaryAsync(System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:NetLedger.Archive.Storage.InstrumentedArchiveObjectStore.Dispose">
+            <summary>
+            Dispose the inner store when it is disposable.
+            </summary>
         </member>
         <member name="T:NetLedger.Archive.Storage.S3ArchiveObjectStore">
             <summary>

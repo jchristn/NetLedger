@@ -40,6 +40,6 @@ RUN mkdir -p /app/data /archive-data
 ENV ASPNETCORE_URLS=http://+:8081
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
-EXPOSE 8081
+EXPOSE 8081 9465
 
 ENTRYPOINT ["dotnet", "NetLedger.Archive.Server.dll"]

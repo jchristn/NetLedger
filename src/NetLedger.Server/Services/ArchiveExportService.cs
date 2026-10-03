@@ -18,6 +18,7 @@ namespace NetLedger.Server.Services
     using NetLedger.Archive.Requests;
     using NetLedger.Server.Models;
     using NetLedger.Server.Settings;
+    using NetLedger.Telemetry;
     using SyslogLogging;
 
     /// <summary>
@@ -31,6 +32,11 @@ namespace NetLedger.Server.Services
         private readonly HttpClient _HttpClient;
         private readonly ActiveArchiveBoundaryService _BoundaryService;
         private const int ActiveCleanupBatchRows = 1000;
+        private const string OperationCreateMigration = "create_migration";
+        private const string OperationCreateBatch = "create_batch";
+        private const string OperationUploadBatchContent = "upload_batch_content";
+        private const string OperationSealMigration = "seal_migration";
+        private const string OperationCommitMigration = "commit_migration";
         private static readonly JsonSerializerOptions _JsonlOptions = new JsonSerializerOptions
         {
             WriteIndented = false,
@@ -75,135 +81,19 @@ namespace NetLedger.Server.Services
             if (exportRequest == null) throw new ArgumentNullException(nameof(exportRequest));
             if (headers == null) throw new ArgumentNullException(nameof(headers));
 
-            if (_Settings.Archive == null || !_Settings.Archive.Enabled)
+            string entity = ServerTelemetry.EntityEntries;
+            using (TelemetryScope job = ServerTelemetry.StartExportJob(entity, ResolveTrigger(req)))
             {
-                throw new InvalidOperationException("Archive integration is disabled.");
-            }
-
-            string tenantId = FirstNonEmpty(exportRequest.TenantId, req.TenantId, req.Auth?.TenantId);
-            string accountId = FirstNonEmpty(exportRequest.AccountId, req.AccountId);
-            if (String.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant ID is required.", nameof(exportRequest));
-            if (String.IsNullOrWhiteSpace(accountId)) throw new ArgumentException("Account ID is required.", nameof(exportRequest));
-            await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportAttempted", "ArchiveMigration", "Create", accountId, "Attempt", "Entry export requested.", token).ConfigureAwait(false);
-
-            IAsyncDisposable? accountLock = null;
-            try
-            {
-                if (exportRequest.DeleteAfterCommit)
+                try
                 {
-                    accountLock = await _Ledger.Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
-                }
-
-                Account account = await _Ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
-                if (account == null) throw new KeyNotFoundException("Account was not found.");
-                if (!String.Equals(account.TenantId, tenantId, StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException("Account does not belong to the requested tenant.");
-                }
-
-                DateTime boundaryUtc = ResolveBoundaryUtc(req, exportRequest);
-                DateTime fromUtc = (exportRequest.FromUtc ?? DateTime.UnixEpoch).ToUniversalTime();
-                DateTime toUtc = (exportRequest.ToUtc ?? boundaryUtc).ToUniversalTime();
-                if (toUtc > boundaryUtc)
-                {
-                    throw new InvalidOperationException("Archive export range must end at or before the active retention boundary.");
-                }
-
-                if (toUtc < fromUtc)
-                {
-                    throw new InvalidOperationException("Archive export ToUtc must be greater than or equal to FromUtc.");
-                }
-
-                if (exportRequest.DeleteAfterCommit)
-                {
-                    await ValidateEntryCleanupPreconditionsAsync(tenantId, accountId, toUtc, token).ConfigureAwait(false);
-                }
-
-                ArchiveExportResponse response = new ArchiveExportResponse
-                {
-                    TenantId = tenantId,
-                    AccountId = accountId,
-                    ActiveCleanupExecuted = false
-                };
-
-                int activePageSize = Math.Clamp(exportRequest.MaxBatchRows, 1, 1000);
-                string idempotencyKey = FirstNonEmpty(
-                    exportRequest.IdempotencyKey,
-                    "netledger-entry-export:" + tenantId + ":" + accountId + ":" + fromUtc.ToString("O", CultureInfo.InvariantCulture) + ":" + toUtc.ToString("O", CultureInfo.InvariantCulture));
-
-                ArchiveMigration? migration = null;
-                int skip = 0;
-                long sequence = 0;
-                bool done = false;
-                while (!done)
-                {
-                    token.ThrowIfCancellationRequested();
-
-                    EnumerationResult<Entry> page = await _Ledger.EnumerateTransactionsAsync(new EnumerationQuery
-                    {
-                        TenantId = tenantId,
-                        AccountId = accountId,
-                        CreatedAfterUtc = fromUtc,
-                        CreatedBeforeUtc = toUtc,
-                        MaxResults = activePageSize,
-                        Skip = skip,
-                        Ordering = EnumerationOrderEnum.CreatedAscending
-                    }, token).ConfigureAwait(false);
-
-                    if (page.Objects == null || page.Objects.Count < 1)
-                    {
-                        break;
-                    }
-
-                    skip += page.Objects.Count;
-                    List<Entry> committedEntries = FilterCommittedEntries(page.Objects, tenantId, accountId);
-                    if (committedEntries.Count > 0)
-                    {
-                        if (migration == null)
-                        {
-                            migration = await CreateMigrationAsync(tenantId, accountId, ArchiveEntityType.Entries, fromUtc, toUtc, exportRequest.StoragePoolId, idempotencyKey, headers, token).ConfigureAwait(false);
-                            response.MigrationId = migration.Id;
-                        }
-
-                        ArchiveExportBatchResult batchResult = await UploadBatchAsync(migration.Id, committedEntries, sequence, headers, token).ConfigureAwait(false);
-                        response.Batches.Add(batchResult);
-                        response.RowsExported += batchResult.RowCount;
-                        response.BytesUploaded += batchResult.ByteCount;
-                        sequence++;
-                    }
-
-                    done = page.EndOfResults || page.Objects.Count < activePageSize;
-                }
-
-                if (migration == null)
-                {
-                    await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportCompleted", "ArchiveMigration", "Create", accountId, "NoRows", "No committed entry rows matched the requested range.", token).ConfigureAwait(false);
+                    ArchiveExportResponse response = await ExportEntriesCoreAsync(req, exportRequest, headers, job, token).ConfigureAwait(false);
+                    CompleteJob(job, entity, response);
                     return response;
                 }
-
-                await PostArchiveAsync<ArchiveMigration>(BuildArchiveUrl("v1", "archive", "migrations", migration.Id, "seal"), null, headers, null, token).ConfigureAwait(false);
-                ArchiveManifest manifest = await PostArchiveAsync<ArchiveManifest>(BuildArchiveUrl("v1", "archive", "migrations", migration.Id, "commit"), null, headers, null, token).ConfigureAwait(false);
-                response.ManifestId = manifest.Id;
-                if (exportRequest.DeleteAfterCommit)
+                catch (Exception e)
                 {
-                    response.ActiveCleanupRowsDeleted = await CleanupArchivedEntriesAsync(req, tenantId, accountId, toUtc, token).ConfigureAwait(false);
-                    response.ActiveCleanupExecuted = true;
-                }
-
-                await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportCompleted", "ArchiveMigration", "Create", migration.Id, "Permit", "Entry export committed to manifest " + response.ManifestId + ".", token).ConfigureAwait(false);
-                _Logging.Info("[ArchiveExportService] exported " + response.RowsExported.ToString(CultureInfo.InvariantCulture) + " entries to archive manifest " + response.ManifestId + ".");
-                return response;
-            }
-            catch (Exception e)
-            {
-                await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportFailed", "ArchiveMigration", "Create", accountId, "Denied", e.Message, token).ConfigureAwait(false);
-                throw;
-            }
-            finally
-            {
-                if (accountLock != null)
-                {
-                    await accountLock.DisposeAsync().ConfigureAwait(false);
+                    FailJob(job, entity, e);
+                    throw;
                 }
             }
         }
@@ -226,6 +116,197 @@ namespace NetLedger.Server.Services
             if (exportRequest == null) throw new ArgumentNullException(nameof(exportRequest));
             if (headers == null) throw new ArgumentNullException(nameof(headers));
 
+            string entity = ServerTelemetry.EntityRequestHistory;
+            using (TelemetryScope job = ServerTelemetry.StartExportJob(entity, ResolveTrigger(req)))
+            {
+                try
+                {
+                    ArchiveExportResponse response = await ExportRequestHistoryCoreAsync(req, exportRequest, headers, job, token).ConfigureAwait(false);
+                    CompleteJob(job, entity, response);
+                    return response;
+                }
+                catch (Exception e)
+                {
+                    FailJob(job, entity, e);
+                    throw;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Dispose managed resources.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_Disposed) return;
+            _Disposed = true;
+            _HttpClient.Dispose();
+        }
+
+        private async Task<ArchiveExportResponse> ExportEntriesCoreAsync(
+            RequestContext req,
+            ArchiveExportRequest exportRequest,
+            NameValueCollection headers,
+            TelemetryScope job,
+            CancellationToken token)
+        {
+            string entity = ServerTelemetry.EntityEntries;
+            if (_Settings.Archive == null || !_Settings.Archive.Enabled)
+            {
+                throw new InvalidOperationException("Archive integration is disabled.");
+            }
+
+            string tenantId = FirstNonEmpty(exportRequest.TenantId, req.TenantId, req.Auth?.TenantId);
+            string accountId = FirstNonEmpty(exportRequest.AccountId, req.AccountId);
+            if (String.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant ID is required.", nameof(exportRequest));
+            if (String.IsNullOrWhiteSpace(accountId)) throw new ArgumentException("Account ID is required.", nameof(exportRequest));
+            job.SetTag(TelemetryNames.AttributeTenantId, tenantId);
+            job.SetTag(TelemetryNames.AttributeAccountId, accountId);
+            await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportAttempted", "ArchiveMigration", "Create", accountId, "Attempt", "Entry export requested.", token).ConfigureAwait(false);
+
+            IAsyncDisposable? accountLock = null;
+            try
+            {
+                if (exportRequest.DeleteAfterCommit)
+                {
+                    accountLock = await RunStageAsync(entity, TelemetryNames.StageQueued, () => _Ledger.Driver.AcquireAccountLockAsync(accountId, token)).ConfigureAwait(false);
+                }
+
+                DateTime fromUtc = DateTime.UnixEpoch;
+                DateTime toUtc = DateTime.UnixEpoch;
+                await RunStageAsync(entity, TelemetryNames.StageValidate, async () =>
+                {
+                    Account account = await _Ledger.GetAccountByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (account == null) throw new KeyNotFoundException("Account was not found.");
+                    if (!String.Equals(account.TenantId, tenantId, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException("Account does not belong to the requested tenant.");
+                    }
+
+                    DateTime boundaryUtc = ResolveBoundaryUtc(req, exportRequest);
+                    fromUtc = (exportRequest.FromUtc ?? DateTime.UnixEpoch).ToUniversalTime();
+                    toUtc = (exportRequest.ToUtc ?? boundaryUtc).ToUniversalTime();
+                    if (toUtc > boundaryUtc)
+                    {
+                        throw new InvalidOperationException("Archive export range must end at or before the active retention boundary.");
+                    }
+
+                    if (toUtc < fromUtc)
+                    {
+                        throw new InvalidOperationException("Archive export ToUtc must be greater than or equal to FromUtc.");
+                    }
+
+                    if (exportRequest.DeleteAfterCommit)
+                    {
+                        await ValidateEntryCleanupPreconditionsAsync(tenantId, accountId, toUtc, token).ConfigureAwait(false);
+                    }
+                }).ConfigureAwait(false);
+
+                ArchiveExportResponse response = new ArchiveExportResponse
+                {
+                    TenantId = tenantId,
+                    AccountId = accountId,
+                    ActiveCleanupExecuted = false
+                };
+
+                int activePageSize = Math.Clamp(exportRequest.MaxBatchRows, 1, 1000);
+                string idempotencyKey = FirstNonEmpty(
+                    exportRequest.IdempotencyKey,
+                    "netledger-entry-export:" + tenantId + ":" + accountId + ":" + fromUtc.ToString("O", CultureInfo.InvariantCulture) + ":" + toUtc.ToString("O", CultureInfo.InvariantCulture));
+
+                ArchiveMigration? migration = null;
+                int skip = 0;
+                long sequence = 0;
+                bool done = false;
+                while (!done)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    int pageSkip = skip;
+                    EnumerationResult<Entry> page = await RunStageAsync(entity, TelemetryNames.StageEnumerate, () => _Ledger.EnumerateTransactionsAsync(new EnumerationQuery
+                    {
+                        TenantId = tenantId,
+                        AccountId = accountId,
+                        CreatedAfterUtc = fromUtc,
+                        CreatedBeforeUtc = toUtc,
+                        MaxResults = activePageSize,
+                        Skip = pageSkip,
+                        Ordering = EnumerationOrderEnum.CreatedAscending
+                    }, token)).ConfigureAwait(false);
+
+                    if (page.Objects == null || page.Objects.Count < 1)
+                    {
+                        break;
+                    }
+
+                    skip += page.Objects.Count;
+                    List<Entry> committedEntries = FilterCommittedEntries(page.Objects, tenantId, accountId);
+                    if (committedEntries.Count > 0)
+                    {
+                        if (migration == null)
+                        {
+                            migration = await RunStageAsync(entity, TelemetryNames.StageCreateMigration, () => CreateMigrationAsync(tenantId, accountId, ArchiveEntityType.Entries, fromUtc, toUtc, exportRequest.StoragePoolId, idempotencyKey, headers, token)).ConfigureAwait(false);
+                            response.MigrationId = migration.Id;
+                            job.SetTag(TelemetryNames.AttributeMigrationId, migration.Id);
+                        }
+
+                        string migrationId = migration.Id;
+                        long batchSequence = sequence;
+                        ArchiveExportBatchResult batchResult = await RunStageAsync(entity, TelemetryNames.StageUploadBatch, () => UploadBatchAsync(migrationId, committedEntries, batchSequence, headers, token)).ConfigureAwait(false);
+                        response.Batches.Add(batchResult);
+                        response.RowsExported += batchResult.RowCount;
+                        response.BytesUploaded += batchResult.ByteCount;
+                        ServerTelemetry.RecordExportBatch(entity, batchResult.RowCount, batchResult.ByteCount);
+                        sequence++;
+                    }
+
+                    done = page.EndOfResults || page.Objects.Count < activePageSize;
+                }
+
+                if (migration == null)
+                {
+                    await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportCompleted", "ArchiveMigration", "Create", accountId, "NoRows", "No committed entry rows matched the requested range.", token).ConfigureAwait(false);
+                    return response;
+                }
+
+                string sealId = migration.Id;
+                await RunStageAsync(entity, TelemetryNames.StageSeal, () => PostArchiveAsync<ArchiveMigration>(OperationSealMigration, BuildArchiveUrl("v1", "archive", "migrations", sealId, "seal"), null, headers, null, token)).ConfigureAwait(false);
+                ArchiveManifest manifest = await RunStageAsync(entity, TelemetryNames.StageCommit, () => PostArchiveAsync<ArchiveManifest>(OperationCommitMigration, BuildArchiveUrl("v1", "archive", "migrations", sealId, "commit"), null, headers, null, token)).ConfigureAwait(false);
+                response.ManifestId = manifest.Id;
+                job.SetTag(TelemetryNames.AttributeManifestId, manifest.Id);
+                if (exportRequest.DeleteAfterCommit)
+                {
+                    response.ActiveCleanupRowsDeleted = await RunStageAsync(entity, TelemetryNames.StageCleanup, () => CleanupArchivedEntriesAsync(req, tenantId, accountId, toUtc, token)).ConfigureAwait(false);
+                    response.ActiveCleanupExecuted = true;
+                    ServerTelemetry.RecordExportCleanup(entity, response.ActiveCleanupRowsDeleted);
+                }
+
+                await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportCompleted", "ArchiveMigration", "Create", migration.Id, "Permit", "Entry export committed to manifest " + response.ManifestId + ".", token).ConfigureAwait(false);
+                _Logging.Info("[ArchiveExportService] exported " + response.RowsExported.ToString(CultureInfo.InvariantCulture) + " entries to archive manifest " + response.ManifestId + ".");
+                return response;
+            }
+            catch (Exception e)
+            {
+                await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportFailed", "ArchiveMigration", "Create", accountId, "Denied", e.Message, token).ConfigureAwait(false);
+                throw;
+            }
+            finally
+            {
+                if (accountLock != null)
+                {
+                    await accountLock.DisposeAsync().ConfigureAwait(false);
+                }
+            }
+        }
+
+        private async Task<ArchiveExportResponse> ExportRequestHistoryCoreAsync(
+            RequestContext req,
+            ArchiveExportRequest exportRequest,
+            NameValueCollection headers,
+            TelemetryScope job,
+            CancellationToken token)
+        {
+            string entity = ServerTelemetry.EntityRequestHistory;
             if (_Settings.Archive == null || !_Settings.Archive.Enabled)
             {
                 throw new InvalidOperationException("Archive integration is disabled.");
@@ -233,22 +314,30 @@ namespace NetLedger.Server.Services
 
             string tenantId = FirstNonEmpty(exportRequest.TenantId, req.TenantId, req.Auth?.TenantId);
             if (String.IsNullOrWhiteSpace(tenantId)) throw new ArgumentException("Tenant ID is required.", nameof(exportRequest));
+            job.SetTag(TelemetryNames.AttributeTenantId, tenantId);
             await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportAttempted", "ArchiveMigration", "Create", null, "Attempt", "Request-history export requested.", token).ConfigureAwait(false);
 
             try
             {
-                DateTime boundaryUtc = ResolveBoundaryUtc(req, exportRequest);
-                DateTime fromUtc = (exportRequest.FromUtc ?? DateTime.UnixEpoch).ToUniversalTime();
-                DateTime toUtc = (exportRequest.ToUtc ?? boundaryUtc).ToUniversalTime();
-                if (toUtc > boundaryUtc)
+                DateTime fromUtc = DateTime.UnixEpoch;
+                DateTime toUtc = DateTime.UnixEpoch;
+                await RunStageAsync(entity, TelemetryNames.StageValidate, () =>
                 {
-                    throw new InvalidOperationException("Archive export range must end at or before the active retention boundary.");
-                }
+                    DateTime boundaryUtc = ResolveBoundaryUtc(req, exportRequest);
+                    fromUtc = (exportRequest.FromUtc ?? DateTime.UnixEpoch).ToUniversalTime();
+                    toUtc = (exportRequest.ToUtc ?? boundaryUtc).ToUniversalTime();
+                    if (toUtc > boundaryUtc)
+                    {
+                        throw new InvalidOperationException("Archive export range must end at or before the active retention boundary.");
+                    }
 
-                if (toUtc < fromUtc)
-                {
-                    throw new InvalidOperationException("Archive export ToUtc must be greater than or equal to FromUtc.");
-                }
+                    if (toUtc < fromUtc)
+                    {
+                        throw new InvalidOperationException("Archive export ToUtc must be greater than or equal to FromUtc.");
+                    }
+
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
 
                 ArchiveExportResponse response = new ArchiveExportResponse
                 {
@@ -268,14 +357,15 @@ namespace NetLedger.Server.Services
                 {
                     token.ThrowIfCancellationRequested();
 
-                    RequestHistoryResult page = await _Ledger.Driver.RequestHistory.EnumerateAsync(new RequestHistoryFilter
+                    int pageSkip = skip;
+                    RequestHistoryResult page = await RunStageAsync(entity, TelemetryNames.StageEnumerate, () => _Ledger.Driver.RequestHistory.EnumerateAsync(new RequestHistoryFilter
                     {
                         TenantId = tenantId,
                         FromUtc = fromUtc,
                         ToUtc = toUtc,
                         MaxResults = exportRequest.MaxBatchRows,
-                        Skip = skip
-                    }, token).ConfigureAwait(false);
+                        Skip = pageSkip
+                    }, token)).ConfigureAwait(false);
 
                     if (page.Objects == null || page.Objects.Count < 1)
                     {
@@ -285,14 +375,18 @@ namespace NetLedger.Server.Services
                     skip += page.Objects.Count;
                     if (migration == null)
                     {
-                        migration = await CreateMigrationAsync(tenantId, null, ArchiveEntityType.RequestHistory, fromUtc, toUtc, exportRequest.StoragePoolId, idempotencyKey, headers, token).ConfigureAwait(false);
+                        migration = await RunStageAsync(entity, TelemetryNames.StageCreateMigration, () => CreateMigrationAsync(tenantId, null, ArchiveEntityType.RequestHistory, fromUtc, toUtc, exportRequest.StoragePoolId, idempotencyKey, headers, token)).ConfigureAwait(false);
                         response.MigrationId = migration.Id;
+                        job.SetTag(TelemetryNames.AttributeMigrationId, migration.Id);
                     }
 
-                    ArchiveExportBatchResult batchResult = await UploadBatchAsync(migration.Id, page.Objects, sequence, headers, token).ConfigureAwait(false);
+                    string migrationId = migration.Id;
+                    long batchSequence = sequence;
+                    ArchiveExportBatchResult batchResult = await RunStageAsync(entity, TelemetryNames.StageUploadBatch, () => UploadBatchAsync(migrationId, page.Objects, batchSequence, headers, token)).ConfigureAwait(false);
                     response.Batches.Add(batchResult);
                     response.RowsExported += batchResult.RowCount;
                     response.BytesUploaded += batchResult.ByteCount;
+                    ServerTelemetry.RecordExportBatch(entity, batchResult.RowCount, batchResult.ByteCount);
                     sequence++;
                     done = page.EndOfResults || page.Objects.Count < exportRequest.MaxBatchRows;
                 }
@@ -303,13 +397,16 @@ namespace NetLedger.Server.Services
                     return response;
                 }
 
-                await PostArchiveAsync<ArchiveMigration>(BuildArchiveUrl("v1", "archive", "migrations", migration.Id, "seal"), null, headers, null, token).ConfigureAwait(false);
-                ArchiveManifest manifest = await PostArchiveAsync<ArchiveManifest>(BuildArchiveUrl("v1", "archive", "migrations", migration.Id, "commit"), null, headers, null, token).ConfigureAwait(false);
+                string sealId = migration.Id;
+                await RunStageAsync(entity, TelemetryNames.StageSeal, () => PostArchiveAsync<ArchiveMigration>(OperationSealMigration, BuildArchiveUrl("v1", "archive", "migrations", sealId, "seal"), null, headers, null, token)).ConfigureAwait(false);
+                ArchiveManifest manifest = await RunStageAsync(entity, TelemetryNames.StageCommit, () => PostArchiveAsync<ArchiveManifest>(OperationCommitMigration, BuildArchiveUrl("v1", "archive", "migrations", sealId, "commit"), null, headers, null, token)).ConfigureAwait(false);
                 response.ManifestId = manifest.Id;
+                job.SetTag(TelemetryNames.AttributeManifestId, manifest.Id);
                 if (exportRequest.DeleteAfterCommit)
                 {
-                    response.ActiveCleanupRowsDeleted = await CleanupArchivedRequestHistoryAsync(tenantId, fromUtc, toUtc, token).ConfigureAwait(false);
+                    response.ActiveCleanupRowsDeleted = await RunStageAsync(entity, TelemetryNames.StageCleanup, () => CleanupArchivedRequestHistoryAsync(tenantId, fromUtc, toUtc, token)).ConfigureAwait(false);
                     response.ActiveCleanupExecuted = true;
+                    ServerTelemetry.RecordExportCleanup(entity, response.ActiveCleanupRowsDeleted);
                 }
 
                 await WriteActiveArchiveAuditAsync(req, tenantId, "ArchiveExportCompleted", "ArchiveMigration", "Create", migration.Id, "Permit", "Request-history export committed to manifest " + response.ManifestId + ".", token).ConfigureAwait(false);
@@ -323,14 +420,67 @@ namespace NetLedger.Server.Services
             }
         }
 
-        /// <summary>
-        /// Dispose managed resources.
-        /// </summary>
-        public void Dispose()
+        private static string ResolveTrigger(RequestContext req)
         {
-            if (_Disposed) return;
-            _Disposed = true;
-            _HttpClient.Dispose();
+            return String.Equals(req.Url, AutomaticArchiveService.AutomaticExportUrl, StringComparison.Ordinal)
+                ? ServerTelemetry.TriggerAutomatic
+                : ServerTelemetry.TriggerApi;
+        }
+
+        private static void CompleteJob(TelemetryScope job, string entity, ArchiveExportResponse response)
+        {
+            job.SetTag(TelemetryNames.AttributeRowCount, response.RowsExported);
+            job.SetTag(TelemetryNames.AttributeByteCount, response.BytesUploaded);
+            if (String.IsNullOrEmpty(response.MigrationId)) job.SetOutcome(TelemetryNames.OutcomeNoRows);
+            ServerTelemetry.MarkExportSuccess(entity);
+            if (!String.IsNullOrEmpty(response.MigrationId))
+            {
+                ServerTelemetry.LogInformation(
+                    "Archive export of {Entity} committed {Rows} rows ({Bytes} bytes) to manifest {ManifestId}",
+                    entity,
+                    response.RowsExported,
+                    response.BytesUploaded,
+                    response.ManifestId);
+            }
+        }
+
+        private static void FailJob(TelemetryScope job, string entity, Exception e)
+        {
+            job.Fail(e);
+            NetLedgerTelemetry.RecordError(TelemetryNames.ComponentArchiveExport, e);
+            ServerTelemetry.LogWarning(e, "Archive export of {Entity} failed: {ErrorType}", entity, NetLedgerTelemetry.GetErrorType(e));
+        }
+
+        private static async Task<T> RunStageAsync<T>(string entity, string stage, Func<Task<T>> work)
+        {
+            using (TelemetryScope scope = ServerTelemetry.StartExportStage(entity, stage))
+            {
+                try
+                {
+                    return await work().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    scope.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private static async Task RunStageAsync(string entity, string stage, Func<Task> work)
+        {
+            using (TelemetryScope scope = ServerTelemetry.StartExportStage(entity, stage))
+            {
+                try
+                {
+                    await work().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    scope.Fail(e);
+                    throw;
+                }
+            }
         }
 
         private async Task<ArchiveMigration> CreateMigrationAsync(
@@ -357,7 +507,7 @@ namespace NetLedger.Server.Services
                 IdempotencyKey = idempotencyKey
             };
 
-            return await PostArchiveAsync<ArchiveMigration>(BuildArchiveUrl("v1", "archive", "migrations"), request, headers, idempotencyKey, token).ConfigureAwait(false);
+            return await PostArchiveAsync<ArchiveMigration>(OperationCreateMigration, BuildArchiveUrl("v1", "archive", "migrations"), request, headers, idempotencyKey, token).ConfigureAwait(false);
         }
 
         private async Task<ArchiveExportBatchResult> UploadBatchAsync<T>(
@@ -379,28 +529,46 @@ namespace NetLedger.Server.Services
             };
 
             ArchiveMigrationBatch batch = await PostArchiveAsync<ArchiveMigrationBatch>(
+                OperationCreateBatch,
                 BuildArchiveUrl("v1", "archive", "migrations", migrationId, "batches"),
                 batchRequest,
                 headers,
                 null,
                 token).ConfigureAwait(false);
 
+            using (TelemetryScope telemetry = NetLedgerTelemetry.StartIntegration(TelemetryNames.ServiceArchiveServer, OperationUploadBatchContent))
             using (ByteArrayContent content = new ByteArrayContent(payload))
             {
-                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/gzip");
-                using (HttpRequestMessage upload = new HttpRequestMessage(System.Net.Http.HttpMethod.Put, BuildArchiveUrl("v1", "archive", "migrations", migrationId, "batches", batch.Id, "content")))
+                try
                 {
-                    upload.Content = content;
-                    AddForwardedHeaders(upload, headers);
-                    upload.Headers.TryAddWithoutValidation("x-content-sha256", hash);
-                    using (HttpResponseMessage uploadResponse = await _HttpClient.SendAsync(upload, token).ConfigureAwait(false))
+                    telemetry.SetTag(TelemetryNames.AttributeHttpMethod, "PUT");
+                    telemetry.SetTag(TelemetryNames.AttributeBatchId, batch.Id);
+                    telemetry.SetTag(TelemetryNames.AttributeRowCount, rows.Count);
+                    telemetry.SetTag(TelemetryNames.AttributeByteCount, payload.Length);
+                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/gzip");
+                    using (HttpRequestMessage upload = new HttpRequestMessage(System.Net.Http.HttpMethod.Put, BuildArchiveUrl("v1", "archive", "migrations", migrationId, "batches", batch.Id, "content")))
                     {
-                        string body = await uploadResponse.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-                        if (!uploadResponse.IsSuccessStatusCode)
+                        upload.Content = content;
+                        AddForwardedHeaders(upload, headers);
+                        InjectTraceContext(telemetry, upload);
+                        upload.Headers.TryAddWithoutValidation("x-content-sha256", hash);
+                        using (HttpResponseMessage uploadResponse = await _HttpClient.SendAsync(upload, token).ConfigureAwait(false))
                         {
-                            throw new InvalidOperationException("Archive batch upload failed with HTTP " + ((int)uploadResponse.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + body);
+                            int statusCode = (int)uploadResponse.StatusCode;
+                            telemetry.SetTag(TelemetryNames.AttributeHttpStatusCode, statusCode);
+                            string body = await uploadResponse.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+                            if (!uploadResponse.IsSuccessStatusCode)
+                            {
+                                telemetry.Fail("http_" + statusCode.ToString(CultureInfo.InvariantCulture), "Archive batch upload failed with HTTP " + statusCode.ToString(CultureInfo.InvariantCulture));
+                                throw new InvalidOperationException("Archive batch upload failed with HTTP " + statusCode.ToString(CultureInfo.InvariantCulture) + ": " + body);
+                            }
                         }
                     }
+                }
+                catch (Exception e)
+                {
+                    if (telemetry.Outcome == TelemetryNames.OutcomeSuccess) telemetry.Fail(e);
+                    throw;
                 }
             }
 
@@ -531,39 +699,63 @@ namespace NetLedger.Server.Services
             return "Archive balance anchor through " + cutoffUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
         }
 
-        private async Task<T> PostArchiveAsync<T>(Uri uri, object? body, NameValueCollection headers, string? idempotencyKey, CancellationToken token)
+        private async Task<T> PostArchiveAsync<T>(string operation, Uri uri, object? body, NameValueCollection headers, string? idempotencyKey, CancellationToken token)
         {
+            using (TelemetryScope telemetry = NetLedgerTelemetry.StartIntegration(TelemetryNames.ServiceArchiveServer, operation))
             using (HttpRequestMessage request = new HttpRequestMessage(System.Net.Http.HttpMethod.Post, uri))
             {
-                AddForwardedHeaders(request, headers);
-                if (!String.IsNullOrWhiteSpace(idempotencyKey))
+                try
                 {
-                    request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
-                }
-
-                if (body != null)
-                {
-                    string json = JsonSerializer.Serialize(body, NetLedger.Server.Constants.JsonOptions);
-                    request.Content = new StringContent(json, Encoding.UTF8, NetLedger.Server.Constants.JsonContentType);
-                }
-
-                using (HttpResponseMessage response = await _HttpClient.SendAsync(request, token).ConfigureAwait(false))
-                {
-                    string responseBody = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
-                    if (!response.IsSuccessStatusCode)
+                    telemetry.SetTag(TelemetryNames.AttributeHttpMethod, "POST");
+                    AddForwardedHeaders(request, headers);
+                    InjectTraceContext(telemetry, request);
+                    if (!String.IsNullOrWhiteSpace(idempotencyKey))
                     {
-                        throw new InvalidOperationException("Archive Server returned HTTP " + ((int)response.StatusCode).ToString(CultureInfo.InvariantCulture) + ": " + responseBody);
+                        request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
                     }
 
-                    T? deserialized = JsonSerializer.Deserialize<T>(responseBody, NetLedger.Server.Constants.JsonOptions);
-                    if (deserialized == null)
+                    if (body != null)
                     {
-                        throw new InvalidOperationException("Archive Server returned an empty response.");
+                        string json = JsonSerializer.Serialize(body, NetLedger.Server.Constants.JsonOptions);
+                        request.Content = new StringContent(json, Encoding.UTF8, NetLedger.Server.Constants.JsonContentType);
                     }
 
-                    return deserialized;
+                    using (HttpResponseMessage response = await _HttpClient.SendAsync(request, token).ConfigureAwait(false))
+                    {
+                        int statusCode = (int)response.StatusCode;
+                        telemetry.SetTag(TelemetryNames.AttributeHttpStatusCode, statusCode);
+                        string responseBody = await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            telemetry.Fail("http_" + statusCode.ToString(CultureInfo.InvariantCulture), "Archive Server returned HTTP " + statusCode.ToString(CultureInfo.InvariantCulture));
+                            throw new InvalidOperationException("Archive Server returned HTTP " + statusCode.ToString(CultureInfo.InvariantCulture) + ": " + responseBody);
+                        }
+
+                        T? deserialized = JsonSerializer.Deserialize<T>(responseBody, NetLedger.Server.Constants.JsonOptions);
+                        if (deserialized == null)
+                        {
+                            throw new InvalidOperationException("Archive Server returned an empty response.");
+                        }
+
+                        return deserialized;
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (telemetry.Outcome == TelemetryNames.OutcomeSuccess) telemetry.Fail(e);
+                    throw;
                 }
             }
+        }
+
+        private static void InjectTraceContext(TelemetryScope telemetry, HttpRequestMessage request)
+        {
+            NetLedgerTelemetry.InjectTraceContext(telemetry.Activity, request, (carrier, name, value) =>
+            {
+                HttpRequestMessage message = (HttpRequestMessage)carrier;
+                message.Headers.Remove(name);
+                message.Headers.TryAddWithoutValidation(name, value);
+            });
         }
 
         private Uri BuildArchiveUrl(params string[] segments)

@@ -3,12 +3,14 @@ namespace NetLedger.Server.Services
     using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
+    using System.Diagnostics;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Database;
     using NetLedger.Server.Models;
     using NetLedger.Server.Settings;
+    using NetLedger.Telemetry;
     using SyslogLogging;
     using WatsonWebserver.Core;
 
@@ -62,15 +64,38 @@ namespace NetLedger.Server.Services
             DateTime completedUtc = DateTime.UtcNow;
             RequestHistoryEntry entry = BuildEntry(ctx, req, resp, responseBody, completedUtc);
 
-            _ = Task.Run(async () =>
+            _ = CaptureEntryAsync(entry);
+        }
+
+        /// <summary>
+        /// Hand a built entry to a background write. The write span is parented to the current span so the
+        /// asynchronous write joins the request's trace, and the pending gauge tracks queued writes.
+        /// </summary>
+        /// <param name="entry">Request history entry.</param>
+        /// <returns>Task that completes when the background write finishes. Never faults.</returns>
+        internal Task CaptureEntryAsync(RequestHistoryEntry entry)
+        {
+            ActivityContext parent = Activity.Current?.Context ?? default;
+            ServerTelemetry.RequestHistoryEnqueued();
+            return Task.Run(async () =>
             {
-                try
+                using (TelemetryScope telemetry = ServerTelemetry.StartRequestHistoryWrite(parent))
                 {
-                    await _Driver.RequestHistory.CreateAsync(entry, CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception e)
-                {
-                    _Logging.Warn(_Header + "failed to capture request history: " + e.Message);
+                    try
+                    {
+                        await _Driver.RequestHistory.CreateAsync(entry, CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        telemetry.Fail(e);
+                        NetLedgerTelemetry.RecordError(TelemetryNames.ComponentRequestHistory, e);
+                        _Logging.Warn(_Header + "failed to capture request history: " + e.Message);
+                        ServerTelemetry.LogWarning(e, "Request history capture failed for {Method} {StatusCode}", entry.Method, entry.StatusCode);
+                    }
+                    finally
+                    {
+                        ServerTelemetry.RequestHistoryCompleted();
+                    }
                 }
             });
         }

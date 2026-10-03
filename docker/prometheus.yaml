@@ -1,0 +1,25 @@
+# Prometheus scrape configuration for the NetLedger stack.
+# Each NetLedger service serves its metrics (NetLedger, Watson HTTP, and .NET runtime) from the in-process
+# Radiant Prometheus endpoint on the compose network only; these ports are intentionally not published.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  # Scrape the classic text format with legacy (underscore) metric names. Prometheus 3 otherwise negotiates
+  # UTF-8 OpenMetrics, where the OpenTelemetry exporter's dotted names fail the unit-suffix check.
+  scrape_protocols: ['PrometheusText0.0.4']
+  metric_name_validation_scheme: legacy
+
+scrape_configs:
+  - job_name: 'netledger-server'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['server:9464']
+
+  - job_name: 'netledger-archive-server'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['archive-server:9465']
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['127.0.0.1:9090']

@@ -9,6 +9,7 @@ namespace NetLedger.Database.SqlServer
     using Microsoft.Data.SqlClient;
     using NetLedger.Database.SqlServer.Queries;
     using NetLedger.Database.Portable;
+    using NetLedger.Telemetry;
 
     /// <summary>
     /// SQL Server database driver.
@@ -84,6 +85,22 @@ namespace NetLedger.Database.SqlServer
         /// <inheritdoc />
         public override async Task<DataTable> ExecuteQueryAsync(string query, bool isTransaction = false, CancellationToken token = default)
         {
+            using (TelemetryScope telemetry = StartDbTelemetry(query))
+            {
+                try
+                {
+                    return await ExecuteQueryCoreAsync(query, isTransaction, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteQueryCoreAsync(string query, bool isTransaction = false, CancellationToken token = default)
+        {
             if (_Disposed) throw new ObjectDisposedException(nameof(SqlServerDatabaseDriver));
             if (String.IsNullOrEmpty(query)) throw new ArgumentNullException(nameof(query));
 
@@ -145,6 +162,22 @@ namespace NetLedger.Database.SqlServer
 
         /// <inheritdoc />
         public override async Task<DataTable> ExecuteQueriesAsync(IEnumerable<string> queries, bool isTransaction = false, CancellationToken token = default)
+        {
+            using (TelemetryScope telemetry = StartDbBatchTelemetry())
+            {
+                try
+                {
+                    return await ExecuteQueriesCoreAsync(queries, isTransaction, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<DataTable> ExecuteQueriesCoreAsync(IEnumerable<string> queries, bool isTransaction = false, CancellationToken token = default)
         {
             if (_Disposed) throw new ObjectDisposedException(nameof(SqlServerDatabaseDriver));
             if (queries == null || !queries.Any()) return new DataTable();

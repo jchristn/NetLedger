@@ -78,6 +78,16 @@ Shared behavior tests live in `src/Test.Shared` as Touchstone descriptors. The c
 
 When adding data access, authorization, or tenant-scoped behavior, add tests that prove both allowed and denied paths. Enumeration tests must prove that cross-tenant and unmapped same-tenant records do not leak.
 
+## Telemetry
+
+Observability is part of every code path. See `TELEMETRY.md` for the catalog.
+
+- Emit only through the `NetLedger` meter and activity source (`NetLedger.Telemetry.NetLedgerTelemetry`). Libraries must not reference Radiant or any exporter; only the two server composition roots host Radiant.
+- Add every new instrument name, label key, span name, and bounded label value to `NetLedger.Telemetry.TelemetryNames`, and document it in `TELEMETRY.md` and the relevant `Assets/grafana/` dashboard.
+- Wrap units of work in `TelemetryScope` (call `Fail(e)` in the catch and rethrow). Instrumentation must be best-effort and never change behavior.
+- Metric labels must be bounded. Identifiers, paths, messages, SQL, secrets, and payloads go on spans only (and never secrets or payloads).
+- Add or extend the `telemetry` Touchstone suite (`src/Test.Shared/NetLedgerSuites.Telemetry.cs`) for new telemetry, including failure paths.
+
 ## Docker
 
 Use `.yaml` files, not `.yml`. The local Docker surface lives in `docker/`, including PostgreSQL initialization and factory reset scripts. Compose files should either use explicit image tags or build contexts.

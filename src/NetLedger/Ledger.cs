@@ -6,6 +6,7 @@ namespace NetLedger
     using System.Threading;
     using System.Threading.Tasks;
     using NetLedger.Database;
+    using NetLedger.Telemetry;
     using Padlocks;
 
     /// <summary>
@@ -144,39 +145,50 @@ namespace NetLedger
             decimal? initialBalance = null,
             CancellationToken token = default)
         {
-            if (account == null) throw new ArgumentNullException(nameof(account));
-            if (String.IsNullOrEmpty(account.Name)) throw new ArgumentNullException(nameof(account), "Account name is required.");
-
-            account.TenantId = account.TenantId ?? String.Empty;
-            account = await _Driver.Accounts.CreateAsync(account, token).ConfigureAwait(false);
-            string accountId = account.Id;
-
-            try
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("CreateAccount", account?.Id))
             {
-                IDisposable lockReleaser = await _AccountLocks.LockAsync(account.Id, token).ConfigureAwait(false);
-                await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(account.Id, token).ConfigureAwait(false);
-                using (lockReleaser)
+                try
                 {
-                    Entry balance = new Entry();
-                    balance.Id = NetLedgerId.Generate(IdentifierPrefixes.Entry);
-                    balance.TenantId = account.TenantId;
-                    balance.AccountId = account.Id;
-                    balance.Type = EntryType.Balance;
-                    balance.Amount = initialBalance ?? 0m;
-                    balance.Description = "Initial balance";
-                    balance.IsCommitted = true;
-                    balance.CommittedUtc = DateTime.Now.ToUniversalTime();
+                    if (account == null) throw new ArgumentNullException(nameof(account));
+                    if (String.IsNullOrEmpty(account.Name)) throw new ArgumentNullException(nameof(account), "Account name is required.");
 
-                    await _Driver.Entries.CreateAsync(balance, token).ConfigureAwait(false);
+                    account.TenantId = account.TenantId ?? String.Empty;
+                    account = await _Driver.Accounts.CreateAsync(account, token).ConfigureAwait(false);
+                    string accountId = account.Id;
+
+                    try
+                    {
+                        IDisposable lockReleaser = await LockAccountAsync(account.Id, token).ConfigureAwait(false);
+                        await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(account.Id, token).ConfigureAwait(false);
+                        using (lockReleaser)
+                        {
+                            Entry balance = new Entry();
+                            balance.Id = NetLedgerId.Generate(IdentifierPrefixes.Entry);
+                            balance.TenantId = account.TenantId;
+                            balance.AccountId = account.Id;
+                            balance.Type = EntryType.Balance;
+                            balance.Amount = initialBalance ?? 0m;
+                            balance.Description = "Initial balance";
+                            balance.IsCommitted = true;
+                            balance.CommittedUtc = DateTime.Now.ToUniversalTime();
+
+                            await _Driver.Entries.CreateAsync(balance, token).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        Account created = account;
+                        Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(created)));
+                    }
+
+                    return accountId;
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
                 }
             }
-            finally
-            {
-                Account created = account;
-                Task.Run(() => AccountCreated?.Invoke(this, new AccountEventArgs(created)));
-            }
-
-            return accountId;
         }
 
         /// <summary>
@@ -189,30 +201,41 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when no account exists with the supplied identifier.</exception>
         public async Task<Account> UpdateAccountAsync(Account account, CancellationToken token = default)
         {
-            if (account == null) throw new ArgumentNullException(nameof(account));
-            if (String.IsNullOrEmpty(account.Id)) throw new ArgumentNullException(nameof(account), "Account identifier is required.");
-
-            Account existing = await _Driver.Accounts.ReadByIdAsync(account.Id, token).ConfigureAwait(false);
-            if (existing == null) throw new KeyNotFoundException("Account '" + account.Id + "' was not found.");
-
-            // Preserve immutable fields; only mutable fields are persisted.
-            account.TenantId = existing.TenantId;
-            account.CreatedUtc = existing.CreatedUtc;
-            account.LastUpdateUtc = DateTime.Now.ToUniversalTime();
-
-            Account updated;
-            IDisposable lockReleaser = await _AccountLocks.LockAsync(account.Id, token).ConfigureAwait(false);
-            await using (IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(account.Id, token).ConfigureAwait(false))
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("UpdateAccount", account?.Id))
             {
-                using (lockReleaser)
+                try
                 {
-                    updated = await _Driver.Accounts.UpdateAsync(account, token).ConfigureAwait(false);
+                    if (account == null) throw new ArgumentNullException(nameof(account));
+                    if (String.IsNullOrEmpty(account.Id)) throw new ArgumentNullException(nameof(account), "Account identifier is required.");
+
+                    Account existing = await _Driver.Accounts.ReadByIdAsync(account.Id, token).ConfigureAwait(false);
+                    if (existing == null) throw new KeyNotFoundException("Account '" + account.Id + "' was not found.");
+
+                    // Preserve immutable fields; only mutable fields are persisted.
+                    account.TenantId = existing.TenantId;
+                    account.CreatedUtc = existing.CreatedUtc;
+                    account.LastUpdateUtc = DateTime.Now.ToUniversalTime();
+
+                    Account updated;
+                    IDisposable lockReleaser = await LockAccountAsync(account.Id, token).ConfigureAwait(false);
+                    await using (IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(account.Id, token).ConfigureAwait(false))
+                    {
+                        using (lockReleaser)
+                        {
+                            updated = await _Driver.Accounts.UpdateAsync(account, token).ConfigureAwait(false);
+                        }
+                    }
+
+                    Account result = updated;
+                    Task.Run(() => AccountUpdated?.Invoke(this, new AccountEventArgs(result)));
+                    return updated;
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
                 }
             }
-
-            Account result = updated;
-            Task.Run(() => AccountUpdated?.Invoke(this, new AccountEventArgs(result)));
-            return updated;
         }
 
         /// <summary>
@@ -223,24 +246,35 @@ namespace NetLedger
         /// <exception cref="ArgumentNullException">Thrown when name is null or empty.</exception>
         public async Task DeleteAccountByNameAsync(string name, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-
-            Account a = await _Driver.Accounts.ReadByNameAsync(name, token).ConfigureAwait(false);
-            if (a != null)
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("DeleteAccountByName", null))
             {
                 try
                 {
-                    IDisposable lockReleaser = await _AccountLocks.LockAsync(a.Id, token).ConfigureAwait(false);
-                    await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(a.Id, token).ConfigureAwait(false);
-                    using (lockReleaser)
+                    if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+
+                    Account a = await _Driver.Accounts.ReadByNameAsync(name, token).ConfigureAwait(false);
+                    if (a != null)
                     {
-                        await _Driver.Entries.DeleteByAccountIdAsync(a.Id, token).ConfigureAwait(false);
-                        await _Driver.Accounts.DeleteByIdAsync(a.Id, token).ConfigureAwait(false);
+                        try
+                        {
+                            IDisposable lockReleaser = await LockAccountAsync(a.Id, token).ConfigureAwait(false);
+                            await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(a.Id, token).ConfigureAwait(false);
+                            using (lockReleaser)
+                            {
+                                await _Driver.Entries.DeleteByAccountIdAsync(a.Id, token).ConfigureAwait(false);
+                                await _Driver.Accounts.DeleteByIdAsync(a.Id, token).ConfigureAwait(false);
+                            }
+                        }
+                        finally
+                        {
+                            Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)), token);
+                        }
                     }
                 }
-                finally
+                catch (Exception e)
                 {
-                    Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)), token);
+                    telemetry.Fail(e);
+                    throw;
                 }
             }
         }
@@ -253,24 +287,35 @@ namespace NetLedger
         /// <exception cref="ArgumentNullException">Thrown when accountId is empty.</exception>
         public async Task DeleteAccountByIdAsync(string accountId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a != null)
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("DeleteAccountById", accountId))
             {
                 try
                 {
-                    IDisposable lockReleaser = await _AccountLocks.LockAsync(a.Id, token).ConfigureAwait(false);
-                    await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(a.Id, token).ConfigureAwait(false);
-                    using (lockReleaser)
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a != null)
                     {
-                        await _Driver.Entries.DeleteByAccountIdAsync(a.Id, token).ConfigureAwait(false);
-                        await _Driver.Accounts.DeleteByIdAsync(a.Id, token).ConfigureAwait(false);
+                        try
+                        {
+                            IDisposable lockReleaser = await LockAccountAsync(a.Id, token).ConfigureAwait(false);
+                            await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(a.Id, token).ConfigureAwait(false);
+                            using (lockReleaser)
+                            {
+                                await _Driver.Entries.DeleteByAccountIdAsync(a.Id, token).ConfigureAwait(false);
+                                await _Driver.Accounts.DeleteByIdAsync(a.Id, token).ConfigureAwait(false);
+                            }
+                        }
+                        finally
+                        {
+                            Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)));
+                        }
                     }
                 }
-                finally
+                catch (Exception e)
                 {
-                    Task.Run(() => AccountDeleted?.Invoke(this, new AccountEventArgs(a)));
+                    telemetry.Fail(e);
+                    throw;
                 }
             }
         }
@@ -284,8 +329,19 @@ namespace NetLedger
         /// <exception cref="ArgumentNullException">Thrown when name is null or empty.</exception>
         public async Task<Account> GetAccountByNameAsync(string name, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            return await _Driver.Accounts.ReadByNameAsync(name, token).ConfigureAwait(false);
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetAccountByName", null))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+                    return await _Driver.Accounts.ReadByNameAsync(name, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -297,8 +353,19 @@ namespace NetLedger
         /// <exception cref="ArgumentNullException">Thrown when accountId is empty.</exception>
         public async Task<Account> GetAccountByIdAsync(string accountId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            return await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetAccountById", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    return await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -311,28 +378,39 @@ namespace NetLedger
         /// <returns>List of Account objects.</returns>
         public async Task<List<Account>> GetAllAccountsAsync(string searchTerm = null, int? skip = null, int? take = null, CancellationToken token = default)
         {
-            List<Account> accounts;
-
-            if (!String.IsNullOrEmpty(searchTerm))
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetAllAccounts", null))
             {
-                accounts = await _Driver.Accounts.SearchByNameAsync(searchTerm, token).ConfigureAwait(false);
-            }
-            else
-            {
-                accounts = await _Driver.Accounts.ReadAllAsync(token).ConfigureAwait(false);
-            }
+                try
+                {
+                    List<Account> accounts;
 
-            if (skip.HasValue && skip.Value > 0)
-            {
-                accounts = accounts.Skip(skip.Value).ToList();
-            }
+                    if (!String.IsNullOrEmpty(searchTerm))
+                    {
+                        accounts = await _Driver.Accounts.SearchByNameAsync(searchTerm, token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        accounts = await _Driver.Accounts.ReadAllAsync(token).ConfigureAwait(false);
+                    }
 
-            if (take.HasValue && take.Value > 0)
-            {
-                accounts = accounts.Take(take.Value).ToList();
-            }
+                    if (skip.HasValue && skip.Value > 0)
+                    {
+                        accounts = accounts.Skip(skip.Value).ToList();
+                    }
 
-            return accounts;
+                    if (take.HasValue && take.Value > 0)
+                    {
+                        accounts = accounts.Take(take.Value).ToList();
+                    }
+
+                    return accounts;
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -347,13 +425,24 @@ namespace NetLedger
             EnumerationQuery query,
             CancellationToken token = default)
         {
-            if (query == null) throw new ArgumentNullException(nameof(query));
-            if (query.ContinuationToken != null && query.Skip > 0)
-                throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
-            if (query.Ordering == EnumerationOrderEnum.AmountAscending || query.Ordering == EnumerationOrderEnum.AmountDescending)
-                throw new ArgumentException("Amount ordering is not supported for account enumeration.");
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("EnumerateAccounts", null))
+            {
+                try
+                {
+                    if (query == null) throw new ArgumentNullException(nameof(query));
+                    if (query.ContinuationToken != null && query.Skip > 0)
+                        throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
+                    if (query.Ordering == EnumerationOrderEnum.AmountAscending || query.Ordering == EnumerationOrderEnum.AmountDescending)
+                        throw new ArgumentException("Amount ordering is not supported for account enumeration.");
 
-            return await _Driver.Accounts.EnumerateAsync(query, token).ConfigureAwait(false);
+                    return await _Driver.Accounts.EnumerateAsync(query, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         #endregion
@@ -387,40 +476,53 @@ namespace NetLedger
             string? tenantId = null,
             CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            Entry entry = null;
-
-            try
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("AddCredit", accountId))
             {
-                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false);
-                await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
-                using (lockReleaser)
+                try
                 {
-                    entry = new Entry(accountId, EntryType.Credit, amount, notes, summarizedBy, false);
-                    entry.TenantId = tenantId ?? a.TenantId;
-                    entry.Labels = labels ?? new List<string>();
-                    entry.Tags = tags ?? new Dictionary<string, string>();
-                    entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
 
-                    string entryId = entry.Id;
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
 
-                    if (isCommitted)
+                    Entry entry = null;
+
+                    try
                     {
-                        List<string> entryIdsToCommit = new List<string> { entryId };
-                        await CommitEntriesAsync(accountId, entryIdsToCommit, false, token).ConfigureAwait(false);
-                    }
+                        IDisposable lockReleaser = await LockAccountAsync(accountId, token).ConfigureAwait(false);
+                        await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
+                        using (lockReleaser)
+                        {
+                            entry = new Entry(accountId, EntryType.Credit, amount, notes, summarizedBy, false);
+                            entry.TenantId = tenantId ?? a.TenantId;
+                            entry.Labels = labels ?? new List<string>();
+                            entry.Tags = tags ?? new Dictionary<string, string>();
+                            entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
+                            LedgerTelemetry.EntriesCreated(EntryType.Credit, 1);
+                            telemetry.SetTag(TelemetryNames.AttributeEntryId, entry.Id);
 
-                    return entryId;
+                            string entryId = entry.Id;
+
+                            if (isCommitted)
+                            {
+                                List<string> entryIdsToCommit = new List<string> { entryId };
+                                await CommitEntriesAsync(accountId, entryIdsToCommit, false, token).ConfigureAwait(false);
+                            }
+
+                            return entryId;
+                        }
+                    }
+                    finally
+                    {
+                        if (entry != null) Task.Run(() => CreditAdded?.Invoke(this, new EntryEventArgs(a, entry)));
+                    }
                 }
-            }
-            finally
-            {
-                if (entry != null) Task.Run(() => CreditAdded?.Invoke(this, new EntryEventArgs(a, entry)));
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
             }
         }
 
@@ -451,40 +553,53 @@ namespace NetLedger
             string? tenantId = null,
             CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            Entry entry = null;
-
-            try
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("AddDebit", accountId))
             {
-                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false);
-                await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
-                using (lockReleaser)
+                try
                 {
-                    entry = new Entry(accountId, EntryType.Debit, amount, notes, summarizedBy, false);
-                    entry.TenantId = tenantId ?? a.TenantId;
-                    entry.Labels = labels ?? new List<string>();
-                    entry.Tags = tags ?? new Dictionary<string, string>();
-                    entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    if (amount < 0) throw new ArgumentException("Amount must be zero or greater.");
 
-                    string entryId = entry.Id;
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
 
-                    if (isCommitted)
+                    Entry entry = null;
+
+                    try
                     {
-                        List<string> entryIdsToCommit = new List<string> { entryId };
-                        await CommitEntriesAsync(accountId, entryIdsToCommit, false, token).ConfigureAwait(false);
-                    }
+                        IDisposable lockReleaser = await LockAccountAsync(accountId, token).ConfigureAwait(false);
+                        await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
+                        using (lockReleaser)
+                        {
+                            entry = new Entry(accountId, EntryType.Debit, amount, notes, summarizedBy, false);
+                            entry.TenantId = tenantId ?? a.TenantId;
+                            entry.Labels = labels ?? new List<string>();
+                            entry.Tags = tags ?? new Dictionary<string, string>();
+                            entry = await _Driver.Entries.CreateAsync(entry, token).ConfigureAwait(false);
+                            LedgerTelemetry.EntriesCreated(EntryType.Debit, 1);
+                            telemetry.SetTag(TelemetryNames.AttributeEntryId, entry.Id);
 
-                    return entryId;
+                            string entryId = entry.Id;
+
+                            if (isCommitted)
+                            {
+                                List<string> entryIdsToCommit = new List<string> { entryId };
+                                await CommitEntriesAsync(accountId, entryIdsToCommit, false, token).ConfigureAwait(false);
+                            }
+
+                            return entryId;
+                        }
+                    }
+                    finally
+                    {
+                        if (entry != null) Task.Run(() => DebitAdded?.Invoke(this, new EntryEventArgs(a, entry)));
+                    }
                 }
-            }
-            finally
-            {
-                if (entry != null) Task.Run(() => DebitAdded?.Invoke(this, new EntryEventArgs(a, entry)));
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
             }
         }
 
@@ -500,10 +615,21 @@ namespace NetLedger
         /// <exception cref="ArgumentException">Thrown when credits list is null or empty.</exception>
         public async Task<List<string>> AddCreditsAsync(string accountId, List<BatchEntryInput> credits, bool isCommitted = false, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            if (credits == null || credits.Count == 0) throw new ArgumentException("Credits list cannot be null or empty.");
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("AddCredits", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    if (credits == null || credits.Count == 0) throw new ArgumentException("Credits list cannot be null or empty.");
 
-            return await AddEntriesAsync(accountId, credits, EntryType.Credit, isCommitted, token).ConfigureAwait(false);
+                    return await AddEntriesAsync(accountId, credits, EntryType.Credit, isCommitted, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -518,10 +644,21 @@ namespace NetLedger
         /// <exception cref="ArgumentException">Thrown when debits list is null or empty.</exception>
         public async Task<List<string>> AddDebitsAsync(string accountId, List<BatchEntryInput> debits, bool isCommitted = false, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            if (debits == null || debits.Count == 0) throw new ArgumentException("Debits list cannot be null or empty.");
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("AddDebits", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    if (debits == null || debits.Count == 0) throw new ArgumentException("Debits list cannot be null or empty.");
 
-            return await AddEntriesAsync(accountId, debits, EntryType.Debit, isCommitted, token).ConfigureAwait(false);
+                    return await AddEntriesAsync(accountId, debits, EntryType.Debit, isCommitted, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         private async Task<List<string>> AddEntriesAsync(
@@ -538,7 +675,7 @@ namespace NetLedger
 
             try
             {
-                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false);
+                IDisposable lockReleaser = await LockAccountAsync(accountId, token).ConfigureAwait(false);
                 await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
                 using (lockReleaser)
                 {
@@ -552,6 +689,7 @@ namespace NetLedger
                     }).ToList();
 
                     createdEntries = await _Driver.Entries.CreateManyAsync(entries, token).ConfigureAwait(false);
+                    LedgerTelemetry.EntriesCreated(type, createdEntries.Count);
                     List<string> entryIds = createdEntries.Select(entry => entry.Id).ToList();
 
                     if (isCommitted)
@@ -586,31 +724,43 @@ namespace NetLedger
         /// <exception cref="InvalidOperationException">Thrown when entry is not found or already committed.</exception>
         public async Task CancelPendingAsync(string accountId, string entryId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            if (String.IsNullOrEmpty(entryId)) throw new ArgumentNullException(nameof(entryId));
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            Entry entry = null;
-
-            try
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("CancelPending", accountId))
             {
-                IDisposable lockReleaser = await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false);
-                await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
-                using (lockReleaser)
+                try
                 {
-                    entry = await _Driver.Entries.ReadByIdAsync(entryId, token).ConfigureAwait(false);
-                    if (entry == null) throw new KeyNotFoundException("Unable to find entry with string " + entryId + ".");
-                    if (entry.IsCommitted) throw new InvalidOperationException("Entry has already been committed.");
-                    if (entry.AccountId != accountId) throw new InvalidOperationException("Entry does not belong to this account.");
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    if (String.IsNullOrEmpty(entryId)) throw new ArgumentNullException(nameof(entryId));
 
-                    await _Driver.Entries.DeleteByIdAsync(entryId, token).ConfigureAwait(false);
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+
+                    Entry entry = null;
+
+                    try
+                    {
+                        IDisposable lockReleaser = await LockAccountAsync(accountId, token).ConfigureAwait(false);
+                        await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
+                        using (lockReleaser)
+                        {
+                            entry = await _Driver.Entries.ReadByIdAsync(entryId, token).ConfigureAwait(false);
+                            if (entry == null) throw new KeyNotFoundException("Unable to find entry with string " + entryId + ".");
+                            if (entry.IsCommitted) throw new InvalidOperationException("Entry has already been committed.");
+                            if (entry.AccountId != accountId) throw new InvalidOperationException("Entry does not belong to this account.");
+
+                            await _Driver.Entries.DeleteByIdAsync(entryId, token).ConfigureAwait(false);
+                            LedgerTelemetry.EntryCanceled();
+                        }
+                    }
+                    finally
+                    {
+                        if (entry != null) Task.Run(() => EntryCanceled?.Invoke(this, new EntryEventArgs(a, entry)));
+                    }
                 }
-            }
-            finally
-            {
-                if (entry != null) Task.Run(() => EntryCanceled?.Invoke(this, new EntryEventArgs(a, entry)));
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
             }
         }
 
@@ -623,8 +773,19 @@ namespace NetLedger
         /// <exception cref="ArgumentNullException">Thrown when entryId is empty.</exception>
         public async Task<Entry> GetEntryAsync(string entryId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(entryId)) throw new ArgumentNullException(nameof(entryId));
-            return await _Driver.Entries.ReadByIdAsync(entryId, token).ConfigureAwait(false);
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetEntry", null))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(entryId)) throw new ArgumentNullException(nameof(entryId));
+                    return await _Driver.Entries.ReadByIdAsync(entryId, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -655,27 +816,38 @@ namespace NetLedger
             int? take = null,
             CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-            if (startTimeUtc.HasValue && endTimeUtc.HasValue && startTimeUtc.Value > endTimeUtc.Value)
-                throw new ArgumentException("Start time must be less than or equal to end time.");
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            FilterBuilder filter = new FilterBuilder
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetEntries", accountId))
             {
-                StartTimeUtc = startTimeUtc,
-                EndTimeUtc = endTimeUtc,
-                AmountMinimum = amountMin,
-                AmountMaximum = amountMax,
-                SearchTerm = searchTerm,
-                EntryType = entryType,
-                Skip = skip ?? 0,
-                MaxResults = take ?? 1000,
-                ExcludeBalanceEntries = true
-            };
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+                    if (startTimeUtc.HasValue && endTimeUtc.HasValue && startTimeUtc.Value > endTimeUtc.Value)
+                        throw new ArgumentException("Start time must be less than or equal to end time.");
 
-            return await _Driver.Entries.ReadWithFilterAsync(accountId, filter, token).ConfigureAwait(false);
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+
+                    FilterBuilder filter = new FilterBuilder
+                    {
+                        StartTimeUtc = startTimeUtc,
+                        EndTimeUtc = endTimeUtc,
+                        AmountMinimum = amountMin,
+                        AmountMaximum = amountMax,
+                        SearchTerm = searchTerm,
+                        EntryType = entryType,
+                        Skip = skip ?? 0,
+                        MaxResults = take ?? 1000,
+                        ExcludeBalanceEntries = true
+                    };
+
+                    return await _Driver.Entries.ReadWithFilterAsync(accountId, filter, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -700,22 +872,33 @@ namespace NetLedger
             string searchTerm = null,
             CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            FilterBuilder filter = new FilterBuilder
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("SearchEntries", accountId))
             {
-                StartTimeUtc = startTimeUtc,
-                EndTimeUtc = endTimeUtc,
-                AmountMinimum = amountMin,
-                AmountMaximum = amountMax,
-                SearchTerm = searchTerm,
-                ExcludeBalanceEntries = true
-            };
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-            return await _Driver.Entries.ReadWithFilterAsync(accountId, filter, token).ConfigureAwait(false);
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+
+                    FilterBuilder filter = new FilterBuilder
+                    {
+                        StartTimeUtc = startTimeUtc,
+                        EndTimeUtc = endTimeUtc,
+                        AmountMinimum = amountMin,
+                        AmountMaximum = amountMax,
+                        SearchTerm = searchTerm,
+                        ExcludeBalanceEntries = true
+                    };
+
+                    return await _Driver.Entries.ReadWithFilterAsync(accountId, filter, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -731,17 +914,28 @@ namespace NetLedger
             EnumerationQuery query,
             CancellationToken token = default)
         {
-            if (query == null) throw new ArgumentNullException(nameof(query));
-            if (String.IsNullOrEmpty(query.AccountId)) throw new ArgumentNullException(nameof(query.AccountId), "accountId must be specified for entry enumeration.");
-            if (query.ContinuationToken != null && query.Skip > 0)
-                throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
-            if (query.BalanceMinimum.HasValue || query.BalanceMaximum.HasValue)
-                throw new ArgumentException("Balance filters (BalanceMinimum/BalanceMaximum) are not supported for entry enumeration. Use account enumeration instead.");
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("EnumerateEntries", query?.AccountId))
+            {
+                try
+                {
+                    if (query == null) throw new ArgumentNullException(nameof(query));
+                    if (String.IsNullOrEmpty(query.AccountId)) throw new ArgumentNullException(nameof(query.AccountId), "accountId must be specified for entry enumeration.");
+                    if (query.ContinuationToken != null && query.Skip > 0)
+                        throw new ArgumentException("Skip count and enumeration tokens cannot be used in the same enumeration request.");
+                    if (query.BalanceMinimum.HasValue || query.BalanceMaximum.HasValue)
+                        throw new ArgumentException("Balance filters (BalanceMinimum/BalanceMaximum) are not supported for entry enumeration. Use account enumeration instead.");
 
-            Account a = await _Driver.Accounts.ReadByIdAsync(query.AccountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + query.AccountId + ".");
+                    Account a = await _Driver.Accounts.ReadByIdAsync(query.AccountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + query.AccountId + ".");
 
-            return await _Driver.Entries.EnumerateAsync(query.AccountId, query, token).ConfigureAwait(false);
+                    return await _Driver.Entries.EnumerateAsync(query.AccountId, query, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         #endregion
@@ -759,13 +953,24 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<Balance> GetBalanceAsync(string accountId, bool includePendingEntries = true, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-
-            IDisposable lockReleaser = await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false);
-            await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
-            using (lockReleaser)
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetBalance", accountId))
             {
-                return await GetBalanceWithoutLockAsync(accountId, includePendingEntries, token).ConfigureAwait(false);
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+
+                    IDisposable lockReleaser = await LockAccountAsync(accountId, token).ConfigureAwait(false);
+                    await using IAsyncDisposable dbLockReleaser = await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false);
+                    using (lockReleaser)
+                    {
+                        return await GetBalanceWithoutLockAsync(accountId, includePendingEntries, token).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
             }
         }
 
@@ -832,13 +1037,24 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<decimal> GetBalanceAsOfAsync(string accountId, DateTime asOfUtc, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetBalanceAsOf", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
 
-            Entry balanceEntry = await _Driver.Entries.ReadBalanceAsOfAsync(accountId, asOfUtc, token).ConfigureAwait(false);
-            return balanceEntry?.Amount ?? 0m;
+                    Entry balanceEntry = await _Driver.Entries.ReadBalanceAsOfAsync(accountId, asOfUtc, token).ConfigureAwait(false);
+                    return balanceEntry?.Amount ?? 0m;
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -853,28 +1069,39 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<Balance> CommitEntriesAsync(string accountId, List<string> entryIds = null, bool acquireLock = true, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            IDisposable? lockReleaser = acquireLock ? await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false) : null;
-            IAsyncDisposable? dbLockReleaser = acquireLock ? await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false) : null;
-            try
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("CommitEntries", accountId))
             {
-                using (lockReleaser)
+                try
                 {
-                    Balance balanceBefore = await GetBalanceWithoutLockAsync(accountId, true, token).ConfigureAwait(false);
-                    Entry balanceOld = await _Driver.Entries.ReadLatestBalanceAsync(accountId, token).ConfigureAwait(false);
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-                    return await CommitEntriesInternalAsync(accountId, entryIds, balanceBefore, balanceOld, a, token).ConfigureAwait(false);
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+
+                    IDisposable? lockReleaser = acquireLock ? await LockAccountAsync(accountId, token).ConfigureAwait(false) : null;
+                    IAsyncDisposable? dbLockReleaser = acquireLock ? await _Driver.AcquireAccountLockAsync(accountId, token).ConfigureAwait(false) : null;
+                    try
+                    {
+                        using (lockReleaser)
+                        {
+                            Balance balanceBefore = await GetBalanceWithoutLockAsync(accountId, true, token).ConfigureAwait(false);
+                            Entry balanceOld = await _Driver.Entries.ReadLatestBalanceAsync(accountId, token).ConfigureAwait(false);
+
+                            return await CommitEntriesInternalAsync(accountId, entryIds, balanceBefore, balanceOld, a, token).ConfigureAwait(false);
+                        }
+                    }
+                    finally
+                    {
+                        if (dbLockReleaser != null)
+                        {
+                            await dbLockReleaser.DisposeAsync().ConfigureAwait(false);
+                        }
+                    }
                 }
-            }
-            finally
-            {
-                if (dbLockReleaser != null)
+                catch (Exception e)
                 {
-                    await dbLockReleaser.DisposeAsync().ConfigureAwait(false);
+                    telemetry.Fail(e);
+                    throw;
                 }
             }
         }
@@ -905,12 +1132,23 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<List<Entry>> GetPendingEntriesAsync(string accountId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetPendingEntries", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
 
-            return await _Driver.Entries.ReadPendingByAccountIdAsync(accountId, null, token).ConfigureAwait(false);
+                    return await _Driver.Entries.ReadPendingByAccountIdAsync(accountId, null, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -923,12 +1161,23 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<List<Entry>> GetPendingCreditsAsync(string accountId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetPendingCredits", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
 
-            return await _Driver.Entries.ReadPendingByAccountIdAsync(accountId, EntryType.Credit, token).ConfigureAwait(false);
+                    return await _Driver.Entries.ReadPendingByAccountIdAsync(accountId, EntryType.Credit, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -941,12 +1190,23 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<List<Entry>> GetPendingDebitsAsync(string accountId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetPendingDebits", accountId))
+            {
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
 
-            return await _Driver.Entries.ReadPendingByAccountIdAsync(accountId, EntryType.Debit, token).ConfigureAwait(false);
+                    return await _Driver.Entries.ReadPendingByAccountIdAsync(accountId, EntryType.Debit, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -967,8 +1227,19 @@ namespace NetLedger
         /// <returns>Dictionary of account string to Balance objects.</returns>
         public async Task<Dictionary<string, Balance>> GetAllBalancesAsync(bool includePendingEntries, CancellationToken token = default)
         {
-            List<Account> accounts = await _Driver.Accounts.ReadAllAsync(token).ConfigureAwait(false);
-            return await GetBalancesForAccountsAsync(accounts, includePendingEntries, token).ConfigureAwait(false);
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetAllBalances", null))
+            {
+                try
+                {
+                    List<Account> accounts = await _Driver.Accounts.ReadAllAsync(token).ConfigureAwait(false);
+                    return await GetBalancesForAccountsAsync(accounts, includePendingEntries, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
         }
 
         /// <summary>
@@ -980,38 +1251,49 @@ namespace NetLedger
         /// <returns>Dictionary of account string to Balance objects.</returns>
         public async Task<Dictionary<string, Balance>> GetBalancesForAccountsAsync(IEnumerable<Account> accounts, bool includePendingEntries = true, CancellationToken token = default)
         {
-            if (accounts == null) throw new ArgumentNullException(nameof(accounts));
-
-            List<Account> accountList = accounts
-                .Where(account => account != null && !String.IsNullOrEmpty(account.Id))
-                .GroupBy(account => account.Id)
-                .Select(group => group.First())
-                .ToList();
-
-            Dictionary<string, Balance> balances = new Dictionary<string, Balance>();
-            using SemaphoreSlim semaphore = new SemaphoreSlim(MaxBalanceReadConcurrency);
-
-            List<Task<KeyValuePair<string, Balance>>> tasks = accountList.Select(async account =>
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("GetBalancesForAccounts", null))
             {
-                await semaphore.WaitAsync(token).ConfigureAwait(false);
                 try
                 {
-                    Balance balance = await GetBalanceWithoutLockAsync(account, includePendingEntries, token).ConfigureAwait(false);
-                    return new KeyValuePair<string, Balance>(account.Id, balance);
+                    if (accounts == null) throw new ArgumentNullException(nameof(accounts));
+
+                    List<Account> accountList = accounts
+                        .Where(account => account != null && !String.IsNullOrEmpty(account.Id))
+                        .GroupBy(account => account.Id)
+                        .Select(group => group.First())
+                        .ToList();
+
+                    Dictionary<string, Balance> balances = new Dictionary<string, Balance>();
+                    using SemaphoreSlim semaphore = new SemaphoreSlim(MaxBalanceReadConcurrency);
+
+                    List<Task<KeyValuePair<string, Balance>>> tasks = accountList.Select(async account =>
+                    {
+                        await semaphore.WaitAsync(token).ConfigureAwait(false);
+                        try
+                        {
+                            Balance balance = await GetBalanceWithoutLockAsync(account, includePendingEntries, token).ConfigureAwait(false);
+                            return new KeyValuePair<string, Balance>(account.Id, balance);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }).ToList();
+
+                    KeyValuePair<string, Balance>[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
+                    foreach (KeyValuePair<string, Balance> result in results)
+                    {
+                        balances[result.Key] = result.Value;
+                    }
+
+                    return balances;
                 }
-                finally
+                catch (Exception e)
                 {
-                    semaphore.Release();
+                    telemetry.Fail(e);
+                    throw;
                 }
-            }).ToList();
-
-            KeyValuePair<string, Balance>[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
-            foreach (KeyValuePair<string, Balance> result in results)
-            {
-                balances[result.Key] = result.Value;
             }
-
-            return balances;
         }
 
         /// <summary>
@@ -1024,25 +1306,44 @@ namespace NetLedger
         /// <exception cref="KeyNotFoundException">Thrown when account is not found.</exception>
         public async Task<bool> VerifyBalanceChainAsync(string accountId, CancellationToken token = default)
         {
-            if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
-
-            Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
-            if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
-
-            Entry currentBalance = await _Driver.Entries.ReadLatestBalanceAsync(accountId, token).ConfigureAwait(false);
-            if (currentBalance == null) return true;
-
-            HashSet<string> visited = new HashSet<string>();
-            while (currentBalance != null && !String.IsNullOrEmpty(currentBalance.Replaces))
+            using (TelemetryScope telemetry = LedgerTelemetry.StartOperation("VerifyBalanceChain", accountId))
             {
-                if (visited.Contains(currentBalance.Id))
-                    return false;
+                try
+                {
+                    if (String.IsNullOrEmpty(accountId)) throw new ArgumentNullException(nameof(accountId));
 
-                visited.Add(currentBalance.Id);
-                currentBalance = await _Driver.Entries.ReadByIdAsync(currentBalance.Replaces, token).ConfigureAwait(false);
+                    Account a = await _Driver.Accounts.ReadByIdAsync(accountId, token).ConfigureAwait(false);
+                    if (a == null) throw new KeyNotFoundException("Unable to find account with string " + accountId + ".");
+
+                    Entry currentBalance = await _Driver.Entries.ReadLatestBalanceAsync(accountId, token).ConfigureAwait(false);
+                    if (currentBalance == null)
+                    {
+                        LedgerTelemetry.BalanceChainVerified(true);
+                        return true;
+                    }
+
+                    HashSet<string> visited = new HashSet<string>();
+                    while (currentBalance != null && !String.IsNullOrEmpty(currentBalance.Replaces))
+                    {
+                        if (visited.Contains(currentBalance.Id))
+                        {
+                            LedgerTelemetry.BalanceChainVerified(false);
+                            return false;
+                        }
+
+                        visited.Add(currentBalance.Id);
+                        currentBalance = await _Driver.Entries.ReadByIdAsync(currentBalance.Replaces, token).ConfigureAwait(false);
+                    }
+
+                    LedgerTelemetry.BalanceChainVerified(true);
+                    return true;
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
             }
-
-            return true;
         }
 
         #endregion
@@ -1063,6 +1364,29 @@ namespace NetLedger
             }
 
             _Disposed = true;
+        }
+
+        #endregion
+
+        #region Private-Lock-Methods
+
+        private async Task<IDisposable> LockAccountAsync(string accountId, CancellationToken token)
+        {
+            IDisposable releaser;
+            using (TelemetryScope wait = LedgerTelemetry.StartLockWait(LedgerTelemetry.LockProcess, accountId))
+            {
+                try
+                {
+                    releaser = await _AccountLocks.LockAsync(accountId, token).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    wait.Fail(e);
+                    throw;
+                }
+            }
+
+            return new TelemetryLockReleaser(releaser, LedgerTelemetry.LockProcess);
         }
 
         #endregion
@@ -1140,6 +1464,7 @@ namespace NetLedger
                 await _Driver.Entries.ApplyCommitAsync(committedEntries, balanceNew, token).ConfigureAwait(false);
             }
 
+            LedgerTelemetry.EntriesCommitted(summarized.Count);
             Balance balanceAfter = await GetBalanceWithoutLockAsync(accountId, true, token).ConfigureAwait(false);
             balanceAfter.Committed = summarized;
             Task.Run(() => EntriesCommitted?.Invoke(this, new CommitEventArgs(account, balanceBefore, balanceAfter)));

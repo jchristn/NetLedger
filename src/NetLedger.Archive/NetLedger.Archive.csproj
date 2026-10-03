@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-		<Version>4.0.0</Version>
+		<Version>4.1.0</Version>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<Authors>Joel Christner</Authors>
 		<Company>Joel Christner</Company>
@@ -13,7 +13,7 @@
 		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
 		<RepositoryType>github</RepositoryType>
 		<PackageTags>ledger finance archive cold-storage s3 retention</PackageTags>
-		<PackageReleaseNotes>NetLedger v4.0.0 archive contracts, storage abstractions, and archive catalog model support.</PackageReleaseNotes>
+		<PackageReleaseNotes>v4.1.0: archive object storage and archive catalog SQL emit telemetry on the "NetLedger" Meter and ActivitySource (InstrumentedArchiveObjectStore, returned by ArchiveObjectStoreFactory). See TELEMETRY.md.</PackageReleaseNotes>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<DocumentationFile>NetLedger.Archive.xml</DocumentationFile>

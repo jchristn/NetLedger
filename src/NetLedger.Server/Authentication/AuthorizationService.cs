@@ -7,6 +7,8 @@ namespace NetLedger.Server.Authentication
     using NetLedger;
     using NetLedger.Database;
     using NetLedger.Server.Models;
+    using NetLedger.Server.Services;
+    using NetLedger.Telemetry;
     using SyslogLogging;
 
     /// <summary>
@@ -48,6 +50,35 @@ namespace NetLedger.Server.Authentication
             if (req == null) throw new ArgumentNullException(nameof(req));
             if (String.IsNullOrEmpty(resourceType)) throw new ArgumentNullException(nameof(resourceType));
             if (String.IsNullOrEmpty(operationType)) throw new ArgumentNullException(nameof(operationType));
+
+            using (TelemetryScope telemetry = ServerTelemetry.StartAuthorization(resourceType, operationType))
+            {
+                telemetry.SetTag(TelemetryNames.AttributeTenantId, req.TenantId ?? req.Auth?.TenantId);
+                telemetry.SetTag(TelemetryNames.AttributePrincipalId, req.Auth?.PrincipalId);
+                telemetry.SetTag("netledger.resource.id", resourceId);
+                try
+                {
+                    AuthorizationDecision decision = await AuthorizeCoreAsync(req, resourceType, operationType, resourceId, token).ConfigureAwait(false);
+                    ServerTelemetry.RecordAuthorizationDecision(telemetry, resourceType, operationType, decision.Permitted, decision.Reason);
+                    return decision;
+                }
+                catch (Exception e)
+                {
+                    telemetry.AddLabel(TelemetryNames.LabelDecision, "error");
+                    telemetry.Fail(e);
+                    NetLedgerTelemetry.RecordError(TelemetryNames.ComponentServer, e);
+                    throw;
+                }
+            }
+        }
+
+        private async Task<AuthorizationDecision> AuthorizeCoreAsync(
+            RequestContext req,
+            string resourceType,
+            string operationType,
+            string? resourceId,
+            CancellationToken token)
+        {
 
             if (req.Auth == null || !req.Auth.IsAuthenticated)
             {

@@ -19,6 +19,7 @@
     <ProjectReference Include="..\NetLedger\NetLedger.csproj" />
     <ProjectReference Include="..\NetLedger.Archive\NetLedger.Archive.csproj" />
     <ProjectReference Include="..\NetLedger.Server\NetLedger.Server.csproj" />
+    <ProjectReference Include="..\NetLedger.Archive.Server\NetLedger.Archive.Server.csproj" />
   </ItemGroup>
 
 </Project>

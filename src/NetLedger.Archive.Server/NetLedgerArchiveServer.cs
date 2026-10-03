@@ -3,11 +3,13 @@ namespace NetLedger.Archive.Server
     using System;
     using System.Collections.Generic;
     using System.Collections.Specialized;
+    using System.Diagnostics;
     using System.Globalization;
     using System.IO;
     using System.IO.Compression;
     using System.Net;
     using System.Reflection;
+    using System.Runtime.InteropServices;
     using System.Runtime.Loader;
     using System.Security.Cryptography;
     using System.Text;
@@ -23,10 +25,12 @@ namespace NetLedger.Archive.Server
     using NetLedger.Archive.Server.API.Routes;
     using NetLedger.Archive.Server.Authentication;
     using NetLedger.Archive.Server.Models;
+    using NetLedger.Archive.Server.Services;
     using NetLedger.Archive.Server.Settings;
     using NetLedger.Archive.Settings;
     using NetLedger.Archive.Storage;
     using NetLedger.Database;
+    using NetLedger.Telemetry;
     using SyslogLogging;
     using WatsonWebserver;
     using WatsonWebserver.Core;
@@ -49,6 +53,7 @@ namespace NetLedger.Archive.Server
         private static IArchiveCatalog _Catalog = null!;
         private static ArchiveIntrospectionClient _AuthenticationService = null!;
         private static Dictionary<string, IArchiveObjectStore> _ObjectStores = new Dictionary<string, IArchiveObjectStore>(StringComparer.OrdinalIgnoreCase);
+        private static TelemetryService? _TelemetryService = null;
 
         /// <summary>
         /// Run the archive server.
@@ -60,6 +65,7 @@ namespace NetLedger.Archive.Server
             ParseArguments(args);
             InitializeSettings();
             InitializeLogging();
+            InitializeTelemetry();
             _AuthenticationService = new ArchiveIntrospectionClient(_Settings.Authentication, _Logging);
             await InitializeCatalogAsync().ConfigureAwait(false);
             InitializeWebserver();
@@ -71,6 +77,13 @@ namespace NetLedger.Archive.Server
                 _Logging.Info(_Header + "received unload signal");
                 waitHandle.Set();
             };
+
+            // SIGTERM (docker stop) otherwise terminates the process before cleanup runs, losing buffered telemetry.
+            using PosixSignalRegistration sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
+            {
+                context.Cancel = true;
+                waitHandle.Set();
+            });
 
             Console.CancelKeyPress += (sender, eventArgs) =>
             {
@@ -86,6 +99,9 @@ namespace NetLedger.Archive.Server
             _Webserver.Stop();
             if (_AuthenticationService != null) _AuthenticationService.Dispose();
             if (_Catalog != null) await _Catalog.DisposeAsync().ConfigureAwait(false);
+            NetLedgerTelemetry.UnregisterService(TelemetryNames.ComponentArchiveServer);
+            ArchiveServerTelemetry.Logger = null;
+            _TelemetryService?.Dispose();
             return 0;
         }
 
@@ -142,6 +158,22 @@ namespace NetLedger.Archive.Server
             ApplyIntEnvironmentOverride("NETLEDGER_ARCHIVE_MAX_MIGRATION_BATCH_ROWS", value => _Settings.Archive.MaxMigrationBatchRows = value);
             ApplyLongEnvironmentOverride("NETLEDGER_ARCHIVE_MAX_MIGRATION_BATCH_BYTES", value => _Settings.Archive.MaxMigrationBatchBytes = value);
 
+            if (_Settings.Telemetry == null) _Settings.Telemetry = new TelemetrySettings();
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_ENABLED", value => _Settings.Telemetry.Enabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_SERVICE_NAME", value => _Settings.Telemetry.ServiceName = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_OTLP_ENABLED", value => _Settings.Telemetry.OtlpEnabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_OTLP_ENDPOINT", value => _Settings.Telemetry.OtlpEndpoint = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_OTLP_PROTOCOL", value => _Settings.Telemetry.OtlpProtocol = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_ENABLED", value => _Settings.Telemetry.PrometheusEnabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_HOSTNAME", value => _Settings.Telemetry.PrometheusHostname = value);
+            ApplyIntEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_PORT", value => _Settings.Telemetry.PrometheusPort = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_PROMETHEUS_PATH", value => _Settings.Telemetry.PrometheusPath = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_LOKI_ENABLED", value => _Settings.Telemetry.LokiEnabled = value);
+            ApplyStringEnvironmentOverride("NETLEDGER_TELEMETRY_LOKI_ENDPOINT", value => _Settings.Telemetry.LokiEndpoint = value);
+            ApplyDoubleEnvironmentOverride("NETLEDGER_TELEMETRY_TRACE_SAMPLING_RATIO", value => _Settings.Telemetry.TraceSamplingRatio = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_RUNTIME_METRICS", value => _Settings.Telemetry.IncludeRuntimeMetrics = value);
+            ApplyBoolEnvironmentOverride("NETLEDGER_TELEMETRY_WATSON_ENABLED", value => _Settings.Telemetry.WatsonTelemetryEnabled = value);
+
             for (int i = 0; i < _Settings.StoragePools.Count; i++)
             {
                 ArchiveStoragePoolSettings pool = _Settings.StoragePools[i];
@@ -151,6 +183,18 @@ namespace NetLedger.Archive.Server
                     ApplyStoragePoolEnvironmentOverrides(pool, "NETLEDGER_ARCHIVE_STORAGE_");
                 }
             }
+        }
+
+        private static void ApplyDoubleEnvironmentOverride(string name, Action<double> setter)
+        {
+            string? value = Environment.GetEnvironmentVariable(name);
+            if (String.IsNullOrWhiteSpace(value)) return;
+            if (!Double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
+            {
+                throw new InvalidOperationException("Environment variable " + name + " must be a number.");
+            }
+
+            setter(parsed);
         }
 
         private static void ApplyDatabaseEnvironmentOverrides(DatabaseSettings settings, string prefix)
@@ -306,6 +350,7 @@ namespace NetLedger.Archive.Server
             if (_Settings.Archive == null) _Settings.Archive = new ArchiveRuntimeSettings();
             if (_Settings.RequestHistory == null) _Settings.RequestHistory = new RequestHistorySettings();
             if (_Settings.StoragePools == null) _Settings.StoragePools = new List<ArchiveStoragePoolSettings>();
+            if (_Settings.Telemetry == null) _Settings.Telemetry = new TelemetrySettings();
 
             ValidateSupportedFormats();
 
@@ -403,6 +448,32 @@ namespace NetLedger.Archive.Server
             _Logging.Settings.EnableConsole = _Settings.Logging.EnableConsole;
         }
 
+        private static void InitializeTelemetry()
+        {
+            _TelemetryService = new TelemetryService(_Settings.Telemetry, _Logging);
+            ArchiveServerTelemetry.Logger = _TelemetryService.Logger;
+            NetLedgerTelemetry.RegisterService(
+                TelemetryNames.ComponentArchiveServer,
+                Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown",
+                BuildTelemetryConfigSnapshot);
+        }
+
+        private static IReadOnlyDictionary<string, double> BuildTelemetryConfigSnapshot()
+        {
+            Dictionary<string, double> values = new Dictionary<string, double>(StringComparer.Ordinal);
+            values["authentication.enabled"] = _Settings.Authentication.Enabled ? 1 : 0;
+            values["authentication.introspection_cache_seconds"] = _Settings.Authentication.IntrospectionCacheSeconds;
+            values["archive.max_enumeration_results"] = _Settings.Archive.MaxEnumerationResults;
+            values["archive.max_migration_batch_rows"] = _Settings.Archive.MaxMigrationBatchRows;
+            values["archive.max_migration_batch_bytes"] = _Settings.Archive.MaxMigrationBatchBytes;
+            values["archive.require_complete_coverage"] = _Settings.Archive.RequireCompleteCoverage ? 1 : 0;
+            values["archive.storage_pools"] = _Settings.StoragePools.Count;
+            values["catalog.max_pool_size"] = _Settings.Catalog.MaxPoolSize;
+            values["request_history.enabled"] = _Settings.RequestHistory.Enabled ? 1 : 0;
+            values["telemetry.trace_sampling_ratio"] = _Settings.Telemetry.TraceSamplingRatio;
+            return values;
+        }
+
         private static async Task InitializeCatalogAsync()
         {
             _Catalog = new ArchiveSqlCatalog(_Settings.Catalog);
@@ -426,6 +497,11 @@ namespace NetLedger.Archive.Server
                 _Settings.Webserver.Hostname,
                 _Settings.Webserver.Port,
                 _Settings.Webserver.Ssl);
+
+            wsSettings.Telemetry.Enable = _Settings.Telemetry.Enabled && _Settings.Telemetry.WatsonTelemetryEnabled;
+            wsSettings.Telemetry.EnableMetrics = true;
+            wsSettings.Telemetry.EnableTraces = true;
+            wsSettings.Telemetry.PropagateContext = true;
 
             _Webserver = new Webserver(wsSettings, DefaultRoute);
             _Webserver.Events.ExceptionEncountered += WebserverException;
@@ -983,7 +1059,7 @@ namespace NetLedger.Archive.Server
             foreach (ArchiveManifest manifest in manifests)
             {
                 result.CheckedManifests++;
-                await VerifyArchiveManifestAsync(manifest, result, ctx.Token).ConfigureAwait(false);
+                await RunWorkflowStageAsync(TelemetryNames.WorkflowVerify, TelemetryNames.StageVerifyManifest, () => VerifyArchiveManifestAsync(manifest, result, ctx.Token)).ConfigureAwait(false);
                 List<ArchiveBalanceCheckpoint> checkpoints = await ReadAllBalanceCheckpointsAsync(manifest.Id, ctx.Token).ConfigureAwait(false);
                 result.CheckedBalanceCheckpoints += checkpoints.Count;
                 foreach (ArchiveBalanceCheckpoint checkpoint in checkpoints)
@@ -1010,6 +1086,7 @@ namespace NetLedger.Archive.Server
                 result.Details.Add("Latest archived checkpoint balance is " + previousCheckpointBalance.Value.ToString(CultureInfo.InvariantCulture) + ".");
             }
 
+            ArchiveServerTelemetry.RecordVerification(result.IsValid);
             await WriteArchiveAuditAsync(ctx, tenantId, "ArchiveBalanceVerified", "Balance", accountId, result.IsValid ? "Permit" : "Denied", result.IsValid ? "Archive verification completed." : "Archive verification found errors.").ConfigureAwait(false);
             await SendJsonAsync(ctx, 200, result).ConfigureAwait(false);
         }
@@ -1241,6 +1318,7 @@ namespace NetLedger.Archive.Server
                     return;
                 }
 
+                ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventReused, ArchiveServerTelemetry.EntityLabel(existing.EntityType));
                 await SendJsonAsync(ctx, 200, existing).ConfigureAwait(false);
                 return;
             }
@@ -1263,6 +1341,8 @@ namespace NetLedger.Archive.Server
             };
 
             migration = await _Catalog.Migrations.CreateAsync(migration).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventCreated, ArchiveServerTelemetry.EntityLabel(migration.EntityType));
+            Activity.Current?.SetTag(TelemetryNames.AttributeMigrationId, migration.Id);
             await WriteArchiveAuditAsync(ctx, migration.TenantId, "MigrationCreated", "ArchiveMigration", migration.Id, "Permit", null).ConfigureAwait(false);
             await SendJsonAsync(ctx, 201, migration).ConfigureAwait(false);
         }
@@ -1353,6 +1433,7 @@ namespace NetLedger.Archive.Server
                 await _Catalog.Migrations.UpdateStatusAsync(migration.Id, ArchiveMigrationStatus.Receiving).ConfigureAwait(false);
             }
 
+            ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventBatchCreated, ArchiveServerTelemetry.EntityLabel(migration.EntityType));
             await WriteArchiveAuditAsync(ctx, migration.TenantId, "MigrationBatchCreated", "ArchiveMigrationBatch", batch.Id, "Permit", null).ConfigureAwait(false);
             await SendJsonAsync(ctx, 201, batch).ConfigureAwait(false);
         }
@@ -1410,12 +1491,17 @@ namespace NetLedger.Archive.Server
             string temporaryFile = Path.Combine(Path.GetTempPath(), ArchiveId.Generate("aul_") + ".tmp");
             try
             {
-                ArchiveUploadResult upload = await ReceiveUploadAsync(ctx.Request.Data, temporaryFile, _Settings.Archive.MaxMigrationBatchBytes).ConfigureAwait(false);
+                Activity.Current?.SetTag(TelemetryNames.AttributeMigrationId, migration.Id);
+                Activity.Current?.SetTag(TelemetryNames.AttributeBatchId, batch.Id);
+                string uploadEntity = ArchiveServerTelemetry.EntityLabel(migration.EntityType);
+                ArchiveUploadResult upload = await RunWorkflowStageAsync(TelemetryNames.WorkflowUpload, TelemetryNames.StageReceive, () => ReceiveUploadAsync(ctx.Request.Data, temporaryFile, _Settings.Archive.MaxMigrationBatchBytes)).ConfigureAwait(false);
+                ArchiveServerTelemetry.RecordUploadBytes(upload.ByteCount);
                 string expectedHash = FirstNonEmpty(GetRequestHeader(ctx.Request.Headers, "x-content-sha256"), batch.ContentHashSha256);
                 if (!String.IsNullOrWhiteSpace(expectedHash) && !String.Equals(expectedHash, upload.ContentHashSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     batch.Status = ArchiveMigrationBatchStatus.Failed;
                     await _Catalog.Migrations.UpdateBatchAsync(batch).ConfigureAwait(false);
+                    ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventBatchRejected, uploadEntity);
                     await SendErrorAsync(ctx, ArchiveApiErrorCode.Conflict, "Batch content hash does not match expected SHA-256.").ConfigureAwait(false);
                     return;
                 }
@@ -1424,32 +1510,38 @@ namespace NetLedger.Archive.Server
                 {
                     batch.Status = ArchiveMigrationBatchStatus.Failed;
                     await _Catalog.Migrations.UpdateBatchAsync(batch).ConfigureAwait(false);
+                    ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventBatchRejected, uploadEntity);
                     await SendErrorAsync(ctx, ArchiveApiErrorCode.Conflict, "Batch byte count does not match expected byte count.").ConfigureAwait(false);
                     return;
                 }
 
                 try
                 {
-                    await ValidateUploadedBatchContentAsync(migration, batch, temporaryFile).ConfigureAwait(false);
+                    await RunWorkflowStageAsync(TelemetryNames.WorkflowUpload, TelemetryNames.StageValidate, () => ValidateUploadedBatchContentAsync(migration, batch, temporaryFile)).ConfigureAwait(false);
                 }
                 catch (InvalidDataException e)
                 {
                     batch.Status = ArchiveMigrationBatchStatus.Failed;
                     await _Catalog.Migrations.UpdateBatchAsync(batch).ConfigureAwait(false);
+                    ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventBatchRejected, uploadEntity);
                     await SendErrorAsync(ctx, ArchiveApiErrorCode.Conflict, e.Message).ConfigureAwait(false);
                     return;
                 }
 
-                using (FileStream stream = new FileStream(temporaryFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                await RunWorkflowStageAsync(TelemetryNames.WorkflowUpload, TelemetryNames.StageStore, async () =>
                 {
-                    await store!.WriteTemporaryAsync(batch.TemporaryRelativePath, stream, BuildObjectStorageMetadata(migration, batch, null, upload.ContentHashSha256)).ConfigureAwait(false);
-                }
+                    using (FileStream stream = new FileStream(temporaryFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        await store!.WriteTemporaryAsync(batch.TemporaryRelativePath, stream, BuildObjectStorageMetadata(migration, batch, null, upload.ContentHashSha256)).ConfigureAwait(false);
+                    }
+                }).ConfigureAwait(false);
 
                 batch.ByteCount = upload.ByteCount;
                 batch.ContentHashSha256 = upload.ContentHashSha256;
                 batch.Status = ArchiveMigrationBatchStatus.Uploaded;
                 batch.LastUpdateUtc = DateTime.UtcNow;
                 batch = await _Catalog.Migrations.UpdateBatchAsync(batch).ConfigureAwait(false);
+                ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventBatchUploaded, uploadEntity);
                 await WriteArchiveAuditAsync(ctx, batch.TenantId, "MigrationBatchUploaded", "ArchiveMigrationBatch", batch.Id, "Permit", null).ConfigureAwait(false);
                 await SendJsonAsync(ctx, 200, batch).ConfigureAwait(false);
             }
@@ -1498,6 +1590,7 @@ namespace NetLedger.Archive.Server
             }
 
             migration = await _Catalog.Migrations.UpdateStatusAsync(migration.Id, ArchiveMigrationStatus.Sealing).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventSealed, ArchiveServerTelemetry.EntityLabel(migration.EntityType));
             await WriteArchiveAuditAsync(ctx, migration.TenantId, "MigrationSealed", "ArchiveMigration", migration.Id, "Permit", null).ConfigureAwait(false);
             await SendJsonAsync(ctx, 200, migration).ConfigureAwait(false);
         }
@@ -1544,27 +1637,38 @@ namespace NetLedger.Archive.Server
                 }
             }
 
-            foreach (ArchiveMigrationBatch batch in batches.Objects)
+            Activity.Current?.SetTag(TelemetryNames.AttributeMigrationId, migration.Id);
+            bool storeMissing = await RunWorkflowStageAsync(TelemetryNames.WorkflowCommit, TelemetryNames.StagePromoteObjects, async () =>
             {
-                if (batch.Status == ArchiveMigrationBatchStatus.Uploaded)
+                foreach (ArchiveMigrationBatch batch in batches.Objects)
                 {
-                    if (!TryGetObjectStore(batch.StoragePoolId, out IArchiveObjectStore? store))
+                    if (batch.Status == ArchiveMigrationBatchStatus.Uploaded)
                     {
-                        await SendNotImplementedAsync(ctx, "Configured archive object storage provider is not available.").ConfigureAwait(false);
-                        return;
-                    }
+                        if (!TryGetObjectStore(batch.StoragePoolId, out IArchiveObjectStore? store))
+                        {
+                            return true;
+                        }
 
-                    await store!.CommitAsync(batch.TemporaryRelativePath, batch.CommittedRelativePath).ConfigureAwait(false);
-                    batch.Status = ArchiveMigrationBatchStatus.Verified;
-                    batch.LastUpdateUtc = DateTime.UtcNow;
-                    await _Catalog.Migrations.UpdateBatchAsync(batch).ConfigureAwait(false);
+                        await store!.CommitAsync(batch.TemporaryRelativePath, batch.CommittedRelativePath).ConfigureAwait(false);
+                        batch.Status = ArchiveMigrationBatchStatus.Verified;
+                        batch.LastUpdateUtc = DateTime.UtcNow;
+                        await _Catalog.Migrations.UpdateBatchAsync(batch).ConfigureAwait(false);
+                    }
                 }
+
+                return false;
+            }).ConfigureAwait(false);
+
+            if (storeMissing)
+            {
+                await SendNotImplementedAsync(ctx, "Configured archive object storage provider is not available.").ConfigureAwait(false);
+                return;
             }
 
             ArchiveManifest manifest;
             try
             {
-                manifest = await CreateManifestForMigrationAsync(migration, batches.Objects).ConfigureAwait(false);
+                manifest = await RunWorkflowStageAsync(TelemetryNames.WorkflowCommit, TelemetryNames.StageCreateManifest, () => CreateManifestForMigrationAsync(migration, batches.Objects)).ConfigureAwait(false);
             }
             catch (InvalidDataException e)
             {
@@ -1573,6 +1677,8 @@ namespace NetLedger.Archive.Server
             }
 
             await _Catalog.Migrations.UpdateStatusAsync(migration.Id, ArchiveMigrationStatus.Committed).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventCommitted, ArchiveServerTelemetry.EntityLabel(migration.EntityType));
+            Activity.Current?.SetTag(TelemetryNames.AttributeManifestId, manifest.Id);
             await WriteArchiveAuditAsync(ctx, migration.TenantId, "MigrationCommitted", "ArchiveMigration", migration.Id, "Permit", null).ConfigureAwait(false);
             await SendJsonAsync(ctx, 200, manifest).ConfigureAwait(false);
         }
@@ -1614,6 +1720,7 @@ namespace NetLedger.Archive.Server
             }
 
             migration = await _Catalog.Migrations.UpdateStatusAsync(migration.Id, ArchiveMigrationStatus.Aborted).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordMigrationEvent(ArchiveServerTelemetry.EventAborted, ArchiveServerTelemetry.EntityLabel(migration.EntityType));
             await WriteArchiveAuditAsync(ctx, migration.TenantId, "MigrationAborted", "ArchiveMigration", migration.Id, "Permit", null).ConfigureAwait(false);
             await SendJsonAsync(ctx, 200, migration).ConfigureAwait(false);
         }
@@ -2181,6 +2288,16 @@ namespace NetLedger.Archive.Server
 
         private static async Task<EnumerationResult<Entry>> EnumerateArchivedEntriesFromObjectsAsync(string tenantId, string accountId, ArchiveQuery query, CancellationToken token)
         {
+            EnumerationResult<Entry> result = await RunWorkflowStageAsync(
+                TelemetryNames.WorkflowQuery,
+                TelemetryNames.StageReadObjects,
+                () => EnumerateArchivedEntriesFromObjectsCoreAsync(tenantId, accountId, query, token)).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordQueryRows("entries", result.Objects?.Count ?? 0);
+            return result;
+        }
+
+        private static async Task<EnumerationResult<Entry>> EnumerateArchivedEntriesFromObjectsCoreAsync(string tenantId, string accountId, ArchiveQuery query, CancellationToken token)
+        {
             int startOffset = ArchiveContinuationToken.ResolveRowCursor(query, "entries");
             EnumerationResult<Entry> result = new EnumerationResult<Entry>
             {
@@ -2246,6 +2363,16 @@ namespace NetLedger.Archive.Server
         }
 
         private static async Task<RequestHistoryResult> EnumerateArchivedRequestHistoryFromObjectsAsync(RequestHistoryFilter filter, bool includeBodies, bool applyPaging, CancellationToken token)
+        {
+            RequestHistoryResult result = await RunWorkflowStageAsync(
+                TelemetryNames.WorkflowQuery,
+                TelemetryNames.StageReadObjects,
+                () => EnumerateArchivedRequestHistoryFromObjectsCoreAsync(filter, includeBodies, applyPaging, token)).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordQueryRows("request_history", result.Objects?.Count ?? 0);
+            return result;
+        }
+
+        private static async Task<RequestHistoryResult> EnumerateArchivedRequestHistoryFromObjectsCoreAsync(RequestHistoryFilter filter, bool includeBodies, bool applyPaging, CancellationToken token)
         {
             ArchiveQuery continuationQuery = BuildRequestHistoryContinuationQuery(filter);
             string filterHash = BuildRequestHistoryFilterHash(filter);
@@ -3398,6 +3525,13 @@ namespace NetLedger.Archive.Server
 
         private static async Task<bool> AuthorizeArchiveReadAsync(HttpContextBase ctx, string? tenantId, string resourceType, string? resourceId)
         {
+            bool permitted = await AuthorizeArchiveReadCoreAsync(ctx, tenantId, resourceType, resourceId).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordAuthorizationDecision(resourceType, "Read", permitted);
+            return permitted;
+        }
+
+        private static async Task<bool> AuthorizeArchiveReadCoreAsync(HttpContextBase ctx, string? tenantId, string resourceType, string? resourceId)
+        {
             ArchiveAuthContext auth = GetAuthContext(ctx);
             if (auth.IsNotRequired) return true;
 
@@ -3430,6 +3564,13 @@ namespace NetLedger.Archive.Server
 
         private static async Task<bool> AuthorizeArchiveManageAsync(HttpContextBase ctx, string? tenantId, string resourceType, string? resourceId, string operationType)
         {
+            bool permitted = await AuthorizeArchiveManageCoreAsync(ctx, tenantId, resourceType, resourceId, operationType).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordAuthorizationDecision(resourceType, operationType, permitted);
+            return permitted;
+        }
+
+        private static async Task<bool> AuthorizeArchiveManageCoreAsync(HttpContextBase ctx, string? tenantId, string resourceType, string? resourceId, string operationType)
+        {
             ArchiveAuthContext auth = GetAuthContext(ctx);
             if (auth.IsNotRequired) return true;
 
@@ -3455,6 +3596,13 @@ namespace NetLedger.Archive.Server
         }
 
         private static async Task<bool> AuthorizeArchiveAdminAsync(HttpContextBase ctx, string? tenantId, string resourceType, string? resourceId, string operationType)
+        {
+            bool permitted = await AuthorizeArchiveAdminCoreAsync(ctx, tenantId, resourceType, resourceId, operationType).ConfigureAwait(false);
+            ArchiveServerTelemetry.RecordAuthorizationDecision(resourceType, "Admin", permitted);
+            return permitted;
+        }
+
+        private static async Task<bool> AuthorizeArchiveAdminCoreAsync(HttpContextBase ctx, string? tenantId, string resourceType, string? resourceId, string operationType)
         {
             ArchiveAuthContext auth = GetAuthContext(ctx);
             if (auth.IsNotRequired) return true;
@@ -3566,6 +3714,38 @@ namespace NetLedger.Archive.Server
             });
         }
 
+        private static async Task<T> RunWorkflowStageAsync<T>(string workflow, string stage, Func<Task<T>> work)
+        {
+            using (TelemetryScope telemetry = ArchiveServerTelemetry.StartWorkflowStage(workflow, stage))
+            {
+                try
+                {
+                    return await work().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
+        private static async Task RunWorkflowStageAsync(string workflow, string stage, Func<Task> work)
+        {
+            using (TelemetryScope telemetry = ArchiveServerTelemetry.StartWorkflowStage(workflow, stage))
+            {
+                try
+                {
+                    await work().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    telemetry.Fail(e);
+                    throw;
+                }
+            }
+        }
+
         private static async Task DefaultRoute(HttpContextBase ctx)
         {
             await SendErrorAsync(ctx, ArchiveApiErrorCode.NotFound, "Route not found.").ConfigureAwait(false);
@@ -3574,6 +3754,9 @@ namespace NetLedger.Archive.Server
         private static async Task ExceptionHandler(HttpContextBase ctx, Exception e)
         {
             _Logging.Alert(_Header + "exception: " + e);
+            NetLedgerTelemetry.RecordException(Activity.Current, e);
+            NetLedgerTelemetry.RecordError(TelemetryNames.ComponentArchiveServer, e);
+            ArchiveServerTelemetry.LogWarning(e, "Unhandled archive route exception: {ErrorType}", NetLedgerTelemetry.GetErrorType(e));
             await SendErrorAsync(ctx, ArchiveApiErrorCode.InternalError, e.Message).ConfigureAwait(false);
         }
 

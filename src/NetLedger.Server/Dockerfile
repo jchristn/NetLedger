@@ -58,8 +58,8 @@ RUN mkdir -p /app/data
 ENV ASPNETCORE_URLS=http://+:8080
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
-# Expose the default port
-EXPOSE 8080
+# Expose the REST port and the in-process Prometheus metrics port (keep 9464 on an internal network)
+EXPOSE 8080 9464
 
 # Set the entrypoint
 ENTRYPOINT ["dotnet", "NetLedger.Server.dll"]

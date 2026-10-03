@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/useApp'
 import Pagination from '../components/Pagination'
+import ExternalServicesCard from '../components/ExternalServicesCard'
 import { formatCurrency, formatDate, normalizeEnumerationResult, normalizeBalances } from '../api/api'
 import { getRoleFlags, getTenantId, valueOf } from '../utils/roles'
 import './Home.css'
@@ -717,6 +718,8 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {isSystemAdmin && <ExternalServicesCard />}
     </div>
   )
 }

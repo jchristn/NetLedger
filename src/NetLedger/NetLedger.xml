@@ -862,6 +862,20 @@
             </summary>
             <param name="disposing">Whether disposing is occurring.</param>
         </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.StartDbTelemetry(System.String)">
+            <summary>
+            Start telemetry for one database round trip on the active ledger database. Providers wrap every
+            ExecuteQueryAsync and ExecuteQueriesAsync call with this scope. The query text is not recorded.
+            </summary>
+            <param name="query">SQL text used only to derive the bounded operation verb.</param>
+            <returns>Telemetry scope. Never null.</returns>
+        </member>
+        <member name="M:NetLedger.Database.DatabaseDriverBase.StartDbBatchTelemetry">
+            <summary>
+            Start telemetry for a multi-statement database batch on the active ledger database.
+            </summary>
+            <returns>Telemetry scope. Never null.</returns>
+        </member>
         <member name="M:NetLedger.Database.DatabaseDriverBase.LogQuery(System.String)">
             <summary>
             Log a query if logging is enabled.
@@ -3946,6 +3960,737 @@
         <member name="P:NetLedger.RolePermissionMap.CreatedUtc">
             <summary>
             Created timestamp UTC.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Telemetry.LedgerTelemetry">
+            <summary>
+            Ledger-domain instruments: operation latency and outcome, entry and commit counters, balance chain
+            verification results, and account lock wait and occupancy.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Telemetry.NetLedgerTelemetry">
+            <summary>
+            The NetLedger meter and activity source plus the instruments shared by every NetLedger assembly
+            (database, outbound integration, errors, build info, configuration, and uptime).
+            Emission uses only System.Diagnostics, takes no exporter dependency, and costs a few nanoseconds when no
+            collector is subscribed. Subscribe a host to <see cref="F:NetLedger.Telemetry.TelemetryNames.MeterName"/> and
+            <see cref="F:NetLedger.Telemetry.TelemetryNames.ActivitySourceName"/>, for example with Radiant:
+            settings.Sources.AddMeter("NetLedger"); settings.Sources.AddActivitySource("NetLedger").
+            Thread safety: all members are thread-safe. Every recording method is best-effort and never throws.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.Meter">
+            <summary>
+            The NetLedger meter. Never null.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.ActivitySource">
+            <summary>
+            The NetLedger activity source. Never null.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.Version">
+            <summary>
+            The NetLedger library version stamped on the meter and activity source.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.DbOperationDuration">
+            <summary>
+            Duration histogram for database round trips, in seconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.DbOperations">
+            <summary>
+            Counter for database round trips by outcome.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.DbOperationsActive">
+            <summary>
+            In-flight database round trips.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.IntegrationRequestDuration">
+            <summary>
+            Duration histogram for outbound integration calls, in seconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.IntegrationRequests">
+            <summary>
+            Counter for outbound integration calls by outcome.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.StorageBytes">
+            <summary>
+            Counter for bytes moved to or from archive object storage.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.Errors">
+            <summary>
+            Counter for errors observed by NetLedger components.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.AuthAttempts">
+            <summary>
+            Counter for authentication attempts, shared by the NetLedger server and archive server.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.AuthDuration">
+            <summary>
+            Duration histogram for authentication, in seconds.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.NetLedgerTelemetry.AuthzDecisions">
+            <summary>
+            Counter for authorization decisions, shared by the NetLedger server and archive server.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.RegisterService(System.String,System.String,System.Func{System.Collections.Generic.IReadOnlyDictionary{System.String,System.Double}})">
+            <summary>
+            Register a running service so it reports build info, uptime, and safe configuration gauges.
+            Registering the same component again replaces its previous registration.
+            </summary>
+            <param name="component">Bounded component name, for example "server" or "archive_server".</param>
+            <param name="version">Service version.</param>
+            <param name="configProvider">Callback returning safe numeric configuration values keyed by a bounded setting name. Must never return secrets. May be null.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when component is null or empty.</exception>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.UnregisterService(System.String)">
+            <summary>
+            Remove a service registration so its gauges stop reporting.
+            </summary>
+            <param name="component">Component name.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.StartDbOperation(System.String,System.String,System.String)">
+            <summary>
+            Start a client span and timing scope for one database round trip.
+            The query text is never recorded because it can contain user data.
+            </summary>
+            <param name="component">Bounded component, for example "active_db" or "archive_catalog".</param>
+            <param name="dbSystem">Database system name from <see cref="M:NetLedger.Telemetry.NetLedgerTelemetry.GetDbSystemName(NetLedger.Database.DatabaseTypeEnum)"/>.</param>
+            <param name="operation">Database operation verb from <see cref="M:NetLedger.Telemetry.NetLedgerTelemetry.GetDbOperationName(System.String)"/>, or "BATCH".</param>
+            <returns>Telemetry scope. Never null.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.StartIntegration(System.String,System.String)">
+            <summary>
+            Start a client span and timing scope for one outbound integration call. Span name is "service operation".
+            </summary>
+            <param name="service">Bounded downstream service name from <see cref="T:NetLedger.Telemetry.TelemetryNames"/>.</param>
+            <param name="operation">Bounded operation name.</param>
+            <returns>Telemetry scope. Never null.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.RecordError(System.String,System.Exception)">
+            <summary>
+            Count an error observed by a component.
+            </summary>
+            <param name="component">Bounded component name.</param>
+            <param name="e">Exception.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.RecordError(System.String,System.String)">
+            <summary>
+            Count an error observed by a component.
+            </summary>
+            <param name="component">Bounded component name.</param>
+            <param name="errorType">Bounded error type.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.RecordStorageBytes(System.String,System.String,System.Int64)">
+            <summary>
+            Count bytes moved to or from archive object storage.
+            </summary>
+            <param name="service">Storage service, "s3" or "filesystem".</param>
+            <param name="direction">"read" or "write".</param>
+            <param name="bytes">Byte count. Values below one are ignored.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.RecordException(System.Diagnostics.Activity,System.Exception)">
+            <summary>
+            Mark a span as failed with an exception event (type and truncated message). Safe with a null span.
+            </summary>
+            <param name="activity">Span, or null.</param>
+            <param name="e">Exception, or null.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.GetErrorType(System.Exception)">
+            <summary>
+            Bounded error type for an exception: the exception's short type name, or "unknown".
+            </summary>
+            <param name="e">Exception, or null.</param>
+            <returns>Error type.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.GetDbSystemName(NetLedger.Database.DatabaseTypeEnum)">
+            <summary>
+            OpenTelemetry db.system.name value for a NetLedger database type.
+            </summary>
+            <param name="type">Database type.</param>
+            <returns>Database system name.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.GetDbOperationName(System.String)">
+            <summary>
+            Bounded database operation verb parsed from the first keyword of a SQL statement, for example SELECT.
+            Unknown verbs return OTHER so the label set stays bounded.
+            </summary>
+            <param name="query">SQL text. Only the first keyword is inspected and nothing is retained.</param>
+            <returns>Operation verb.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.BoundLabel(System.String,System.Collections.Generic.ISet{System.String})">
+            <summary>
+            Bound a caller-supplied value to a fixed allow-list before it is used as a metric label.
+            Returns the lower-cased value when allowed, otherwise "other". Keeps label cardinality bounded.
+            </summary>
+            <param name="value">Candidate label value.</param>
+            <param name="allowed">Allowed values. Comparison follows the set's comparer.</param>
+            <returns>Bounded label value.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.GetElapsedSeconds(System.Int64)">
+            <summary>
+            Seconds elapsed since a <see cref="M:System.Diagnostics.Stopwatch.GetTimestamp"/> value.
+            </summary>
+            <param name="startTimestamp">Start timestamp.</param>
+            <returns>Elapsed seconds.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.InjectTraceContext(System.Diagnostics.Activity,System.Object,System.Action{System.Object,System.String,System.String})">
+            <summary>
+            Inject the W3C trace context of a span into outbound headers through the supplied setter.
+            Uses the current <see cref="T:System.Diagnostics.DistributedContextPropagator"/>. Safe with a null span.
+            </summary>
+            <param name="activity">Span whose context is propagated, or null to use the ambient span.</param>
+            <param name="carrier">Header carrier passed to the setter.</param>
+            <param name="setter">Callback that writes one header to the carrier.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.NetLedgerTelemetry.Truncate(System.String)">
+            <summary>
+            Truncate free text before it is attached to a span, limiting accidental payload capture.
+            </summary>
+            <param name="value">Text, or null.</param>
+            <returns>Truncated text, or null.</returns>
+        </member>
+        <member name="T:NetLedger.Telemetry.TelemetryLockReleaser">
+            <summary>
+            Wraps an in-process account lock releaser so the held-lock gauge is decremented exactly once on release.
+            </summary>
+        </member>
+        <member name="T:NetLedger.Telemetry.TelemetryNames">
+            <summary>
+            Stable telemetry names for NetLedger: the meter and activity source names, every instrument name, every
+            metric label key, span names, and the bounded label values. These strings are a public contract consumed by
+            collectors, Grafana dashboards, and alert rules. Treat any change as a breaking change.
+            Prometheus exporters rewrite dotted instrument names to snake case and append unit and _total suffixes,
+            for example netledger.ledger.operation.duration becomes netledger_ledger_operation_duration_seconds.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.MeterName">
+            <summary>
+            Name of the NetLedger meter. Subscribe a collector to this name to receive every NetLedger metric.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ActivitySourceName">
+            <summary>
+            Name of the NetLedger activity source. Subscribe a collector to this name to receive every NetLedger span.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.WatsonSourceName">
+            <summary>
+            Name of the meter and activity source emitted by the Watson webserver hosting the NetLedger services.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelOperation">
+            <summary>Label key: logical operation name (bounded set defined by NetLedger code).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelOutcome">
+            <summary>Label key: operation outcome (see the Outcome constants).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelErrorType">
+            <summary>Label key: exception type name for failures (OpenTelemetry semantic convention).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelComponent">
+            <summary>Label key: component emitting an error or database operation.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelDbSystem">
+            <summary>Label key: database system (OpenTelemetry semantic convention).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelDbOperation">
+            <summary>Label key: database operation verb such as SELECT or INSERT (OpenTelemetry semantic convention).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelService">
+            <summary>Label key: downstream service name for outbound integrations.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelStage">
+            <summary>Label key: pipeline or workflow stage name.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelWorkflow">
+            <summary>Label key: workflow name for archive server workflows.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelEntity">
+            <summary>Label key: archived entity type (entries or request_history).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelTrigger">
+            <summary>Label key: what triggered an archive export (api or automatic).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelEntryType">
+            <summary>Label key: ledger entry type (credit or debit).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelLock">
+            <summary>Label key: lock kind (process or database).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelResult">
+            <summary>Label key: generic bounded result value.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelAuthMethod">
+            <summary>Label key: authentication method.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelDecision">
+            <summary>Label key: authorization decision (permit or deny).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelResource">
+            <summary>Label key: authorization resource type.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelEvent">
+            <summary>Label key: archive migration lifecycle event.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelDirection">
+            <summary>Label key: byte transfer direction (read or write).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelSetting">
+            <summary>Label key: configuration setting name for the config gauge.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelVersion">
+            <summary>Label key: service version for the build info gauge.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LabelRuntime">
+            <summary>Label key: .NET runtime version for the build info gauge.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeTenantId">
+            <summary>Span attribute key: tenant identifier (spans only, never a metric label).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeAccountId">
+            <summary>Span attribute key: account identifier (spans only, never a metric label).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeEntryId">
+            <summary>Span attribute key: entry identifier (spans only, never a metric label).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeMigrationId">
+            <summary>Span attribute key: archive migration identifier (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeBatchId">
+            <summary>Span attribute key: archive batch identifier (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeManifestId">
+            <summary>Span attribute key: archive manifest identifier (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeRowCount">
+            <summary>Span attribute key: row count processed by an operation (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeByteCount">
+            <summary>Span attribute key: byte count processed by an operation (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeAttempt">
+            <summary>Span attribute key: retry attempt number (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributePrincipalId">
+            <summary>Span attribute key: principal identifier (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeHttpStatusCode">
+            <summary>Span attribute key: HTTP response status code of an outbound call (OpenTelemetry semantic convention).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeHttpMethod">
+            <summary>Span attribute key: HTTP request method of an outbound call (OpenTelemetry semantic convention).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeExceptionMessage">
+            <summary>Span attribute key: exception message (spans only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AttributeExceptionType">
+            <summary>Span attribute key: exception type (OpenTelemetry semantic convention).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeSuccess">
+            <summary>Outcome value: the operation succeeded.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeFailure">
+            <summary>Outcome value: the operation failed.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeCanceled">
+            <summary>Outcome value: the operation was canceled.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeNoRows">
+            <summary>Outcome value: the operation found nothing to do.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeSkipped">
+            <summary>Outcome value: the operation was skipped.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeTimeout">
+            <summary>Outcome value: the operation timed out.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomePartial">
+            <summary>Outcome value: the operation completed with some failures.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeNotFound">
+            <summary>Outcome value: the requested object or record does not exist.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.OutcomeRejected">
+            <summary>Outcome value: the operation was rejected by validation or policy.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerOperationDuration">
+            <summary>Histogram (s): duration of each public Ledger operation. Labels: operation, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerOperations">
+            <summary>Counter: Ledger operations by outcome. Labels: operation, outcome, error.type (failures only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerEntriesCreated">
+            <summary>Counter: ledger entries created. Labels: entry_type.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerEntriesCommitted">
+            <summary>Counter: ledger entries committed into a balance.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerEntriesCanceled">
+            <summary>Counter: pending ledger entries canceled.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerCommitSize">
+            <summary>Histogram ({entry}): number of entries committed per commit.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerBalanceChainVerifications">
+            <summary>Counter: balance chain verifications. Labels: result (valid or invalid).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerLockWaitDuration">
+            <summary>Histogram (s): time spent waiting for an account lock (the queued stage of every write). Labels: lock, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.LedgerLocksActive">
+            <summary>UpDownCounter ({lock}): account locks currently held. Labels: lock.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.DbOperationDuration">
+            <summary>Histogram (s): duration of database round trips. Labels: component, db.system.name, db.operation.name, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.DbOperations">
+            <summary>Counter: database round trips. Labels: component, db.system.name, db.operation.name, outcome, error.type (failures only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.DbOperationsActive">
+            <summary>UpDownCounter ({operation}): database round trips in flight. Labels: component, db.system.name.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.IntegrationRequestDuration">
+            <summary>Histogram (s): duration of outbound integration calls. Labels: service, operation, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.IntegrationRequests">
+            <summary>Counter: outbound integration calls. Labels: service, operation, outcome, error.type (failures only).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StorageBytes">
+            <summary>Counter (By): bytes moved to or from archive object storage. Labels: service, direction.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.Errors">
+            <summary>Counter: errors observed by NetLedger components. Labels: component, error.type.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.BuildInfo">
+            <summary>Gauge: always 1, carries build metadata. Labels: component, version, runtime.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ConfigValue">
+            <summary>Gauge: safe numeric configuration values (never secrets). Labels: component, setting.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.Uptime">
+            <summary>Gauge (s): seconds since the service process started. Labels: component.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AuthAttempts">
+            <summary>Counter: authentication attempts. Labels: component, method, result.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AuthDuration">
+            <summary>Histogram (s): authentication duration. Labels: component, method, result.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AuthLogins">
+            <summary>Counter: password logins. Labels: outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AuthzDecisions">
+            <summary>Counter: authorization decisions. Labels: component, resource, operation, decision.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AuthzDuration">
+            <summary>Histogram (s): authorization decision duration. Labels: component, decision.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.IntrospectionCacheLookups">
+            <summary>Counter: archive server introspection cache lookups. Labels: result (hit or miss).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.IntrospectionCacheSize">
+            <summary>Gauge ({entry}): archive server introspection cache entries.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.RequestHistoryWrites">
+            <summary>Counter: background request history writes. Labels: component, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.RequestHistoryWriteDuration">
+            <summary>Histogram (s): background request history write duration. Labels: component, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.RequestHistoryPending">
+            <summary>UpDownCounter ({write}): background request history writes queued or in flight. Labels: component.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportJobs">
+            <summary>Counter: archive export jobs. Labels: entity, trigger, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportDuration">
+            <summary>Histogram (s): end-to-end archive export job duration. Labels: entity, trigger, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportStageDuration">
+            <summary>Histogram (s): archive export duration per stage. Labels: entity, stage, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportStageEvents">
+            <summary>Counter: archive export stage executions. Labels: entity, stage, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportRows">
+            <summary>Counter ({row}): rows exported to the archive server. Labels: entity.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportBytes">
+            <summary>Counter (By): compressed bytes uploaded to the archive server. Labels: entity.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportCleanupRows">
+            <summary>Counter ({row}): active rows deleted after a committed archive export. Labels: entity.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveExportLastSuccess">
+            <summary>Gauge (s): Unix time of the last successful archive export. Labels: entity.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveRuns">
+            <summary>Counter: automatic archival worker runs. Labels: outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveRunDuration">
+            <summary>Histogram (s): automatic archival worker run duration. Labels: outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveAccounts">
+            <summary>Counter: accounts evaluated by the automatic archival worker. Labels: result.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveRetries">
+            <summary>Counter: automatic archive export retry attempts after a failure.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveLastRun">
+            <summary>Gauge (s): Unix time of the last completed automatic archival run.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveLastSuccess">
+            <summary>Gauge (s): Unix time of the last automatic archival run that finished without export failures.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.AutomaticArchiveRunning">
+            <summary>UpDownCounter ({run}): automatic archival runs currently executing (0 or 1).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveMigrationEvents">
+            <summary>Counter: archive migration lifecycle events on the archive server. Labels: event, entity.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveWorkflowStageDuration">
+            <summary>Histogram (s): archive server workflow duration per stage. Labels: workflow, stage, outcome.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveUploadBytes">
+            <summary>Counter (By): migration batch bytes received by the archive server.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveQueryRows">
+            <summary>Counter ({row}): archived rows returned by archive queries. Labels: entity.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ArchiveVerifications">
+            <summary>Counter: archive manifest verifications. Labels: result (valid or invalid).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentLedger">
+            <summary>Component value: the NetLedger ledger library.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentActiveDatabase">
+            <summary>Component value: the active ledger database.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentArchiveCatalog">
+            <summary>Component value: the archive catalog database.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentArchiveStorage">
+            <summary>Component value: archive object storage.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentServer">
+            <summary>Component value: the NetLedger REST server.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentArchiveServer">
+            <summary>Component value: the NetLedger Archive Server.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentAutomaticArchive">
+            <summary>Component value: the automatic archival worker.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentArchiveExport">
+            <summary>Component value: the archive export pipeline.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ComponentRequestHistory">
+            <summary>Component value: request history capture.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ServiceArchiveServer">
+            <summary>Integration service value: the NetLedger Archive Server, called by the NetLedger server.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ServiceNetLedgerServer">
+            <summary>Integration service value: the NetLedger server, called by the archive server for introspection.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ServiceS3">
+            <summary>Integration service value: S3-compatible object storage.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.ServiceFilesystem">
+            <summary>Integration service value: filesystem object storage.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageQueued">
+            <summary>Archive export stage: waiting for the account lock before export.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageValidate">
+            <summary>Archive export stage: validation of the account, range, and cleanup preconditions.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageEnumerate">
+            <summary>Archive export stage: reading a page of active rows.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageCreateMigration">
+            <summary>Archive export stage: creating the archive migration.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageUploadBatch">
+            <summary>Archive export stage: serializing and uploading one batch.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageSeal">
+            <summary>Archive export stage: sealing the migration.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageCommit">
+            <summary>Archive export stage: committing the migration to a manifest.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageCleanup">
+            <summary>Archive export stage: deleting archived active rows.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.WorkflowUpload">
+            <summary>Archive server workflow: batch content upload.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.WorkflowCommit">
+            <summary>Archive server workflow: migration commit.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.WorkflowVerify">
+            <summary>Archive server workflow: manifest verification.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.WorkflowQuery">
+            <summary>Archive server workflow: archived data query.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageReceive">
+            <summary>Archive server workflow stage: receiving upload content to a temporary file.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageStore">
+            <summary>Archive server workflow stage: storing content in object storage.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StagePromoteObjects">
+            <summary>Archive server workflow stage: promoting temporary objects to committed objects.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageCreateManifest">
+            <summary>Archive server workflow stage: building and persisting the manifest.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageVerifyManifest">
+            <summary>Archive server workflow stage: verifying a manifest's objects.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.StageReadObjects">
+            <summary>Archive server workflow stage: reading archived objects for a query.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanLedgerPrefix">
+            <summary>Span name prefix for Ledger operations, for example "ledger AddCredit".</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanLockWait">
+            <summary>Span name for account lock waits.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanStagePrefix">
+            <summary>Span name prefix for pipeline and workflow stages, for example "stage:upload_batch".</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanArchiveExportPrefix">
+            <summary>Span name prefix for archive export jobs, for example "archive.export entries".</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanAutomaticArchiveRun">
+            <summary>Span name for an automatic archival worker run (a root span).</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanAutomaticArchiveAccount">
+            <summary>Span name for one account evaluated by the automatic archival worker.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanAuthenticate">
+            <summary>Span name for request authentication.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanLogin">
+            <summary>Span name for password login.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanAuthorize">
+            <summary>Span name for authorization decisions.</summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.SpanRequestHistoryWrite">
+            <summary>Span name for background request history writes.</summary>
+        </member>
+        <member name="T:NetLedger.Telemetry.TelemetryScope">
+            <summary>
+            Measures one unit of work: opens a span, times the work, and on disposal records a duration histogram and an
+            outcome counter tagged with bounded labels. Instrumentation is best-effort: every member swallows its own
+            failures so telemetry can never change application behavior. When no listener is attached to the span or the
+            instruments, <see cref="M:NetLedger.Telemetry.TelemetryScope.Start(System.String,System.Diagnostics.ActivityKind,System.Diagnostics.Metrics.Histogram{System.Double},System.Diagnostics.Metrics.Counter{System.Int64},System.Diagnostics.TagList)"/> returns a
+            shared inert instance and the cost is a few flag checks.
+            Usage: wrap the work in a using block, call <see cref="M:NetLedger.Telemetry.TelemetryScope.Fail(System.Exception)"/> from a catch block before rethrowing,
+            and optionally <see cref="M:NetLedger.Telemetry.TelemetryScope.SetOutcome(System.String)"/> for non-failure outcomes such as no_rows. A scope that is
+            disposed without a failure records outcome success.
+            Thread safety: a scope is owned by one logical operation and is not safe for concurrent mutation.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.TelemetryScope.Activity">
+            <summary>
+            The span opened for this scope, or null when no listener samples it. Use the null-conditional operator.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.TelemetryScope.Outcome">
+            <summary>
+            The outcome that will be recorded on disposal. Defaults to success.
+            </summary>
+        </member>
+        <member name="P:NetLedger.Telemetry.TelemetryScope.IsRecording">
+            <summary>
+            Whether this scope records anything. False for the shared inert instance.
+            </summary>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.Start(System.String,System.Diagnostics.ActivityKind,System.Diagnostics.Metrics.Histogram{System.Double},System.Diagnostics.Metrics.Counter{System.Int64},System.Diagnostics.TagList)">
+            <summary>
+            Start a measured scope.
+            </summary>
+            <param name="spanName">Span name. Must be low-cardinality (no identifiers).</param>
+            <param name="kind">Span kind.</param>
+            <param name="duration">Duration histogram in seconds, or null.</param>
+            <param name="counter">Outcome counter, or null.</param>
+            <param name="labels">Bounded metric labels, also stamped on the span.</param>
+            <returns>A recording scope, or the shared inert scope when nothing is listening. Never null.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.Start(System.String,System.Diagnostics.ActivityKind,System.Diagnostics.Metrics.Histogram{System.Double},System.Diagnostics.Metrics.Counter{System.Int64},System.Diagnostics.Metrics.UpDownCounter{System.Int64},System.Diagnostics.TagList,System.Diagnostics.TagList,System.Diagnostics.ActivityContext)">
+            <summary>
+            Start a measured scope with an in-flight gauge and an explicit parent context.
+            </summary>
+            <param name="spanName">Span name. Must be low-cardinality (no identifiers).</param>
+            <param name="kind">Span kind.</param>
+            <param name="duration">Duration histogram in seconds, or null.</param>
+            <param name="counter">Outcome counter, or null.</param>
+            <param name="active">In-flight up/down counter, or null. Incremented on start and decremented on disposal.</param>
+            <param name="labels">Bounded metric labels, also stamped on the span.</param>
+            <param name="activeLabels">Bounded labels for the in-flight counter.</param>
+            <param name="parent">Explicit parent span context for background hand-offs; default uses the ambient span.</param>
+            <returns>A recording scope, or the shared inert scope when nothing is listening. Never null.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.SetTag(System.String,System.Object)">
+            <summary>
+            Set a span attribute. Use for high-cardinality detail such as identifiers. Never added to metrics.
+            </summary>
+            <param name="key">Attribute key.</param>
+            <param name="value">Attribute value. Null values are ignored.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.AddLabel(System.String,System.String)">
+            <summary>
+            Add a bounded metric label that is also stamped on the span. The value set must be small and fixed.
+            </summary>
+            <param name="key">Label key.</param>
+            <param name="value">Label value from a bounded set.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.SetOutcome(System.String)">
+            <summary>
+            Set a non-failure outcome such as no_rows or skipped. Ignored after a failure has been recorded.
+            </summary>
+            <param name="outcome">Outcome value from <see cref="T:NetLedger.Telemetry.TelemetryNames"/>.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.Fail(System.Exception)">
+            <summary>
+            Record a failure caused by an exception. The span status becomes Error with an exception event, and the
+            metrics record outcome failure (or canceled for cancellation) with the exception type as error.type.
+            </summary>
+            <param name="e">Exception. Null is treated as an unknown failure.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.Fail(System.String,System.String)">
+            <summary>
+            Record a failure that did not throw, for example an HTTP 5xx from a downstream service.
+            </summary>
+            <param name="errorType">Bounded error type, for example "http_503".</param>
+            <param name="description">Optional span status description. Must not contain secrets or payloads.</param>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.GetElapsedSeconds">
+            <summary>
+            Elapsed seconds since the scope started. Zero for the inert scope.
+            </summary>
+            <returns>Elapsed seconds.</returns>
+        </member>
+        <member name="M:NetLedger.Telemetry.TelemetryScope.Dispose">
+            <summary>
+            Record the duration and outcome, close the span, and release the in-flight count. Idempotent.
             </summary>
         </member>
         <member name="T:NetLedger.Tenant">
