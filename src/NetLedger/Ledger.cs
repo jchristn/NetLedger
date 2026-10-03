@@ -65,7 +65,7 @@ namespace NetLedger
 
         private DatabaseDriverBase _Driver = null;
         private DatabaseSettings _Settings = null;
-        private readonly Padlock<string> _AccountLocks = new Padlock<string>();
+        private readonly Padlock<string> _AccountLocks = new Padlock<string> { Name = TelemetryNames.PadlockAccountLockName };
         private const int MaxBalanceReadConcurrency = 8;
         private bool _Disposed = false;
 

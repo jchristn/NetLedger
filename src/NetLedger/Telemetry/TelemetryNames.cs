@@ -26,6 +26,16 @@ namespace NetLedger.Telemetry
         /// </summary>
         public const string WatsonSourceName = "Watson";
 
+        /// <summary>
+        /// Name of the meter and activity source emitted by the Padlock keyed-lock library that guards ledger accounts.
+        /// </summary>
+        public const string PadlockSourceName = "Padlock";
+
+        /// <summary>
+        /// Bounded <c>padlock.name</c> label value for the in-process ledger account lock.
+        /// </summary>
+        public const string PadlockAccountLockName = "ledger.account";
+
         #endregion
 
         #region Label-Keys

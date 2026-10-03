@@ -2,6 +2,30 @@
 
 ## Current Version
 
+### v4.1.1
+
+**DEPENDENCY MAINTENANCE**
+
+The `NetLedger` and `NetLedger.Archive` NuGet packages are 4.1.1. Docker images are rebuilt in place under the existing `v4.0.0` tag and `latest`.
+
+#### Dependency Updates
+
+- Watson 7.1.1 -> 7.2.2 (NetLedger Server, Archive Server). Access-control denials now return 403 instead of 500; settings objects are disposable.
+- SyslogLogging 2.2.2 -> 2.3.1 (NetLedger Server, Archive Server). `DisposeAsync` now stops the retention timer.
+- Padlock 1.0.4 -> 1.2.0 (NetLedger). Adds a built-in `Padlock` meter and activity source.
+- Timestamps 1.0.12 -> 1.0.13, Microsoft.Data.Sqlite 10.0.11 -> 10.0.12, Microsoft.Data.SqlClient 7.0.2 -> 7.1.1, AWSSDK.S3 4.0.102.1 -> 4.0.104.1.
+- Tests: Touchstone (Core, Cli, XunitAdapter, NunitAdapter) 0.1.12 -> 0.2.0, NUnit 4.6.1 -> 5.0.0, NUnit3TestAdapter 6.2.0 -> 6.3.0, Microsoft.NET.Test.Sdk 18.9.0 -> 18.10.1.
+
+#### Changes
+
+- The in-process ledger account lock sets `Padlock.Name` to `ledger.account` (`TelemetryNames.PadlockAccountLockName`), so Padlock lock wait, hold, and contention telemetry carries a bounded `padlock.name` label instead of `default`.
+- NetLedger Server's Radiant host subscribes to the `Padlock` meter and activity source (`TelemetryNames.PadlockSourceName`).
+
+#### Validation
+
+- New `telemetry_padlock_account_lock_is_named` test proves Padlock lock-wait measurements and acquire spans carry `ledger.account` during ledger writes (verified to fail when the name is removed). The name-contract test checks `PadlockSourceName` against the Padlock library constants.
+- All 70 shared tests pass on `net8.0` and `net10.0` through the console, xUnit, and NUnit runners.
+
 ### v4.1.0
 
 **OBSERVABILITY**

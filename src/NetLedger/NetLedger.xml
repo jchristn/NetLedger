@@ -4190,6 +4190,16 @@
             Name of the meter and activity source emitted by the Watson webserver hosting the NetLedger services.
             </summary>
         </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.PadlockSourceName">
+            <summary>
+            Name of the meter and activity source emitted by the Padlock keyed-lock library that guards ledger accounts.
+            </summary>
+        </member>
+        <member name="F:NetLedger.Telemetry.TelemetryNames.PadlockAccountLockName">
+            <summary>
+            Bounded <c>padlock.name</c> label value for the in-process ledger account lock.
+            </summary>
+        </member>
         <member name="F:NetLedger.Telemetry.TelemetryNames.LabelOperation">
             <summary>Label key: logical operation name (bounded set defined by NetLedger code).</summary>
         </member>

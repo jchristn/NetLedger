@@ -37,6 +37,8 @@ namespace NetLedger.Server.Services
                 radiant.Sources.AddActivitySource(TelemetryNames.ActivitySourceName);
                 radiant.Sources.AddMeter(TelemetryNames.WatsonSourceName);
                 radiant.Sources.AddActivitySource(TelemetryNames.WatsonSourceName);
+                radiant.Sources.AddMeter(TelemetryNames.PadlockSourceName);
+                radiant.Sources.AddActivitySource(TelemetryNames.PadlockSourceName);
 
                 radiant.Otlp.Enable = settings.OtlpEnabled;
                 radiant.Otlp.Endpoint = settings.OtlpEndpoint;

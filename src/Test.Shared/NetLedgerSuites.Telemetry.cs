@@ -23,6 +23,7 @@ namespace Test.Shared
     using NetLedger.Server.Services;
     using NetLedger.Server.Settings;
     using NetLedger.Telemetry;
+    using Padlocks;
     using SyslogLogging;
     using Touchstone.Core;
 
@@ -44,6 +45,7 @@ namespace Test.Shared
                         Assert(NetLedgerTelemetry.Meter.Name == "NetLedger", "Meter name changed.");
                         Assert(NetLedgerTelemetry.ActivitySource.Name == "NetLedger", "Activity source name changed.");
                         Assert(TelemetryNames.WatsonSourceName == "Watson", "Watson source name changed.");
+                        Assert(TelemetryNames.PadlockSourceName == PadlockTelemetry.MeterName && TelemetryNames.PadlockSourceName == PadlockTelemetry.ActivitySourceName, "Padlock source name does not match the Padlock library.");
 
                         int instruments = 0;
                         foreach (FieldInfo field in typeof(TelemetryNames).GetFields(BindingFlags.Public | BindingFlags.Static))
@@ -159,6 +161,58 @@ namespace Test.Shared
                             Assert(span != null, "Missing failed AddCredit span.");
                             Assert(span!.Status == ActivityStatusCode.Error, "Failed span status was not Error.");
                             Assert(span.Events.Any(e => e.Name == "exception"), "Failed span had no exception event.");
+                        }
+                    }),
+                    new TestCaseDescriptor(suiteId, "telemetry_padlock_account_lock_is_named", "Ledger account locks emit Padlock metrics and spans under the bounded ledger.account name", async token =>
+                    {
+                        List<string> waitNames = new List<string>();
+                        List<string> spanNames = new List<string>();
+                        object sync = new object();
+                        using (MeterListener meterListener = new MeterListener())
+                        using (ActivityListener activityListener = new ActivityListener())
+                        {
+                            meterListener.InstrumentPublished = (instrument, listener) =>
+                            {
+                                if (String.Equals(instrument.Meter.Name, TelemetryNames.PadlockSourceName, StringComparison.Ordinal)
+                                    && String.Equals(instrument.Name, PadlockTelemetry.LockWaitDuration, StringComparison.Ordinal))
+                                {
+                                    listener.EnableMeasurementEvents(instrument);
+                                }
+                            };
+                            meterListener.SetMeasurementEventCallback<double>((instrument, value, tags, state) =>
+                            {
+                                foreach (KeyValuePair<string, object?> tag in tags)
+                                {
+                                    if (tag.Key == PadlockTelemetry.AttributeName && tag.Value is string name)
+                                    {
+                                        lock (sync) waitNames.Add(name);
+                                    }
+                                }
+                            });
+                            meterListener.Start();
+
+                            activityListener.ShouldListenTo = source => String.Equals(source.Name, TelemetryNames.PadlockSourceName, StringComparison.Ordinal);
+                            activityListener.Sample = (ref ActivityCreationOptions<ActivityContext> options) => ActivitySamplingResult.AllDataAndRecorded;
+                            activityListener.ActivityStopped = activity =>
+                            {
+                                if (activity.GetTagItem(PadlockTelemetry.AttributeName) is string name)
+                                {
+                                    lock (sync) spanNames.Add(name);
+                                }
+                            };
+                            ActivitySource.AddActivityListener(activityListener);
+
+                            await using Ledger ledger = CreateLedger();
+                            string tenantId = ScopedTenantId("telemetry");
+                            string accountId = await ledger.CreateAccountAsync("padlock-" + UniqueSuffix(8), 0m, new List<string>(), new Dictionary<string, string>(), tenantId, token).ConfigureAwait(false);
+                            await ledger.AddCreditAsync(accountId, 3m, "credit", null, false, null, null, tenantId, token).ConfigureAwait(false);
+                            await ledger.AddDebitAsync(accountId, 1m, "debit", null, false, null, null, tenantId, token).ConfigureAwait(false);
+                        }
+
+                        lock (sync)
+                        {
+                            Assert(waitNames.Contains(TelemetryNames.PadlockAccountLockName), "No Padlock lock wait measurement carried the ledger.account name. Saw: " + String.Join(", ", waitNames.Distinct()));
+                            Assert(spanNames.Contains(TelemetryNames.PadlockAccountLockName), "No Padlock acquire span carried the ledger.account name. Saw: " + String.Join(", ", spanNames.Distinct()));
                         }
                     }),
                     new TestCaseDescriptor(suiteId, "telemetry_archive_export_pipeline_and_propagation", "Automatic archival emits job, per-stage, integration, worker, and gauge telemetry and propagates W3C trace context to the archive server", async token =>

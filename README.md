@@ -10,7 +10,7 @@ NetLedger is a thread-safe ledgering library for .NET 8.0 and .NET 10.0 that pro
 
 It supports SQLite for embedded deployments and MySQL, PostgreSQL, and SQL Server for external database deployments.
 
-Current release: v4.0.0.
+Current release: v4.1.1.
 
 <details>
 <summary>Screenshots</summary>
@@ -26,6 +26,10 @@ Current release: v4.0.0.
 ![Screenshot 5](Assets/ss5.png)
 
 </details>
+
+## v4.1.1
+
+NetLedger v4.1.1 is a dependency maintenance release. It updates Watson, SyslogLogging, Padlock, Timestamps, Microsoft.Data.Sqlite, Microsoft.Data.SqlClient, AWSSDK.S3, and the test stack (Touchstone 0.2.0, NUnit 5, Microsoft.NET.Test.Sdk 18.10.1). The in-process ledger account lock is now named `ledger.account`, so Padlock 1.2's built-in `Padlock` meter and activity source report lock wait, hold time, and contention under a bounded name. NetLedger Server exports the `Padlock` source alongside `NetLedger` and `Watson`.
 
 ## v4.1.0
 
@@ -1130,16 +1134,16 @@ await TransferAsync(ledger, checking, savings, 200.00m, "Monthly savings");
 
 ## Dependencies
 
-- **AsyncKeyedLock** (v8.0.2) - Account-keyed in-process locking
-- **Padlock** (v1.0.4) - Database-backed account lock coordination
-- **Microsoft.Data.Sqlite** (v10.0.10) and **SQLitePCLRaw.bundle_e_sqlite3** (v3.0.4) - SQLite provider
-- **MySqlConnector** (v2.6.1) - MySQL provider
+- **AsyncKeyedLock** (v8.1.2) - Account-keyed in-process locking
+- **Padlock** (v1.2.0) - In-process account-keyed locking with built-in telemetry
+- **Microsoft.Data.Sqlite** (v10.0.12) and **SQLitePCLRaw.bundle_e_sqlite3** (v3.0.5) - SQLite provider
+- **MySqlConnector** (v2.6.2) - MySQL provider
 - **Npgsql** (v10.0.3) - PostgreSQL provider
-- **Microsoft.Data.SqlClient** (v7.0.2) - SQL Server provider
+- **Microsoft.Data.SqlClient** (v7.1.1) - SQL Server provider
 - **PrettyId** (v2.0.1) - K-sortable public string IDs
-- **Timestamps** (v1.0.12) - Timestamp utilities
+- **Timestamps** (v1.0.13) - Timestamp utilities
 
-The NetLedger library emits telemetry through `System.Diagnostics` only. NetLedger Server and NetLedger Archive Server additionally use **Watson** (v7.1.1) and **Radiant** (v0.1.2) for HTTP hosting and telemetry export.
+The NetLedger library emits telemetry through `System.Diagnostics` only. NetLedger Server and NetLedger Archive Server additionally use **Watson** (v7.2.2), **SyslogLogging** (v2.3.1), and **Radiant** (v0.1.2) for HTTP hosting and telemetry export.
 
 ## Observability
 
@@ -1171,7 +1175,10 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 
 ## Version History
 
-### v4.1.0 (Current)
+### v4.1.1 (Current)
+- Dependency updates (Watson 7.2.2, SyslogLogging 2.3.1, Padlock 1.2.0, Timestamps 1.0.13, Microsoft.Data.Sqlite 10.0.12, Microsoft.Data.SqlClient 7.1.1, AWSSDK.S3 4.0.104.1, Touchstone 0.2.0, NUnit 5.0.0). The ledger account lock reports Padlock telemetry as `ledger.account`.
+
+### v4.1.0
 - Built-in observability: `NetLedger` Meter and ActivitySource across the library and both servers, Radiant-based OTLP, Prometheus, and Loki export, Watson HTTP telemetry, a provisioned Prometheus, Tempo, Loki, and Grafana stack with eight dashboards, and a dashboard External Services card. See [TELEMETRY.md](TELEMETRY.md).
 
 ### v4.0.0

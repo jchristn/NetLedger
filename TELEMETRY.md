@@ -27,7 +27,7 @@ This document is the contract for every telemetry point: names, units, labels, s
 | --- | --- | --- |
 | `NetLedger` library (`Ledger`, database providers, account locks) | `NetLedger` meter and activity source (System.Diagnostics only) | Any host that subscribes; nothing is emitted when nobody listens |
 | `NetLedger.Archive` library (object storage, archive catalog SQL) | Same `NetLedger` meter and activity source | Same |
-| NetLedger Server and NetLedger Archive Server (Watson 7.1) | Watson's built-in `Watson` meter and activity source (HTTP metrics, one server span per request) plus app-level instruments on `NetLedger` | One [Radiant](https://www.nuget.org/packages/Radiant) host per server process, exporting OTLP (traces, metrics, logs), an in-process Prometheus endpoint, and optionally Loki |
+| NetLedger Server and NetLedger Archive Server (Watson 7.2) | Watson's built-in `Watson` meter and activity source (HTTP metrics, one server span per request) plus app-level instruments on `NetLedger` | One [Radiant](https://www.nuget.org/packages/Radiant) host per server process, exporting OTLP (traces, metrics, logs), an in-process Prometheus endpoint, and optionally Loki |
 
 Watson already covers the HTTP layer: request rate, latency, status, active requests, and the per-request server span. NetLedger does not duplicate any of it. NetLedger instruments everything behind the routes: ledger operations, database round trips, account locks, authentication and authorization, the archive export pipeline and each of its stages, the automatic archival worker, background request-history writes, every outbound call (Archive Server, NetLedger introspection, S3 or filesystem storage), and the Archive Server migration workflows.
 
@@ -39,6 +39,7 @@ A single trace runs from the inbound HTTP request through the ledger operation d
 | --- | --- | --- |
 | `NetLedger` | `Meter` and `ActivitySource` | NetLedger libraries and both servers (`NetLedger.Telemetry.TelemetryNames.MeterName` / `ActivitySourceName`) |
 | `Watson` | `Meter` and `ActivitySource` | Watson webserver inside both servers |
+| `Padlock` | `Meter` and `ActivitySource` | Padlock keyed-lock library guarding in-process ledger account locks (`padlock.name` = `ledger.account`, `TelemetryNames.PadlockAccountLockName`); exported by NetLedger Server |
 
 Every instrument name, label key, span name, and bounded label value is defined in one constants class: `src/NetLedger/Telemetry/TelemetryNames.cs`.
 
@@ -245,6 +246,16 @@ Watson emits these itself. NetLedger only enables and exports them. See Watson's
 | `http_server_active_requests` | `http_request_method`, `url_scheme` |
 | `http_server_request_body_size_bytes`, `http_server_response_body_size_bytes` | method, status |
 | `watson_server_up`, `watson_server_uptime_seconds`, `watson_server_connections_*`, `watson_server_exceptions_total`, `watson_route_matches_total`, `watson_route_unmatched_total`, `watson_auth_requests_total` | see Watson |
+
+### Padlock (account locks, NetLedger Server)
+
+Padlock emits these itself; the ledger names its account lock `ledger.account` so the series stay bounded. NetLedger Server subscribes to the `Padlock` source. See Padlock's `TELEMETRY.md` for the full list.
+
+| Instrument | Labels |
+| --- | --- |
+| `padlock.lock.wait.duration`, `padlock.lock.hold.duration`, `padlock.lock.holders`, `padlock.lock.pending`, `padlock.keys.active`, `padlock.pool.*` | `padlock.name` (`ledger.account`), `padlock.mode`, `padlock.outcome`, `padlock.contended` |
+
+Each acquisition opens a `padlock.acquire` span tagged with `padlock.name`. NetLedger's own `netledger.ledger.lock.wait.duration` histogram and `ledger.lock.wait` span remain the primary account-lock signals.
 
 ### .NET runtime
 
