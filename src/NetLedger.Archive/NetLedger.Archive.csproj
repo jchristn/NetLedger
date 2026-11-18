@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
-		<Version>4.1.1</Version>
+		<Version>4.1.2</Version>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<Authors>Joel Christner</Authors>
 		<Company>Joel Christner</Company>
@@ -11,7 +11,7 @@
 		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
 		<PackageProjectUrl>https://github.com/jchristn/NetLedger</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/jchristn/NetLedger</RepositoryUrl>
-		<RepositoryType>github</RepositoryType>
+		<RepositoryType>git</RepositoryType>
 		<PackageTags>ledger finance archive cold-storage s3 retention</PackageTags>
 		<PackageReleaseNotes>v4.1.0: archive object storage and archive catalog SQL emit telemetry on the "NetLedger" Meter and ActivitySource (InstrumentedArchiveObjectStore, returned by ArchiveObjectStoreFactory). See TELEMETRY.md.</PackageReleaseNotes>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
@@ -21,6 +21,10 @@
 		<ImplicitUsings>disable</ImplicitUsings>
 		<IncludeSymbols>True</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+		<PackageIcon>icon.jpg</PackageIcon>
 	</PropertyGroup>
 
 	<PropertyGroup>
@@ -49,6 +53,10 @@
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="..\..\Assets\icon.jpg" Pack="true" PackagePath="\" Visible="false" />
 	</ItemGroup>
 
 </Project>

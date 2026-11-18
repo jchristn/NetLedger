@@ -8,9 +8,9 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <DocumentationFile>NetLedger.Sdk.xml</DocumentationFile>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <IncludeSymbols>True</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
